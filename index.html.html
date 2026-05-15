@@ -301,5 +301,219 @@ if(!window.navigator.standalone&&!localStorage.getItem('pwa-dismissed')){
   },2000);
 }
 </script>
+
+<!-- Bottom Nav -->
+<div class="bottom-nav">
+  <button class="nav-btn active" id="navSignal" onclick="showPage('signal')">
+    <span>📈</span><span>訊號</span>
+  </button>
+  <button class="nav-btn" id="navBacktest" onclick="showPage('backtest')">
+    <span>📊</span><span>回測</span>
+  </button>
+</div>
+
+<!-- Backtest Page -->
+<div id="backtestPage" style="display:none">
+  <div class="wrap">
+    <div class="bt-header">
+      <div class="logo">
+        <div class="logo-icon">📊</div>
+        <div>
+          <div class="logo-title">回測分析</div>
+          <div class="logo-sub">BACKTEST ANALYSIS</div>
+        </div>
+      </div>
+      <button class="refresh-btn" onclick="loadBacktest()">↻ 重新載入</button>
+    </div>
+
+    <div class="summary" id="btSummary">
+      <div class="sum-card">
+        <div class="sum-label">總訊號數</div>
+        <div class="sum-val brown" id="btTotal">—</div>
+        <div class="sum-sub">買入訊號累計</div>
+      </div>
+      <div class="sum-card">
+        <div class="sum-label">5日勝率</div>
+        <div class="sum-val green" id="btWinRate">—</div>
+        <div class="sum-sub">上漲比例</div>
+      </div>
+      <div class="sum-card">
+        <div class="sum-label">5日平均報酬</div>
+        <div class="sum-val" id="btAvgReturn">—</div>
+        <div class="sum-sub">平均漲跌幅</div>
+      </div>
+      <div class="sum-card">
+        <div class="sum-label">待確認</div>
+        <div class="sum-val yellow" id="btPending">—</div>
+        <div class="sum-sub">尚未到5天</div>
+      </div>
+    </div>
+
+    <div id="btContent">
+      <div class="state"><div class="spinner"></div><div>載入回測資料...</div></div>
+    </div>
+  </div>
+</div>
+
+<style>
+.bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--card); border-top: 1px solid var(--border);
+  display: flex; z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  box-shadow: 0 -2px 12px var(--shadow);
+}
+.nav-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 3px; padding: 0.7rem 0.5rem; background: transparent; border: none;
+  font-size: 0.65rem; color: var(--text3); cursor: pointer; font-family: inherit;
+  transition: color 0.15s;
+}
+.nav-btn span:first-child { font-size: 1.3rem; }
+.nav-btn.active { color: var(--brown); }
+
+.bt-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1.2rem; padding: 1rem 1.2rem;
+  background: var(--card); border-radius: 18px;
+  box-shadow: 0 2px 12px var(--shadow);
+}
+
+.bt-card {
+  background: var(--card); border-radius: 16px;
+  padding: 1rem 1.1rem; box-shadow: 0 2px 10px var(--shadow);
+  margin-bottom: 8px; border-left: 4px solid transparent;
+}
+.bt-card.win { border-left-color: var(--green); }
+.bt-card.lose { border-left-color: var(--red); }
+.bt-card.pending { border-left-color: var(--text3); }
+
+.bt-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.bt-stock-name { font-size: 0.95rem; font-weight: 700; }
+.bt-stock-code { font-size: 0.65rem; color: var(--text3); margin-top: 2px; }
+.bt-return { font-size: 1.1rem; font-weight: 700; }
+.bt-return.pos { color: var(--red); }
+.bt-return.neg { color: var(--blue); }
+.bt-return.pending { color: var(--text3); font-size: 0.82rem; }
+
+.bt-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; margin-bottom: 6px; }
+.bt-stat { background: var(--card2); border-radius: 8px; padding: 0.4rem 0.5rem; border: 1px solid var(--border); }
+.bt-stat-label { font-size: 0.58rem; color: var(--text3); margin-bottom: 2px; }
+.bt-stat-val { font-size: 0.78rem; font-weight: 500; color: var(--text); }
+
+.bt-signal-date { font-size: 0.65rem; color: var(--text3); }
+</style>
+
+<script>
+function showPage(page) {
+  document.getElementById('navSignal').classList.toggle('active', page==='signal');
+  document.getElementById('navBacktest').classList.toggle('active', page==='backtest');
+  
+  const signalWrap = document.querySelector('.wrap');
+  const btPage = document.getElementById('backtestPage');
+  
+  if (page === 'signal') {
+    signalWrap.style.display = '';
+    btPage.style.display = 'none';
+  } else {
+    signalWrap.style.display = 'none';
+    btPage.style.display = '';
+    loadBacktest();
+  }
+}
+
+async function loadBacktest() {
+  document.getElementById('btContent').innerHTML = '<div class="state"><div class="spinner"></div><div>載入回測資料...</div></div>';
+  
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('訊號歷史')}`;
+  try {
+    const res = await fetch(url);
+    const text = await res.text();
+    const start = text.indexOf('{'); const end = text.lastIndexOf('}');
+    if(start===-1) throw new Error('格式錯誤');
+    const json = JSON.parse(text.slice(start, end+1));
+    const rows = json.table?.rows || [];
+    
+    if (!rows || rows.length < 1) {
+      document.getElementById('btContent').innerHTML = '<div class="state"><div style="font-size:2.5rem;margin-bottom:10px">🌱</div><div>還沒有回測資料<br><small style="font-size:0.75rem">每天收盤後自動記錄買入訊號<br>5天後自動計算報酬率</small></div></div>';
+      return;
+    }
+
+    const g = (c, i, fb='') => c[i] ? (c[i].v !== null && c[i].v !== undefined ? c[i].v : (c[i].f || fb)) : fb;
+
+    const records = rows.map(row => {
+      const c = row.c;
+      const rawDate = String(g(c,0,''));
+      const dm = rawDate.match(/Date\((\d+),(\d+),(\d+)\)/);
+      const date = dm ? dm[1]+'-'+String(parseInt(dm[2])+1).padStart(2,'0')+'-'+String(dm[3]).padStart(2,'0') : rawDate.substring(0,10);
+      return {
+        date, code: String(g(c,1,'')), name: String(g(c,2,'')),
+        signal: String(g(c,3,'')), score: g(c,4,0),
+        entryPrice: g(c,5,0),
+        price5: g(c,6,''), return5: g(c,7,''),
+        price10: g(c,8,''), return10: g(c,9,''),
+      };
+    }).filter(r => r.code);
+
+    // Stats
+    const withReturn = records.filter(r => r.return5 !== '' && r.return5 !== null);
+    const wins = withReturn.filter(r => parseFloat(r.return5) > 0);
+    const pending = records.filter(r => r.return5 === '' || r.return5 === null);
+    const avgReturn = withReturn.length ? (withReturn.reduce((s,r) => s + parseFloat(r.return5), 0) / withReturn.length) : null;
+    const winRate = withReturn.length ? (wins.length / withReturn.length * 100) : null;
+
+    document.getElementById('btTotal').textContent = records.length;
+    document.getElementById('btWinRate').textContent = winRate !== null ? winRate.toFixed(0) + '%' : '—';
+    document.getElementById('btPending').textContent = pending.length;
+    
+    const avgEl = document.getElementById('btAvgReturn');
+    if (avgReturn !== null) {
+      avgEl.textContent = (avgReturn > 0 ? '+' : '') + avgReturn.toFixed(2) + '%';
+      avgEl.className = 'sum-val ' + (avgReturn > 0 ? 'green' : 'red');
+    } else {
+      avgEl.textContent = '—';
+      avgEl.className = 'sum-val brown';
+    }
+
+    // Cards
+    const html = records.slice().reverse().map(r => {
+      const hasReturn = r.return5 !== '' && r.return5 !== null;
+      const ret5 = hasReturn ? parseFloat(r.return5) : null;
+      const cardClass = !hasReturn ? 'pending' : ret5 > 0 ? 'win' : 'lose';
+      const retText = !hasReturn ? '等待中...' : (ret5 > 0 ? '+' : '') + ret5.toFixed(2) + '%';
+      const retClass = !hasReturn ? 'pending' : ret5 > 0 ? 'pos' : 'neg';
+
+      return `<div class="bt-card ${cardClass}">
+        <div class="bt-card-top">
+          <div>
+            <div class="bt-stock-name">${r.name}</div>
+            <div class="bt-stock-code">${r.code} · ${r.date}</div>
+          </div>
+          <div class="bt-return ${retClass}">${retText}</div>
+        </div>
+        <div class="bt-stats">
+          <div class="bt-stat">
+            <div class="bt-stat-label">進場價</div>
+            <div class="bt-stat-val">$${r.entryPrice}</div>
+          </div>
+          <div class="bt-stat">
+            <div class="bt-stat-label">5日後價</div>
+            <div class="bt-stat-val">${r.price5 ? '$'+r.price5 : '—'}</div>
+          </div>
+          <div class="bt-stat">
+            <div class="bt-stat-label">訊號分數</div>
+            <div class="bt-stat-val">${r.score}/12</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('btContent').innerHTML = html || '<div class="state">沒有資料</div>';
+
+  } catch(e) {
+    document.getElementById('btContent').innerHTML = '<div class="state">載入失敗：' + e.message + '</div>';
+  }
+}
+</script>
 </body>
 </html>
