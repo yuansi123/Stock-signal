@@ -54,6 +54,17 @@ header {
 .refresh-btn { background: var(--brown); color: #fff; border: none; border-radius: 20px; padding: 0.35rem 1rem; font-size: 0.73rem; font-weight: 500; cursor: pointer; font-family: inherit; }
 
 .summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 1.2rem; }
+.market-card {
+  background: var(--card); border-radius: 18px;
+  padding: 1rem 1.2rem; margin-bottom: 1.2rem;
+  box-shadow: 0 2px 12px var(--shadow);
+}
+.market-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 8px; }
+.market-item { background: var(--card2); border-radius: 10px; padding: 0.5rem 0.6rem; border: 1px solid var(--border); }
+.market-label { font-size: 0.6rem; color: var(--text3); margin-bottom: 3px; }
+.market-val { font-size: 0.9rem; font-weight: 700; }
+.market-status { margin-top: 8px; font-size: 0.82rem; font-weight: 500; padding: 0.4rem 0.8rem; border-radius: 8px; background: var(--bg2); }
+.market-loading { color: var(--text3); font-size: 0.8rem; }
 .sum-card { background: var(--card); border-radius: 16px; padding: 1rem 1.1rem; box-shadow: 0 2px 10px var(--shadow); }
 .sum-label { font-size: 0.68rem; color: var(--text2); margin-bottom: 4px; }
 .sum-val { font-size: 1.6rem; font-weight: 700; }
@@ -144,27 +155,9 @@ header {
     </div>
   </header>
 
-  <div class="summary">
-    <div class="sum-card">
-      <div class="sum-label">🟢 買入參考</div>
-      <div class="sum-val green" id="cntBuy">—</div>
-      <div class="sum-sub">符合買入條件</div>
-    </div>
-    <div class="sum-card">
-      <div class="sum-label">🟡 觀察中</div>
-      <div class="sum-val yellow" id="cntWatch">—</div>
-      <div class="sum-sub">等待訊號確認</div>
-    </div>
-    <div class="sum-card">
-      <div class="sum-label">🔴 避開</div>
-      <div class="sum-val red" id="cntAvoid">—</div>
-      <div class="sum-sub">法人賣超或過熱</div>
-    </div>
-    <div class="sum-card">
-      <div class="sum-label">✦ 今日最強</div>
-      <div class="sum-val brown" id="topScore">—</div>
-      <div class="sum-sub">最高綜合評分</div>
-    </div>
+  <!-- 大盤雷達 -->
+  <div id="marketRadar" class="market-card">
+    <div class="market-loading">載入大盤資料...</div>
   </div>
 
   <div class="filters">
@@ -206,6 +199,56 @@ function rClass(r) {
   return 'info';
 }
 
+async function loadMarket() {
+  const radar = document.getElementById('marketRadar');
+  if (!radar) return;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('大盤資料')}`;
+  try {
+    const res = await fetch(url);
+    const text = await res.text();
+    const start = text.indexOf('{'); const end = text.lastIndexOf('}');
+    if (start===-1) throw new Error('格式錯誤');
+    const json = JSON.parse(text.slice(start, end+1));
+    const rows = json.table?.rows || [];
+    if (!rows || rows.length < 1) { radar.innerHTML = '<div class="market-loading">大盤資料暫無</div>'; return; }
+    const c = rows[0].c;
+    const g = (i) => c[i] ? (c[i].v !== null && c[i].v !== undefined ? c[i].v : (c[i].f || '')) : '';
+    const updateTime = String(g(0)).substring(0,16);
+    const vix = parseFloat(g(1)) || 0;
+    const twii = parseFloat(g(2)) || 0;
+    const twiiChange = String(g(3));
+    const r1 = parseFloat(g(4)) || 0;
+    const status = String(g(5));
+    const twiiChangeNum = parseFloat(twiiChange) || 0;
+    const twiiColor = twiiChangeNum >= 0 ? 'color:var(--red)' : 'color:var(--blue)';
+    const vixColor = vix > 30 ? 'color:var(--red)' : vix > 20 ? 'color:var(--yellow)' : 'color:var(--green)';
+    const statusBg = status.includes('🔴') ? 'background:#fef0ee' : status.includes('🟡') ? 'background:#fef8ea' : status.includes('🟠') ? 'background:#fff3e0' : 'background:#eaf5ea';
+    radar.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:0.78rem;font-weight:700;color:var(--text)">大盤雷達</div>
+        <div style="font-size:0.6rem;color:var(--text3)">${updateTime}</div>
+      </div>
+      <div class="market-grid">
+        <div class="market-item">
+          <div class="market-label">VIX 恐慌指數</div>
+          <div class="market-val" style="${vixColor}">${vix.toFixed(2)}</div>
+        </div>
+        <div class="market-item">
+          <div class="market-label">台股加權</div>
+          <div class="market-val" style="${twiiColor}">${twii.toFixed(0)}</div>
+        </div>
+        <div class="market-item">
+          <div class="market-label">台股漲跌</div>
+          <div class="market-val" style="${twiiColor}">${twiiChangeNum>=0?'+':''}${twiiChange}</div>
+        </div>
+      </div>
+      <div class="market-status" style="${statusBg}">${status}</div>
+    `;
+  } catch(e) {
+    radar.innerHTML = '<div class="market-loading">大盤資料載入失敗</div>';
+  }
+}
+
 async function loadData() {
   document.getElementById('content').innerHTML = '<div class="state"><div class="spinner"></div><div>載入資料中...</div></div>';
   document.getElementById('errorBox').style.display = 'none';
@@ -224,10 +267,7 @@ async function loadData() {
     const cntWatch=allStocks.filter(s=>s.op.includes('🟡')).length;
     const cntAvoid=allStocks.filter(s=>s.op.includes('🔴')||s.op.includes('⬇️')).length;
     const top=allStocks.length?Math.max(...allStocks.map(s=>s.score)):0;
-    document.getElementById('cntBuy').textContent=cntBuy;
-    document.getElementById('cntWatch').textContent=cntWatch;
-    document.getElementById('cntAvoid').textContent=cntAvoid;
-    document.getElementById('topScore').textContent=top+' 分';
+    // summary stats removed
     const rawDate=String(allStocks[0]?.date||'');const dm=rawDate.match(/Date\((\d+),(\d+),(\d+)\)/);document.getElementById('dateTag').textContent=dm?dm[1]+'-'+String(parseInt(dm[2])+1).padStart(2,'0')+'-'+String(dm[3]).padStart(2,'0'):rawDate.substring(0,10)||'—';
     renderCards();
   } catch(e) { showError('載入失敗：'+e.message+'（請確認 Google Sheet 已設為公開）'); }
@@ -291,6 +331,7 @@ function renderCards() {
 }
 
 loadData();
+loadMarket();
 
 if(!window.navigator.standalone&&!localStorage.getItem('pwa-dismissed')){
   setTimeout(()=>{
