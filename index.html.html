@@ -213,7 +213,12 @@ async function loadMarket() {
     if (!rows || rows.length < 1) { radar.innerHTML = '<div class="market-loading">大盤資料暫無</div>'; return; }
     const c = rows[0].c;
     const g = (i) => c[i] ? (c[i].v !== null && c[i].v !== undefined ? c[i].v : (c[i].f || '')) : '';
-    const updateTime = String(g(0)).substring(0,16);
+    // A欄是純文字日期時間，優先用 .f（格式化值），再試 .v，再解析 Date() 格式
+    const rawUpdateTime = c[0] ? (c[0].f || String(c[0].v || '')) : '';
+    const udm = rawUpdateTime.match(/Date\((\d+),(\d+),(\d+)(?:,\d+(?:,\d+)*)?\)/);
+    const updateTime = udm
+      ? udm[1]+'-'+String(parseInt(udm[2])+1).padStart(2,'0')+'-'+String(udm[3]).padStart(2,'0')
+      : rawUpdateTime.substring(0,16);
     const vix = parseFloat(g(1)) || 0;
     const twii = parseFloat(g(2)) || 0;
     const twiiChange = String(g(3));
