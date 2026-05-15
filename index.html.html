@@ -188,7 +188,7 @@ header {
 const SHEET_ID = '17JrdvcOghYVQpMNjJdd7Jkwu0RxNhkC5eqtIF7NAuIg';
 const SHEET_NAME = '訊號看板';
 let allStocks = [], currentFilter = 'all';
-const COL = {date:0,code:1,name:2,price:3,score:4,volS:5,momS:6,instS:7,concS:8,rsiS:9,kdS:10,instNet:11,streak:12,conc5:13,stockPct:14,rsi:15,kVal:16,dVal:17,abnormal:18,op:19,reasons:20};
+const COL = {date:0,code:1,name:2,op:3,score:4,instNet:5,streak:6,conc5:7,abnormal:8,volS:9,momS:10,instS:11,concS:12,rsiS:13,kdS:14,price:15,rsi:16,kVal:17,dVal:18,reasons:19};
 
 function getOpClass(op) {
   if (!op) return 'neutral';
@@ -228,7 +228,7 @@ async function loadData() {
     document.getElementById('cntWatch').textContent=cntWatch;
     document.getElementById('cntAvoid').textContent=cntAvoid;
     document.getElementById('topScore').textContent=top+' 分';
-    document.getElementById('dateTag').textContent=allStocks[0]?.date||'—';
+    const rawDate=String(allStocks[0]?.date||'');const dm=rawDate.match(/Date\((\d+),(\d+),(\d+)\)/);document.getElementById('dateTag').textContent=dm?dm[1]+'-'+String(parseInt(dm[2])+1).padStart(2,'0')+'-'+String(dm[3]).padStart(2,'0'):rawDate.substring(0,10)||'—';
     renderCards();
   } catch(e) { showError('載入失敗：'+e.message+'（請確認 Google Sheet 已設為公開）'); }
 }
