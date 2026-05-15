@@ -4,225 +4,128 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="訊號看板">
-<meta name="theme-color" content="#1a1510">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%231a1510'/%3E%3Ccircle cx='90' cy='90' r='60' fill='none' stroke='%23c9a96e' stroke-width='5'/%3E%3Cpolyline points='50,115 72,80 95,98 128,58' fill='none' stroke='%23c9a96e' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='128' cy='58' r='7' fill='%23a8c97a'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#f5f0e8">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23f5f0e8'/%3E%3Ccircle cx='90' cy='90' r='55' fill='none' stroke='%23a07850' stroke-width='5'/%3E%3Cpolyline points='52,112 72,78 95,95 128,60' fill='none' stroke='%23a07850' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='128' cy='60' r='7' fill='%2368a06a'/%3E%3C/svg%3E">
 <title>籌碼訊號看板</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #1a1510;
-  --bg2: #211c15;
-  --surface: #2a2318;
-  --surface2: #332b1e;
-  --border: #3d3226;
-  --gold: #c9a96e;
-  --gold-dim: #8a6e42;
-  --green: #a8c97a;
-  --red: #d4756a;
-  --yellow: #d4b86a;
-  --blue: #7aafc9;
-  --text: #e8dcc8;
-  --muted: #7a6a52;
-  --muted2: #2e2619;
+  --bg: #f5f0e8;
+  --bg2: #ede7da;
+  --card: #ffffff;
+  --card2: #faf7f2;
+  --border: #e0d8cc;
+  --brown: #a07850;
+  --brown-light: #c8a878;
+  --brown-dark: #7a5830;
+  --green: #5a9460;
+  --red: #c05848;
+  --yellow: #c08830;
+  --blue: #4878a0;
+  --text: #3a2e20;
+  --text2: #7a6a52;
+  --text3: #b0a090;
+  --shadow: rgba(120,90,60,0.08);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Noto Sans TC', sans-serif;
+  font-family: 'Noto Sans TC', -apple-system, sans-serif;
   min-height: 100vh;
-  padding: env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);
+  padding: env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,80px);
 }
+.wrap { max-width: 640px; margin: 0 auto; padding: 1.2rem 1rem 2rem; }
 
-/* Subtle texture */
-body::before {
-  content: '';
-  position: fixed; inset: 0;
-  background-image:
-    radial-gradient(circle at 20% 20%, rgba(201,169,110,0.04) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(168,201,122,0.03) 0%, transparent 50%);
-  pointer-events: none; z-index: 0;
-}
-
-.wrap { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 4rem; position: relative; z-index: 1; }
-
-/* Header */
 header {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 1.8rem; flex-wrap: wrap; gap: 10px;
-  padding-bottom: 1.2rem;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.2rem; padding: 1rem 1.2rem;
+  background: var(--card); border-radius: 18px;
+  box-shadow: 0 2px 12px var(--shadow);
 }
 .logo { display: flex; align-items: center; gap: 10px; }
-.logo-icon {
-  width: 36px; height: 36px; border-radius: 10px;
-  background: var(--surface2); border: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.1rem;
-}
-.logo-text {}
-.logo-title { font-family: 'DM Mono', monospace; font-size: 1.1rem; letter-spacing: 0.08em; color: var(--gold); }
-.logo-sub { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.05em; margin-top: 1px; }
-.header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.date-tag {
-  font-family: 'DM Mono', monospace; font-size: 0.68rem;
-  color: var(--muted); background: var(--surface);
-  border: 1px solid var(--border); border-radius: 6px;
-  padding: 0.28rem 0.65rem;
-}
-.refresh-btn {
-  background: var(--gold); color: var(--bg); border: none;
-  border-radius: 7px; padding: 0.4rem 0.9rem;
-  font-family: 'DM Mono', monospace; font-size: 0.73rem;
-  font-weight: 700; cursor: pointer; transition: opacity 0.2s;
-  letter-spacing: 0.03em;
-}
-.refresh-btn:hover { opacity: 0.8; }
+.logo-icon { width: 40px; height: 40px; border-radius: 12px; background: var(--bg2); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.logo-title { font-size: 1rem; font-weight: 700; color: var(--text); }
+.logo-sub { font-size: 0.6rem; color: var(--text3); margin-top: 1px; letter-spacing: 0.05em; }
+.header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.date-tag { font-size: 0.65rem; color: var(--text3); }
+.refresh-btn { background: var(--brown); color: #fff; border: none; border-radius: 20px; padding: 0.35rem 1rem; font-size: 0.73rem; font-weight: 500; cursor: pointer; font-family: inherit; }
 
-/* Summary */
-.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 1.4rem; }
-.sum-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; padding: 0.85rem 1rem;
-}
-.sum-label { font-size: 0.64rem; color: var(--muted); letter-spacing: 0.06em; font-family: 'DM Mono', monospace; margin-bottom: 5px; }
-.sum-val { font-family: 'DM Mono', monospace; font-size: 1.4rem; font-weight: 500; }
+.summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 1.2rem; }
+.sum-card { background: var(--card); border-radius: 16px; padding: 1rem 1.1rem; box-shadow: 0 2px 10px var(--shadow); }
+.sum-label { font-size: 0.68rem; color: var(--text2); margin-bottom: 4px; }
+.sum-val { font-size: 1.6rem; font-weight: 700; }
 .sum-val.green { color: var(--green); }
 .sum-val.yellow { color: var(--yellow); }
 .sum-val.red { color: var(--red); }
-.sum-val.gold { color: var(--gold); }
+.sum-val.brown { color: var(--brown); }
+.sum-sub { font-size: 0.6rem; color: var(--text3); margin-top: 2px; }
 
-/* Filters */
-.filters { display: flex; gap: 6px; margin-bottom: 1rem; flex-wrap: wrap; }
-.filter-btn {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 6px; padding: 0.3rem 0.8rem;
-  font-size: 0.72rem; color: var(--muted); cursor: pointer;
-  transition: all 0.18s; font-family: 'DM Mono', monospace;
-  letter-spacing: 0.03em;
-}
-.filter-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
-.filter-btn.active { background: rgba(201,169,110,0.1); border-color: var(--gold); color: var(--gold); }
+.filters { display: flex; gap: 6px; margin-bottom: 1rem; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.filters::-webkit-scrollbar { display: none; }
+.filter-btn { background: var(--card); border: 1.5px solid var(--border); border-radius: 20px; padding: 0.3rem 0.85rem; font-size: 0.72rem; color: var(--text2); cursor: pointer; white-space: nowrap; font-family: inherit; box-shadow: 0 1px 4px var(--shadow); transition: all 0.15s; }
+.filter-btn.active { background: var(--brown); border-color: var(--brown); color: #fff; }
 
-/* Search */
-.search-row { margin-bottom: 1.2rem; }
-.search-input {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 8px; padding: 0.55rem 1rem;
-  color: var(--text); font-family: 'DM Mono', monospace;
-  font-size: 0.82rem; outline: none;
-  width: 100%; max-width: 280px;
-  transition: border-color 0.2s;
-}
-.search-input:focus { border-color: var(--gold-dim); }
-.search-input::placeholder { color: var(--muted); }
+.search-wrap { position: relative; margin-bottom: 1rem; }
+.search-input { background: var(--card); border: 1.5px solid var(--border); border-radius: 12px; padding: 0.6rem 1rem 0.6rem 2.5rem; color: var(--text); font-size: 0.85rem; outline: none; width: 100%; font-family: inherit; box-shadow: 0 1px 6px var(--shadow); }
+.search-input:focus { border-color: var(--brown-light); }
+.search-input::placeholder { color: var(--text3); }
+.search-icon { position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%); font-size: 0.85rem; color: var(--text3); }
 
-/* Cards */
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; }
+.error-box { background: #fff5f5; border: 1.5px solid #f0c0b8; border-radius: 12px; padding: 0.9rem 1rem; color: var(--red); font-size: 0.8rem; margin-bottom: 1rem; line-height: 1.6; }
 
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 1.1rem 1.2rem;
-  transition: transform 0.15s, box-shadow 0.15s, border-color 0.2s;
-  animation: fadeUp 0.35s ease both;
-}
-.card:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,0.4); }
-.card.op-buy { border-color: rgba(168,201,122,0.35); background: linear-gradient(135deg, var(--surface) 0%, rgba(168,201,122,0.04) 100%); }
-.card.op-watch { border-color: rgba(212,184,106,0.3); background: linear-gradient(135deg, var(--surface) 0%, rgba(212,184,106,0.03) 100%); }
-.card.op-avoid { border-color: rgba(212,117,106,0.3); }
-.card.op-bear { border-color: rgba(100,90,80,0.3); }
+.cards { display: flex; flex-direction: column; gap: 10px; }
+.card { background: var(--card); border-radius: 18px; padding: 1.1rem 1.2rem; box-shadow: 0 2px 12px var(--shadow); border-left: 4px solid transparent; animation: fadeUp 0.3s ease both; }
+.card.op-buy   { border-left-color: var(--green); }
+.card.op-watch { border-left-color: var(--yellow); }
+.card.op-avoid { border-left-color: var(--red); }
+.card.op-bear  { border-left-color: var(--text3); }
+@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 
-@keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.stock-name { font-size: 1.05rem; font-weight: 700; }
+.stock-code { font-size: 0.68rem; color: var(--text3); margin-top: 2px; }
+.price { font-size: 1.1rem; font-weight: 700; color: var(--brown-dark); }
 
-/* Card top */
-.card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
-.stock-name { font-weight: 700; font-size: 1.05rem; color: var(--text); }
-.stock-code { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
-.price { font-family: 'DM Mono', monospace; font-size: 1.15rem; font-weight: 500; color: var(--gold); }
+.op-badge { display: inline-flex; align-items: center; font-size: 0.72rem; font-weight: 500; padding: 0.22rem 0.65rem; border-radius: 20px; margin-bottom: 10px; }
+.op-badge.buy   { background: #eaf5ea; color: var(--green); }
+.op-badge.watch { background: #fef8ea; color: var(--yellow); }
+.op-badge.avoid { background: #fef0ee; color: var(--red); }
+.op-badge.bear  { background: var(--bg2); color: var(--text2); }
+.op-badge.neutral { background: var(--bg2); color: var(--text2); }
 
-/* Score */
-.score-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.score-bar-bg { flex: 1; height: 4px; background: var(--muted2); border-radius: 2px; overflow: hidden; }
-.score-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
-.score-num { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
+.score-section { margin-bottom: 10px; }
+.score-top { display: flex; justify-content: space-between; margin-bottom: 5px; }
+.score-text { font-size: 0.68rem; color: var(--text2); }
+.score-num { font-size: 0.68rem; font-weight: 700; color: var(--brown); }
+.score-bar-bg { height: 6px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
+.score-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s; }
 
-/* Op badge */
-.op-badge {
-  display: inline-block; font-size: 0.71rem;
-  font-family: 'DM Mono', monospace; padding: 0.2rem 0.6rem;
-  border-radius: 5px; margin-bottom: 10px; font-weight: 500;
-  letter-spacing: 0.02em;
-}
-.op-badge.buy { background: rgba(168,201,122,0.12); color: var(--green); border: 1px solid rgba(168,201,122,0.25); }
-.op-badge.watch { background: rgba(212,184,106,0.1); color: var(--yellow); border: 1px solid rgba(212,184,106,0.22); }
-.op-badge.avoid { background: rgba(212,117,106,0.1); color: var(--red); border: 1px solid rgba(212,117,106,0.2); }
-.op-badge.bear { background: rgba(100,90,80,0.15); color: #9a8a76; border: 1px solid rgba(100,90,80,0.25); }
-.op-badge.neutral { background: var(--muted2); color: var(--muted); border: 1px solid var(--border); }
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+.stat-box { background: var(--card2); border-radius: 10px; padding: 0.5rem 0.6rem; border: 1px solid var(--border); }
+.stat-label { font-size: 0.6rem; color: var(--text3); margin-bottom: 3px; }
+.stat-val { font-size: 0.82rem; font-weight: 500; }
+.stat-val.pos { color: var(--red); }
+.stat-val.neg { color: var(--blue); }
+.stat-val.neu { color: var(--text); }
 
-/* Mini stats */
-.mini-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-bottom: 10px; }
-.mini-stat { background: var(--muted2); border-radius: 7px; padding: 0.38rem 0.5rem; }
-.mini-label { font-size: 0.58rem; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 2px; }
-.mini-val { font-size: 0.79rem; font-family: 'DM Mono', monospace; }
-.mini-val.pos { color: var(--red); }
-.mini-val.neg { color: var(--blue); }
-.mini-val.neu { color: var(--text); }
+.breakdown { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.pip { font-size: 0.62rem; padding: 0.13rem 0.45rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg2); color: var(--text3); }
+.pip.on { background: #f5ede0; color: var(--brown); border-color: var(--brown-light); font-weight: 600; }
 
-/* Score breakdown */
-.score-breakdown { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
-.score-pip {
-  font-size: 0.62rem; font-family: 'DM Mono', monospace;
-  padding: 0.12rem 0.4rem; border-radius: 3px;
-  background: var(--muted2); color: var(--muted);
-  border: 1px solid var(--border);
-}
-.score-pip.on { background: rgba(201,169,110,0.12); color: var(--gold); border-color: rgba(201,169,110,0.25); }
+.reasons { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 8px; border-top: 1px solid var(--border); }
+.rtag { font-size: 0.62rem; padding: 0.12rem 0.42rem; border-radius: 6px; background: var(--bg2); color: var(--text2); }
+.rtag.good { background: #eaf5ea; color: var(--green); }
+.rtag.warn { background: #fef0ee; color: var(--red); }
+.rtag.info { background: #f5ede0; color: var(--brown); }
 
-/* Reasons */
-.reasons { border-top: 1px solid var(--border); padding-top: 8px; display: flex; flex-wrap: wrap; gap: 3px; }
-.rtag {
-  font-size: 0.65rem; font-family: 'DM Mono', monospace;
-  padding: 0.1rem 0.38rem; border-radius: 3px;
-  background: var(--muted2); color: var(--muted);
-}
-.rtag.good { background: rgba(168,201,122,0.09); color: var(--green); }
-.rtag.warn { background: rgba(212,117,106,0.09); color: var(--red); }
-.rtag.info { background: rgba(201,169,110,0.08); color: var(--gold-dim); }
-
-/* States */
-.state { text-align: center; padding: 5rem 1rem; color: var(--muted); }
-.spinner {
-  width: 28px; height: 28px; border-radius: 50%;
-  border: 2px solid var(--border); border-top-color: var(--gold);
-  animation: spin 0.7s linear infinite; margin: 0 auto 12px;
-}
+.state { text-align: center; padding: 4rem 1rem; color: var(--text3); font-size: 0.85rem; }
+.spinner { width: 28px; height: 28px; border-radius: 50%; border: 2.5px solid var(--border); border-top-color: var(--brown); animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.error-box {
-  background: rgba(212,117,106,0.08); border: 1px solid rgba(212,117,106,0.2);
-  border-radius: 10px; padding: 1rem 1.2rem; color: var(--red);
-  font-size: 0.82rem; margin-bottom: 1rem; line-height: 1.6;
-}
 
-/* PWA hint */
-#pwa-hint {
-  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-  background: var(--surface2); border: 1px solid var(--gold-dim);
-  border-radius: 14px; padding: 0.9rem 1.2rem;
-  font-size: 0.76rem; color: var(--text);
-  max-width: 320px; width: 90%;
-  z-index: 999; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-  display: flex; align-items: center; gap: 10px;
-  animation: fadeUp 0.4s ease;
-}
-
-@media (max-width: 600px) {
-  .summary { grid-template-columns: repeat(2, 1fr); }
-  .cards { grid-template-columns: 1fr; }
-}
+#pwa-hint { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--brown-dark); color: #fff; border-radius: 14px; padding: 0.85rem 1.1rem; font-size: 0.76rem; max-width: 320px; width: 90%; z-index: 999; box-shadow: 0 8px 24px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px; animation: fadeUp 0.4s ease; }
 </style>
 </head>
 <body>
@@ -230,13 +133,13 @@ header {
   <header>
     <div class="logo">
       <div class="logo-icon">📈</div>
-      <div class="logo-text">
+      <div>
         <div class="logo-title">籌碼訊號看板</div>
         <div class="logo-sub">INSTITUTIONAL SIGNAL TRACKER</div>
       </div>
     </div>
     <div class="header-right">
-      <span class="date-tag" id="dateTag">— 載入中</span>
+      <span class="date-tag" id="dateTag">載入中...</span>
       <button class="refresh-btn" onclick="loadData()">↻ 重新載入</button>
     </div>
   </header>
@@ -245,18 +148,22 @@ header {
     <div class="sum-card">
       <div class="sum-label">🟢 買入參考</div>
       <div class="sum-val green" id="cntBuy">—</div>
+      <div class="sum-sub">符合買入條件</div>
     </div>
     <div class="sum-card">
       <div class="sum-label">🟡 觀察中</div>
       <div class="sum-val yellow" id="cntWatch">—</div>
+      <div class="sum-sub">等待訊號確認</div>
     </div>
     <div class="sum-card">
       <div class="sum-label">🔴 避開</div>
       <div class="sum-val red" id="cntAvoid">—</div>
+      <div class="sum-sub">法人賣超或過熱</div>
     </div>
     <div class="sum-card">
-      <div class="sum-label">✦ 總分最高</div>
-      <div class="sum-val gold" id="topScore">—</div>
+      <div class="sum-label">✦ 今日最強</div>
+      <div class="sum-val brown" id="topScore">—</div>
+      <div class="sum-sub">最高綜合評分</div>
     </div>
   </div>
 
@@ -268,26 +175,20 @@ header {
     <button class="filter-btn" onclick="setFilter('bear',this)">⬇️ 空頭</button>
   </div>
 
-  <div class="search-row">
-    <input class="search-input" id="searchInput" placeholder="搜尋名稱或代號..." oninput="renderCards()">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input class="search-input" id="searchInput" placeholder="搜尋股票名稱或代號..." oninput="renderCards()">
   </div>
 
   <div id="errorBox" class="error-box" style="display:none"></div>
-  <div id="content"><div class="state"><div class="spinner"></div><div style="font-size:0.82rem">載入資料中...</div></div></div>
+  <div id="content"><div class="state"><div class="spinner"></div><div>載入資料中...</div></div></div>
 </div>
 
 <script>
 const SHEET_ID = '17JrdvcOghYVQpMNjJdd7Jkwu0RxNhkC5eqtIF7NAuIg';
 const SHEET_NAME = '訊號看板';
-let allStocks = [];
-let currentFilter = 'all';
-
-const COL = {
-  date:0,code:1,name:2,price:3,score:4,
-  volS:5,momS:6,instS:7,concS:8,rsiS:9,kdS:10,
-  instNet:11,streak:12,conc5:13,stockPct:14,
-  rsi:15,kVal:16,dVal:17,abnormal:18,op:19,reasons:20
-};
+let allStocks = [], currentFilter = 'all';
+const COL = {date:0,code:1,name:2,price:3,score:4,volS:5,momS:6,instS:7,concS:8,rsiS:9,kdS:10,instNet:11,streak:12,conc5:13,stockPct:14,rsi:15,kVal:16,dVal:17,abnormal:18,op:19,reasons:20};
 
 function getOpClass(op) {
   if (!op) return 'neutral';
@@ -297,19 +198,8 @@ function getOpClass(op) {
   if (op.includes('🔴')) return 'avoid';
   return 'neutral';
 }
-
-function getBarColor(score, max) {
-  const p = score/max;
-  if (p>=0.75) return '#a8c97a';
-  if (p>=0.5)  return '#d4b86a';
-  if (p>=0.25) return '#c9a96e';
-  return '#4a3d2a';
-}
-
-function parseReasons(str) {
-  return (str||'').split('|').map(s=>s.trim()).filter(Boolean);
-}
-
+function getBarColor(s,m) { const p=s/m; return p>=0.75?'#5a9460':p>=0.5?'#c08830':p>=0.25?'#a07850':'#d0c8bc'; }
+function parseReasons(str) { return (str||'').split('|').map(s=>s.trim()).filter(Boolean); }
 function rClass(r) {
   if (/站上|買超|甜蜜|連買|放大|多頭|新高|外資連/.test(r)) return 'good';
   if (/賣|縮量|空頭|過熱|超買/.test(r)) return 'warn';
@@ -317,175 +207,98 @@ function rClass(r) {
 }
 
 async function loadData() {
-  document.getElementById('content').innerHTML = '<div class="state"><div class="spinner"></div><div style="font-size:0.82rem">載入資料中...</div></div>';
+  document.getElementById('content').innerHTML = '<div class="state"><div class="spinner"></div><div>載入資料中...</div></div>';
   document.getElementById('errorBox').style.display = 'none';
-
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
   try {
     const res = await fetch(url);
     const text = await res.text();
-    const json = JSON.parse(text.replace(/^.*?\(/, '').replace(/\);?\s*$/, ''));
+    const json = JSON.parse(text.replace(/^.*?\(/,'').replace(/\);?\s*$/,''));
     const rows = json.table.rows;
-    if (!rows || rows.length < 2) { showError('Google Sheet 沒有資料，請先執行 Apps Script！'); return; }
-
+    if (!rows||rows.length<2) { showError('Google Sheet 沒有資料，請先執行 Apps Script！'); return; }
     allStocks = rows.slice(1).map(row => {
-      const c = row.c;
-      const g = (i, fallback='') => c[i] ? (c[i].v !== null && c[i].v !== undefined ? c[i].v : (c[i].f || fallback)) : fallback;
-      return {
-        date: String(g(COL.date,'')),
-        code: String(g(COL.code,'')),
-        name: String(g(COL.name,'')),
-        price: g(COL.price,0),
-        score: Number(g(COL.score,0)),
-        volS: Number(g(COL.volS,0)),
-        momS: Number(g(COL.momS,0)),
-        instS: Number(g(COL.instS,0)),
-        concS: Number(g(COL.concS,0)),
-        rsiS: Number(g(COL.rsiS,0)),
-        kdS: Number(g(COL.kdS,0)),
-        instNet: Number(g(COL.instNet,0)),
-        streak: Number(g(COL.streak,0)),
-        conc5: String(g(COL.conc5,'')),
-        rsi: String(g(COL.rsi,'')),
-        kVal: String(g(COL.kVal,'')),
-        dVal: String(g(COL.dVal,'')),
-        abnormal: String(g(COL.abnormal,'')),
-        op: String(g(COL.op,'')),
-        reasons: String(g(COL.reasons,'')),
-      };
-    }).filter(s => s.code);
-
-    const cntBuy   = allStocks.filter(s=>s.op.includes('🟢')).length;
-    const cntWatch = allStocks.filter(s=>s.op.includes('🟡')).length;
-    const cntAvoid = allStocks.filter(s=>s.op.includes('🔴')||s.op.includes('⬇️')).length;
-    const top = allStocks.length ? Math.max(...allStocks.map(s=>s.score)) : 0;
-
-    document.getElementById('cntBuy').textContent   = cntBuy;
-    document.getElementById('cntWatch').textContent = cntWatch;
-    document.getElementById('cntAvoid').textContent = cntAvoid;
-    document.getElementById('topScore').textContent = top + ' 分';
-    document.getElementById('dateTag').textContent  = allStocks[0]?.date || '—';
-
+      const c=row.c; const g=(i,fb='')=>c[i]?(c[i].v!==null&&c[i].v!==undefined?c[i].v:(c[i].f||fb)):fb;
+      return {date:String(g(COL.date,'')),code:String(g(COL.code,'')),name:String(g(COL.name,'')),price:g(COL.price,0),score:Number(g(COL.score,0)),volS:Number(g(COL.volS,0)),momS:Number(g(COL.momS,0)),instS:Number(g(COL.instS,0)),concS:Number(g(COL.concS,0)),rsiS:Number(g(COL.rsiS,0)),kdS:Number(g(COL.kdS,0)),instNet:Number(g(COL.instNet,0)),streak:Number(g(COL.streak,0)),conc5:String(g(COL.conc5,'')),rsi:String(g(COL.rsi,'')),kVal:String(g(COL.kVal,'')),dVal:String(g(COL.dVal,'')),abnormal:String(g(COL.abnormal,'')),op:String(g(COL.op,'')),reasons:String(g(COL.reasons,''))};
+    }).filter(s=>s.code);
+    const cntBuy=allStocks.filter(s=>s.op.includes('🟢')).length;
+    const cntWatch=allStocks.filter(s=>s.op.includes('🟡')).length;
+    const cntAvoid=allStocks.filter(s=>s.op.includes('🔴')||s.op.includes('⬇️')).length;
+    const top=allStocks.length?Math.max(...allStocks.map(s=>s.score)):0;
+    document.getElementById('cntBuy').textContent=cntBuy;
+    document.getElementById('cntWatch').textContent=cntWatch;
+    document.getElementById('cntAvoid').textContent=cntAvoid;
+    document.getElementById('topScore').textContent=top+' 分';
+    document.getElementById('dateTag').textContent=allStocks[0]?.date||'—';
     renderCards();
-  } catch(e) {
-    showError('載入失敗：' + e.message + '（請確認 Google Sheet 已設為公開）');
-  }
+  } catch(e) { showError('載入失敗：'+e.message+'（請確認 Google Sheet 已設為公開）'); }
 }
 
 function showError(msg) {
-  document.getElementById('errorBox').textContent = '⚠ ' + msg;
-  document.getElementById('errorBox').style.display = 'block';
-  document.getElementById('content').innerHTML = '';
+  document.getElementById('errorBox').textContent='⚠ '+msg;
+  document.getElementById('errorBox').style.display='block';
+  document.getElementById('content').innerHTML='';
 }
 
-function setFilter(f, el) {
-  currentFilter = f;
+function setFilter(f,el) {
+  currentFilter=f;
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active');
-  renderCards();
+  el.classList.add('active'); renderCards();
 }
 
 function renderCards() {
-  const q = document.getElementById('searchInput').value.trim().toLowerCase();
-  const MAX = 12;
-
-  let list = allStocks.filter(s => {
-    if (q && !s.name.toLowerCase().includes(q) && !s.code.includes(q)) return false;
-    if (currentFilter==='buy')   return s.op.includes('🟢');
-    if (currentFilter==='watch') return s.op.includes('🟡');
-    if (currentFilter==='avoid') return s.op.includes('🔴');
-    if (currentFilter==='bear')  return s.op.includes('⬇️');
+  const q=document.getElementById('searchInput').value.trim().toLowerCase();
+  const MAX=12;
+  let list=allStocks.filter(s=>{
+    if(q&&!s.name.toLowerCase().includes(q)&&!s.code.includes(q)) return false;
+    if(currentFilter==='buy') return s.op.includes('🟢');
+    if(currentFilter==='watch') return s.op.includes('🟡');
+    if(currentFilter==='avoid') return s.op.includes('🔴');
+    if(currentFilter==='bear') return s.op.includes('⬇️');
     return true;
   });
-
-  if (!list.length) {
-    document.getElementById('content').innerHTML = '<div class="state"><div style="font-size:2rem;margin-bottom:10px">🌾</div><div>沒有符合條件的股票</div></div>';
-    return;
-  }
-
-  const scoreLabels = ['量能','動能','法人','集中','RSI','KD'];
-  const scoreVals   = ['volS','momS','instS','concS','rsiS','kdS'];
-  const scoreMax    = [2,3,3,2,1,1];
-
-  const html = list.map((s,i) => {
-    const opClass = getOpClass(s.op);
-    const barPct  = Math.min(s.score/MAX*100,100);
-    const barColor = getBarColor(s.score, MAX);
-    const pos = s.instNet > 0;
-    const reasons = parseReasons(s.reasons);
-
-    const pips = scoreLabels.map((lbl,j) => {
-      const val = s[scoreVals[j]];
-      const on  = val > 0;
-      return `<span class="score-pip ${on?'on':''}">${lbl}${val}</span>`;
-    }).join('');
-
-    return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*0.035,0.5)}s">
-      <div class="card-top">
-        <div>
-          <div class="stock-name">${s.name}</div>
-          <div class="stock-code">${s.code}</div>
-        </div>
-        <div class="price">${s.price}</div>
+  if(!list.length){document.getElementById('content').innerHTML='<div class="state"><div style="font-size:2.5rem;margin-bottom:10px">🌾</div><div>沒有符合條件的股票</div></div>';return;}
+  const pipDefs=[{label:'量能',key:'volS',max:2},{label:'動能',key:'momS',max:3},{label:'法人',key:'instS',max:3},{label:'集中',key:'concS',max:2},{label:'RSI',key:'rsiS',max:1},{label:'KD',key:'kdS',max:1}];
+  const html=list.map((s,i)=>{
+    const opClass=getOpClass(s.op);
+    const barPct=Math.min(s.score/MAX*100,100);
+    const barColor=getBarColor(s.score,MAX);
+    const pos=s.instNet>0;
+    const reasons=parseReasons(s.reasons);
+    const pips=pipDefs.map(p=>`<span class="pip ${s[p.key]>0?'on':''}">${p.label} ${s[p.key]}/${p.max}</span>`).join('');
+    return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*0.04,0.6)}s">
+      <div class="card-header">
+        <div><div class="stock-name">${s.name}</div><div class="stock-code">${s.code}</div></div>
+        <div class="price">$${s.price}</div>
       </div>
-
-      <div class="score-row">
-        <div class="score-bar-bg">
-          <div class="score-bar-fill" style="width:${barPct}%;background:${barColor}"></div>
-        </div>
-        <div class="score-num">${s.score}/${MAX}</div>
-      </div>
-
       <div class="op-badge ${opClass}">${s.op||'－'}</div>
-
-      <div class="mini-stats">
-        <div class="mini-stat">
-          <div class="mini-label">法人(張)</div>
-          <div class="mini-val ${pos?'pos':'neg'}">${pos?'+':''}${s.instNet}</div>
-        </div>
-        <div class="mini-stat">
-          <div class="mini-label">連買天</div>
-          <div class="mini-val neu">${s.streak}天</div>
-        </div>
-        <div class="mini-stat">
-          <div class="mini-label">五日集中</div>
-          <div class="mini-val neu">${s.conc5}</div>
-        </div>
-        <div class="mini-stat">
-          <div class="mini-label">RSI</div>
-          <div class="mini-val neu">${s.rsi}</div>
-        </div>
-        <div class="mini-stat">
-          <div class="mini-label">K / D</div>
-          <div class="mini-val neu">${s.kVal}/${s.dVal}</div>
-        </div>
-        <div class="mini-stat">
-          <div class="mini-label">異常倍數</div>
-          <div class="mini-val neu">${s.abnormal}</div>
-        </div>
+      <div class="score-section">
+        <div class="score-top"><span class="score-text">綜合評分</span><span class="score-num">${s.score} / ${MAX} 分</span></div>
+        <div class="score-bar-bg"><div class="score-bar-fill" style="width:${barPct}%;background:${barColor}"></div></div>
       </div>
-
-      <div class="score-breakdown">${pips}</div>
-
-      <div class="reasons">
-        ${reasons.map(r=>`<span class="rtag ${rClass(r)}">${r}</span>`).join('')}
+      <div class="stats-grid">
+        <div class="stat-box"><div class="stat-label">法人淨買(張)</div><div class="stat-val ${pos?'pos':'neg'}">${pos?'+':''}${s.instNet}</div></div>
+        <div class="stat-box"><div class="stat-label">連續買超</div><div class="stat-val neu">${s.streak} 天</div></div>
+        <div class="stat-box"><div class="stat-label">五日集中%</div><div class="stat-val neu">${s.conc5}</div></div>
+        <div class="stat-box"><div class="stat-label">RSI(14)</div><div class="stat-val neu">${s.rsi}</div></div>
+        <div class="stat-box"><div class="stat-label">K / D</div><div class="stat-val neu">${s.kVal}/${s.dVal}</div></div>
+        <div class="stat-box"><div class="stat-label">異常倍數</div><div class="stat-val neu">${s.abnormal}</div></div>
       </div>
+      <div class="breakdown">${pips}</div>
+      <div class="reasons">${reasons.map(r=>`<span class="rtag ${rClass(r)}">${r}</span>`).join('')}</div>
     </div>`;
   }).join('');
-
-  document.getElementById('content').innerHTML = `<div class="cards">${html}</div>`;
+  document.getElementById('content').innerHTML=`<div class="cards">${html}</div>`;
 }
 
 loadData();
 
-// PWA hint
-if (!window.navigator.standalone && !localStorage.getItem('pwa-dismissed')) {
-  setTimeout(() => {
-    const el = document.createElement('div');
-    el.id = 'pwa-hint';
-    el.innerHTML = `<div style="flex:1">📲 Safari <strong style="color:#c9a96e">分享 □↑</strong> → <strong style="color:#c9a96e">加入主畫面</strong>，像 App 使用</div><button onclick="this.parentElement.remove();localStorage.setItem('pwa-dismissed','1')" style="background:transparent;border:none;color:#7a6a52;font-size:1.1rem;cursor:pointer">✕</button>`;
+if(!window.navigator.standalone&&!localStorage.getItem('pwa-dismissed')){
+  setTimeout(()=>{
+    const el=document.createElement('div');
+    el.id='pwa-hint';
+    el.innerHTML=`<div style="flex:1">📲 Safari <strong>分享 □↑</strong> → <strong>加入主畫面</strong>，像 App 使用</div><button onclick="this.parentElement.remove();localStorage.setItem('pwa-dismissed','1')" style="background:transparent;border:none;color:rgba(255,255,255,0.6);font-size:1.1rem;cursor:pointer;flex-shrink:0">✕</button>`;
     document.body.appendChild(el);
-  }, 2000);
+  },2000);
 }
 </script>
 </body>
