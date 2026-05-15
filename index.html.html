@@ -213,7 +213,7 @@ async function loadData() {
   try {
     const res = await fetch(url);
     const text = await res.text();
-    const json = JSON.parse(text.replace(/^.*?\(/,'').replace(/\);?\s*$/,''));
+    const start = text.indexOf('{'); const end = text.lastIndexOf('}'); if(start===-1) throw new Error('格式錯誤'); const json = JSON.parse(text.slice(start, end+1));
     const rows = json.table.rows;
     if (!rows||rows.length<2) { showError('Google Sheet 沒有資料，請先執行 Apps Script！'); return; }
     allStocks = rows.slice(1).map(row => {
