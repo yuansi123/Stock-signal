@@ -614,7 +614,15 @@ function renderCards() {
       <div class="stats-grid">
         <div class="stat-box"><div class="stat-label">法人淨買(張)</div><div class="stat-val ${pos?'pos':'neg'}">${pos?'+':''}${s.instNet}</div></div>
         <div class="stat-box"><div class="stat-label">連續買超</div><div class="stat-val neu">${s.streak} 天</div></div>
-        <div class="stat-box"><div class="stat-label">五日集中%</div><div class="stat-val neu">${s.conc5}</div></div>
+        <div class="stat-box">
+  <div class="stat-label">五日集中%</div>
+  <div class="stat-val ${parseFloat(s.conc5)>=2&&parseFloat(s.conc5)<=6?'pos':parseFloat(s.conc5)>12?'neg':'neu'}">
+    ${parseFloat(s.conc5).toFixed(1)}%
+  </div>
+  <div style="font-size:0.62rem;color:var(--text3);margin-top:2px">
+    ${parseFloat(s.conc5)<1?'極低':parseFloat(s.conc5)<=2?'偏低':parseFloat(s.conc5)<=6?'甜蜜區':parseFloat(s.conc5)<=12?'偏高':'過熱⚠️'}
+  </div>
+</div>
         <div class="stat-box"><div class="stat-label">RSI(14)</div><div class="stat-val neu">${s.rsi}</div></div>
         <div class="stat-box"><div class="stat-label">K / D</div><div class="stat-val neu">${s.kVal}/${s.dVal}</div></div>
         <div class="stat-box"><div class="stat-label">異常倍數</div><div class="stat-val neu">${s.abnormal}</div></div>
