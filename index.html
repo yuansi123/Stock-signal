@@ -687,12 +687,6 @@ async function loadSector() {
 async function loadBacktest() {
   document.getElementById('btContent').innerHTML = '<div class="state"><div class="spinner"></div><div>載入回測資料...</div></div>';
 
-  // 欄位定義（對應 updateReturns 寫入順序）
-  // A=0訊號日期 B=1代號 C=2名稱 D=3訊號 E=4總分
-  // F=5當日收盤 G=6隔日開盤(進場) H=7 1日報酬% I=8 3日後收盤 J=9 3日報酬%
-  const COL_DATE=0, COL_CODE=1, COL_NAME=2, COL_SCORE=4;
-  const COL_CLOSE=5, COL_OPEN=6, COL_R1=7, COL_P3=8, COL_R3=9;
-
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('訊號歷史')}`;
   try {
     const res = await fetch(url);
@@ -703,132 +697,160 @@ async function loadBacktest() {
     const rows = json.table?.rows || [];
 
     if (!rows || rows.length < 1) {
-      document.getElementById('btContent').innerHTML = '<div class="state"><div style="font-size:2.5rem;margin-bottom:10px">🌱</div><div>還沒有回測資料<br><small style="font-size:0.75rem">每天收盤後自動記錄買入訊號<br>隔日自動計算報酬率</small></div></div>';
+      document.getElementById('btContent').innerHTML = '<div class="state"><div style="font-size:2.5rem;margin-bottom:10px">🌱</div><div>還沒有回測資料</div></div>';
       return;
     }
 
-    const g = (c, i, fb='') => {
-      if (!c || i >= c.length || !c[i]) return fb;
-      const v = c[i].v;
-      return (v !== null && v !== undefined) ? v : (c[i].f || fb);
-    };
-
-    const parseNum = (v) => {
-      if (v === '' || v === null || v === undefined) return null;
-      const n = parseFloat(v);
-      return isNaN(n) ? null : n;
-    };
+    const g = (c,i,fb='') => { if(!c||i>=c.length||!c[i]) return fb; const v=c[i].v; return (v!==null&&v!==undefined)?v:(c[i].f||fb); };
+    const parseNum = v => { if(v===''||v===null||v===undefined) return null; const n=parseFloat(v); return isNaN(n)?null:n; };
+    const parseDate = raw => { const s=String(raw); const dm=s.match(/Date\((\d+),(\d+),(\d+)\)/); return dm?dm[1]+'-'+String(parseInt(dm[2])+1).padStart(2,'0')+'-'+String(dm[3]).padStart(2,'0'):s.substring(0,10); };
 
     const records = rows.map(row => {
       const c = row.c;
-      const rawDate = String(g(c,COL_DATE,''));
-      const dm = rawDate.match(/Date\((\d+),(\d+),(\d+)\)/);
-      const date = dm ? dm[1]+'-'+String(parseInt(dm[2])+1).padStart(2,'0')+'-'+String(dm[3]).padStart(2,'0') : rawDate.substring(0,10);
       return {
-        date,
-        code:       String(g(c,COL_CODE,'')),
-        name:       String(g(c,COL_NAME,'')),
-        score:      parseNum(g(c,COL_SCORE,0)) ?? 0,
-        entryClose: parseNum(g(c,COL_CLOSE,0)) ?? 0,  // 當日收盤（參考）
-        entryOpen:  parseNum(g(c,COL_OPEN,'')),        // 隔日開盤（真正進場價）
-        return1:    parseNum(g(c,COL_R1,'')),           // 1日報酬%
-        price3:     parseNum(g(c,COL_P3,'')),           // 3日後收盤
-        return3:    parseNum(g(c,COL_R3,'')),           // 3日報酬%
+        date: parseDate(g(c,0,'')),
+        code: String(g(c,1,'')),
+        name: String(g(c,2,'')),
+        score: parseNum(g(c,4,0))??0,
+        entryClose: parseNum(g(c,5,0))??0,
+        entryOpen: parseNum(g(c,6,'')),
+        return1: parseNum(g(c,7,'')),
+        price3: parseNum(g(c,8,'')),
+        return3: parseNum(g(c,9,'')),
       };
-    }).filter(r => r.code && r.code !== 'undefined');
+    }).filter(r => r.code && r.code !== 'undefined' && r.date.length === 10);
 
-    // 統計
-    const has1d   = records.filter(r => r.return1 !== null);
-    const has3d   = records.filter(r => r.return3 !== null);
-    const pending = records.filter(r => r.return1 === null);
+    // 整體統計
+    const has1d = records.filter(r=>r.return1!==null);
+    const has3d = records.filter(r=>r.return3!==null);
+    const pending = records.filter(r=>r.return1===null);
+    const win1d = has1d.filter(r=>r.return1>0).length;
+    const avg1d = has1d.length ? has1d.reduce((s,r)=>s+r.return1,0)/has1d.length : null;
+    const avg3d = has3d.length ? has3d.reduce((s,r)=>s+r.return3,0)/has3d.length : null;
+    const best = has3d.length ? has3d.reduce((a,b)=>b.return3>a.return3?b:a) : null;
+    const worst = has3d.length ? has3d.reduce((a,b)=>b.return3<a.return3?b:a) : null;
 
-    const avg1d = has1d.length ? (has1d.reduce((s,r) => s + r.return1, 0) / has1d.length) : null;
-    const avg3d = has3d.length ? (has3d.reduce((s,r) => s + r.return3, 0) / has3d.length) : null;
+    // 分數篩選狀態
+    let currentScore = 0;
 
-    // 8分以上統計
-    const high1d = has1d.filter(r => r.score >= 8);
-    const high3d = has3d.filter(r => r.score >= 8);
-    const highAvg1d = high1d.length ? (high1d.reduce((s,r) => s+r.return1, 0) / high1d.length) : null;
-    const highAvg3d = high3d.length ? (high3d.reduce((s,r) => s+r.return3, 0) / high3d.length) : null;
+    const renderAll = (scoreFilter) => {
+      const filtered = scoreFilter===0 ? records : records.filter(r=>r.score>=scoreFilter);
+      const f1d = filtered.filter(r=>r.return1!==null);
+      const f3d = filtered.filter(r=>r.return3!==null);
+      const fPending = filtered.filter(r=>r.return1===null);
+      const fAvg1d = f1d.length ? f1d.reduce((s,r)=>s+r.return1,0)/f1d.length : null;
+      const fAvg3d = f3d.length ? f3d.reduce((s,r)=>s+r.return3,0)/f3d.length : null;
+      const fWin1d = f1d.filter(r=>r.return1>0).length;
+      const fWin3d = f3d.filter(r=>r.return3>0).length;
 
-    document.getElementById('btTotal').textContent = records.length;
-    document.getElementById('btPending').textContent = pending.length;
+      const retColor = v => v===null?'var(--text3)':v>0?'var(--red)':'var(--blue)';
+      const retText = (v,label) => v===null?'—':`${v>=0?'+':''}${v.toFixed(2)}%`;
 
-    // 更新統計數字（全部）
-    const setStats = (recs) => {
-      const h1 = recs.filter(r=>r.return1!==null);
-      const h3 = recs.filter(r=>r.return3!==null);
-      const a1 = h1.length ? h1.reduce((s,r)=>s+r.return1,0)/h1.length : null;
-      const a3 = h3.length ? h3.reduce((s,r)=>s+r.return3,0)/h3.length : null;
-      const r1El = document.getElementById('btWinRate');
-      r1El.textContent = a1!==null ? (a1>=0?'+':'')+a1.toFixed(2)+'%' : '—';
-      r1El.className = 'sum-val '+(a1===null?'brown':a1>=0?'green':'red');
-      const avgEl = document.getElementById('btAvgReturn');
-      avgEl.textContent = a3!==null ? (a3>=0?'+':'')+a3.toFixed(2)+'%' : '—';
-      avgEl.className = 'sum-val '+(a3===null?'brown':a3>=0?'green':'red');
-    };
-    setStats(records);
-
-    // 篩選按鈕
-    const btns = [
-      {label:'全部', score:0},
-      {label:'8分↑', score:8},
-      {label:'10分↑', score:10},
-    ];
-    const filterBar = `<div style="display:flex;gap:8px;margin:12px 0 8px;flex-wrap:wrap">
-      ${btns.map((b,i)=>`<button class="bt-filter-btn" data-score="${b.score}"
-        style="font-size:0.72rem;padding:4px 14px;border-radius:20px;border:1px solid var(--border);
-        background:${i===0?'var(--brown)':'var(--bg2)'};color:${i===0?'white':'var(--text2)'};cursor:pointer">
-        ${b.label}（${records.filter(r=>r.score>=b.score).length}）</button>`).join('')}
-    </div><div id="btCardsWrap"></div>`;
-
-    document.getElementById('btContent').innerHTML = filterBar;
-
-    const renderCards = (score) => {
-      const filtered = score===0 ? records : records.filter(r=>r.score>=score);
-      setStats(filtered);
-      const html = filtered.slice().reverse().map(r => {
-        const mainRet = r.return3!==null?r.return3:(r.return1!==null?r.return1:null);
-        const mainLabel = r.return3!==null?'3日':(r.return1!==null?'1日':'');
-        const isPending = mainRet===null;
-        const cardClass = isPending?'pending':mainRet>=0?'win':'lose';
-        const retText = isPending?'等待中...':`${mainLabel} ${mainRet>=0?'+':''}${mainRet.toFixed(2)}%`;
-        const retClass = isPending?'pending':mainRet>=0?'pos':'neg';
-        const r1Text = r.return1!==null?`${r.return1>=0?'+':''}${r.return1.toFixed(2)}%`:'—';
-        const r3Text = r.return3!==null?`${r.return3>=0?'+':''}${r.return3.toFixed(2)}%`:'—';
-        const r1Class = r.return1!==null?(r.return1>=0?'pos':'neg'):'';
-        const r3Class = r.return3!==null?(r.return3>=0?'pos':'neg'):'';
-        const entryPrice = r.entryOpen||r.entryClose;
-        const entryLabel = r.entryOpen?'隔日開盤':'當日收盤';
-        return `<div class="bt-card ${cardClass}">
-          <div class="bt-card-top">
-            <div>
-              <div class="bt-stock-name">${r.name} <span style="font-size:0.65rem;background:var(--bg2);padding:1px 6px;border-radius:10px;color:var(--text3)">${r.score}分</span></div>
-              <div class="bt-stock-code">${r.code} · ${r.date}</div>
-            </div>
-            <div class="bt-return ${retClass}">${retText}</div>
+      // 統計卡片
+      const statsHtml = `
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px">
+          <div class="sum-card">
+            <div class="sum-label">總訊號數</div>
+            <div class="sum-val brown">${filtered.length}</div>
+            <div class="sum-sub">已完成 ${f1d.length} · 待確認 ${fPending.length}</div>
           </div>
-          <div class="bt-stats">
-            <div class="bt-stat"><div class="bt-stat-label">${entryLabel}</div><div class="bt-stat-val">$${entryPrice||'—'}</div></div>
-            <div class="bt-stat"><div class="bt-stat-label">1日報酬</div><div class="bt-stat-val ${r1Class}">${r1Text}</div></div>
-            <div class="bt-stat"><div class="bt-stat-label">3日報酬</div><div class="bt-stat-val ${r3Class}">${r3Text}</div></div>
+          <div class="sum-card">
+            <div class="sum-label">1日勝率</div>
+            <div class="sum-val" style="color:${fWin1d/f1d.length>=0.5?'var(--green)':'var(--red)'}">${f1d.length?Math.round(fWin1d/f1d.length*100)+'%':'—'}</div>
+            <div class="sum-sub">獲利 ${fWin1d} / ${f1d.length} 筆</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-label">1日平均報酬</div>
+            <div class="sum-val" style="color:${retColor(fAvg1d)}">${retText(fAvg1d)}</div>
+            <div class="sum-sub">隔日收盤計算</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-label">3日平均報酬</div>
+            <div class="sum-val" style="color:${retColor(fAvg3d)}">${retText(fAvg3d)}</div>
+            <div class="sum-sub">3日勝率 ${f3d.length?Math.round(fWin3d/f3d.length*100)+'%':'—'}</div>
           </div>
         </div>`;
+
+      // 按日期分組
+      const byDate = {};
+      filtered.slice().reverse().forEach(r => {
+        if (!byDate[r.date]) byDate[r.date] = [];
+        byDate[r.date].push(r);
+      });
+
+      const datesHtml = Object.keys(byDate).sort().reverse().map(date => {
+        const dayRecords = byDate[date];
+        const dayDone = dayRecords.filter(r=>r.return1!==null);
+        const dayAvg3d = dayDone.filter(r=>r.return3!==null);
+        const dayAvgRet = dayAvg3d.length ? dayAvg3d.reduce((s,r)=>s+r.return3,0)/dayAvg3d.length : null;
+        const dayWin = dayAvg3d.filter(r=>r.return3>0).length;
+        const mm = date.slice(5,7); const dd = date.slice(8,10);
+
+        const rowsHtml = dayRecords.map(r => {
+          const isPending = r.return1===null;
+          const mainRet = r.return3!==null?r.return3:r.return1;
+          const mainLabel = r.return3!==null?'3日':r.return1!==null?'1日':'';
+          const col = isPending?'var(--text3)':mainRet>0?'var(--red)':'var(--blue)';
+          const entry = r.entryOpen||r.entryClose;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;
+            padding:7px 10px;border-radius:8px;background:var(--bg2);margin-bottom:4px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div>
+                <span style="font-size:0.82rem;font-weight:600">${r.name}</span>
+                <span style="font-size:0.6rem;color:var(--text3);margin-left:4px">${r.code}</span>
+              </div>
+              <span style="font-size:0.62rem;background:var(--card);padding:1px 6px;border-radius:6px;color:var(--brown)">${r.score}分</span>
+            </div>
+            <div style="text-align:right">
+              ${isPending
+                ? `<div style="font-size:0.72rem;color:var(--text3)">⏳ 等待中</div>`
+                : `<div style="font-size:0.85rem;font-weight:700;color:${col}">${mainRet>=0?'+':''}${mainRet.toFixed(2)}%</div>
+                   <div style="font-size:0.58rem;color:var(--text3)">${mainLabel} · 進場$${entry}</div>`
+              }
+            </div>
+          </div>`;
+        }).join('');
+
+        return `<div style="margin-bottom:10px;background:var(--card);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px var(--shadow)">
+          <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.chevron').style.transform=this.nextElementSibling.style.display==='none'?'rotate(0deg)':'rotate(180deg)'"
+            style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;user-select:none">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="background:var(--brown);color:white;border-radius:8px;padding:3px 8px;font-size:0.72rem;font-weight:700">${mm}/${dd}</div>
+              <span style="font-size:0.78rem;color:var(--text2)">${dayRecords.length} 檔訊號</span>
+              ${dayAvg3d.length?`<span style="font-size:0.72rem;font-weight:600;color:${dayAvgRet>=0?'var(--red)':'var(--blue)'}">均 ${dayAvgRet>=0?'+':''}${dayAvgRet.toFixed(1)}%</span>`:''}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              ${dayAvg3d.length?`<span style="font-size:0.65rem;color:var(--text3)">勝率 ${Math.round(dayWin/dayAvg3d.length*100)}%</span>`:''}
+              <span class="chevron" style="color:var(--text3);transition:transform 0.2s;display:inline-block">▼</span>
+            </div>
+          </div>
+          <div style="padding:0 10px 10px;display:none">${rowsHtml}</div>
+        </div>`;
       }).join('');
-      document.getElementById('btCardsWrap').innerHTML = html||'<div class="state">沒有資料</div>';
+
+      document.getElementById('btContent').innerHTML = statsHtml +
+        `<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+          ${[{l:'全部',s:0},{l:'8分↑',s:8},{l:'10分↑',s:10}].map(b=>
+            `<button onclick="window._btScore=${b.s};document.querySelectorAll('.bt-score-btn').forEach(x=>{x.style.background='var(--bg2)';x.style.color='var(--text2)'});this.style.background='var(--brown)';this.style.color='white';${b.s===0?`document.getElementById('btContent').innerHTML='';renderAll(0)`:`document.getElementById('btContent').innerHTML='';renderAll(${b.s})`}"
+              class="bt-score-btn" style="font-size:0.72rem;padding:4px 14px;border-radius:20px;border:1px solid var(--border);background:${b.s===scoreFilter?'var(--brown)':'var(--bg2)'};color:${b.s===scoreFilter?'white':'var(--text2)'};cursor:pointer">
+              ${b.l}（${(b.s===0?records:records.filter(r=>r.score>=b.s)).length}）</button>`
+          ).join('')}
+        </div>` + datesHtml;
+
+      // 讓按鈕可以正確觸發
+      document.querySelectorAll('.bt-score-btn').forEach((btn, i) => {
+        const scores = [0,8,10];
+        btn.onclick = () => {
+          document.querySelectorAll('.bt-score-btn').forEach(b=>{b.style.background='var(--bg2)';b.style.color='var(--text2)';});
+          btn.style.background='var(--brown)'; btn.style.color='white';
+          renderAll(scores[i]);
+        };
+      });
     };
 
-    document.querySelectorAll('.bt-filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.bt-filter-btn').forEach(b=>{b.style.background='var(--bg2)';b.style.color='var(--text2)';});
-        btn.style.background='var(--brown)'; btn.style.color='white';
-        renderCards(parseInt(btn.dataset.score));
-      });
-    });
-    renderCards(0);
+    renderAll(0);
 
   } catch(e) {
-    console.error('[Backtest] 錯誤:', e);
     document.getElementById('btContent').innerHTML = `<div class="state">載入失敗：${e.message}</div>`;
   }
 }
