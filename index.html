@@ -805,7 +805,7 @@ async function loadBacktest() {
               ${isPending
                 ? `<div style="font-size:0.72rem;color:var(--text3)">⏳ 等待中</div>`
                 : `<div style="font-size:0.85rem;font-weight:700;color:${col}">${mainRet>=0?'+':''}${mainRet.toFixed(2)}%</div>
-                   <div style="font-size:0.58rem;color:var(--text3)">${mainLabel} · 進場$${entry}</div>`
+                   <div style="font-size:0.58rem;color:var(--text3)">${mainLabel} · 進場$${entry}${r.price3?` · 收盤$${r.price3}`:''}</div>`
               }
             </div>
           </div>`;
