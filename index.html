@@ -1706,7 +1706,7 @@ function renderCards() {
       <div class="card-header">
         <div>
           <div class="stock-name">${s.name}${fourCondBadge}</div>
-          <div class="stock-code">${s.code}${s.sector?' · '+s.sector:''} · ${document.getElementById('dateTag').textContent.slice(5,10).replace('-','/')}收盤 $${s.price}</div>
+          <div class="stock-code">${s.code}${s.sector?' · '+s.sector:''} · ${(()=>{const dm=String(s.date).match(/Date\((\d+),(\d+),(\d+)\)/);return dm?(parseInt(dm[2])+1)+'/'+(dm[3]):String(s.date).substring(5,10).replace('-','/')})()}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
       </div>
