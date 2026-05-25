@@ -1679,6 +1679,7 @@ function renderCards() {
   // 由高分到低分排序
   list.sort((a,b) => b.score - a.score);
   if(!list.length){document.getElementById('content').innerHTML='<div class="state"><div style="font-size:2.5rem;margin-bottom:10px">🌾</div><div>沒有符合條件的股票</div></div>';return;}
+  if (list.length > 0) document.getElementById('dateTag').textContent = list[0].date || document.getElementById('dateTag').textContent;
   const pipDefs=[{label:'量能',key:'volS',max:2},{label:'動能',key:'momS',max:3},{label:'法人',key:'instS',max:3},{label:'集中',key:'concS',max:2},{label:'RSI',key:'rsiS',max:1},{label:'KD',key:'kdS',max:1}];
   const html=list.map((s,i)=>{
     const opClass=getOpClass(s.op);
@@ -1705,7 +1706,7 @@ function renderCards() {
       <div class="card-header">
         <div>
           <div class="stock-name">${s.name}${fourCondBadge}</div>
-          <div class="stock-code">${s.code}${s.sector?' · '+s.sector:''} · ${String(s.date).substring(0,10).split('-').slice(1).join('/')}收盤 $${s.price}</div>
+          <div class="stock-code">${s.code}${s.sector?' · '+s.sector:''} · ${document.getElementById('dateTag').textContent.slice(5,10).replace('-','/')}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
       </div>
