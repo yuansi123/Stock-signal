@@ -1376,7 +1376,9 @@ async function generateDailySummary() {
 
   const cntBuy = allStocks.filter(s=>s.op.includes('🟢')).length;
   const cntWatch = allStocks.filter(s=>s.op.includes('🟡')).length;
-  const dateStr = document.getElementById('dateTag').textContent;
+  const rawDate = document.getElementById('dateTag').textContent;
+const dm = rawDate.match(/Date\((\d+),(\d+),(\d+)\)/);
+const dateStr = dm ? dm[1]+'-'+String(parseInt(dm[2])+1).padStart(2,'0')+'-'+String(dm[3]).padStart(2,'0') : rawDate;
 
   const prompt = `你是台股法人籌碼分析師。請用繁體中文、自然口語、約100字，寫一段今日盤後總結評論。
 
