@@ -1689,7 +1689,7 @@ async function loadData() {
         foreign:Number(g(COL.foreign,0)),
         trust:Number(g(COL.trust,0)),
                 dealer:Number(g(COL.dealer,0)),
-        entry:Number(g(COL.entry,0)),
+        entry:String(g(COL.entry,'')),
         stop:Number(g(COL.stop,0)),
         tp1:Number(g(COL.tp1,0)),
         tp2:Number(g(COL.tp2,0)),
@@ -1766,7 +1766,11 @@ function renderCards() {
     {label:'KD',key:'kdS',max:1}
   ];
 
-  const fmtPrice = v => v && !isNaN(v) ? Number(v).toFixed(2) : '—';
+  const fmtPrice = v => {
+  if (v === null || v === undefined || v === '') return '—';
+  if (String(v).includes('~')) return String(v);
+  return !isNaN(v) ? Number(v).toFixed(2) : String(v);
+};
 
   const html = list.map((s,i) => {
     const opClass = getOpClass(s.op);
