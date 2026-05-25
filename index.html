@@ -1579,6 +1579,24 @@ async function loadMarket() {
         </div>
       </div>
       <div class="market-status" style="${statusBg}">${status}</div>
+      ${(()=>{
+  let advice, adviceBg, adviceColor;
+  if (riskScore >= 6) {
+    advice = '🚫 今日不建議進場，等待觀望';
+    adviceBg = '#fef0ee'; adviceColor = 'var(--red)';
+  } else if (riskScore >= 3) {
+    advice = '⚠️ 今日謹慎操作，只考慮10分以上訊號';
+    adviceBg = '#fef8ea'; adviceColor = 'var(--yellow)';
+  } else {
+    advice = '✅ 今日適合進場，可按訊號操作';
+    adviceBg = '#eaf5ea'; adviceColor = 'var(--green)';
+  }
+  return `<div style="margin-top:8px;padding:8px 12px;border-radius:8px;
+    background:${adviceBg};color:${adviceColor};
+    font-size:0.82rem;font-weight:600;text-align:center">
+    ${advice}
+  </div>`;
+})()}
       ${riskScore > 0 ? `
       <div style="margin-top:8px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
