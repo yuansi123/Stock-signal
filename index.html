@@ -773,7 +773,7 @@ async function loadBacktest() {
 
       // 按日期分組
       const byDate = {};
-      filtered.slice().reverse().forEach(r => {
+      filtered.slice().sort((a,b) => b.score - a.score || b.date.localeCompare(a.date)).forEach(r => {
         if (!byDate[r.date]) byDate[r.date] = [];
         byDate[r.date].push(r);
       });
