@@ -784,37 +784,56 @@ async function loadBacktest() {
       });
 
       const datesHtml = Object.keys(byDate).sort().reverse().map(date => {
-        const dayRecords = byDate[date];
-        const dayDone = dayRecords.filter(r=>r.return1!==null);
-        const dayAvg3d = dayDone.filter(r=>r.return3!==null);
-        const dayAvgRet = dayAvg3d.length ? dayAvg3d.reduce((s,r)=>s+r.return3,0)/dayAvg3d.length : null;
-        const dayWin = dayAvg3d.filter(r=>r.return3>0).length;
-        const mm = date.slice(5,7); const dd = date.slice(8,10);
+  const dayRecords = byDate[date];
+  const dayDone = dayRecords.filter(r => r.return1 !== null);
+  const dayAvg3d = dayDone.filter(r => r.return3 !== null);
+  const dayAvgRet = dayAvg3d.length ? dayAvg3d.reduce((s,r) => s + r.return3, 0) / dayAvg3d.length : null;
+  const dayWin = dayAvg3d.filter(r => r.return3 > 0).length;
+  const mm = date.slice(5,7);
+  const dd = date.slice(8,10);
 
-        const rowsHtml = dayRecords.map(r => {
-          const isPending = r.return1===null;
-          const mainRet = r.return3!==null ? r.return3 : r.return2!==null ? r.return2 : r.return1;
-const mainLabel = r.return3!==null ? '3日' : r.return2!==null ? '2日' : r.return1!==null ? '1日' : '';
-          const col = isPending?'var(--text3)':mainRet>0?'var(--red)':'var(--blue)';
-          const entry = r.entryOpen||r.entryClose;
-          return `<div style="display:flex;align-items:center;justify-content:space-between;
-            padding:7px 10px;border-radius:8px;background:var(--bg2);margin-bottom:4px">
-            <div style="display:flex;align-items:center;gap:8px">
-              <div>
-                <span style="font-size:0.82rem;font-weight:600">${r.name}</span>
-                <span style="font-size:0.6rem;color:var(--text3);margin-left:4px">${r.code}</span>
-              </div>
-              <span style="font-size:0.62rem;background:var(--card);padding:1px 6px;border-radius:6px;color:var(--brown)">${r.score}分</span>
-            </div>
-            <div style="text-align:right">
-              ${isPending
-                ? `<div style="font-size:0.72rem;color:var(--text3)">⏳ 等待中</div>`
-                : `<div style="font-size:0.85rem;font-weight:700;color:${col}">${mainRet>=0?'+':''}${mainRet.toFixed(2)}%</div>
-                   <div style="font-size:0.58rem;color:var(--text3)">${mainLabel} · 進場$${entry}${r.price3?` · 收盤$${r.price3}`:''}</div>`
-              }
-            </div>
-          </div>`;
-        }).join('');
+  const rowsHtml = dayRecords.map(r => {
+    const isPending = r.return1 === null;
+    const mainRet = r.return3 !== null ? r.return3 : r.return2 !== null ? r.return2 : r.return1;
+    const mainLabel = r.return3 !== null ? '3日' : r.return2 !== null ? '2日' : r.return1 !== null ? '1日' : '';
+    const col = isPending ? 'var(--text3)' : mainRet > 0 ? 'var(--red)' : 'var(--blue)';
+    const entry = r.entryOpen || r.entryClose;
+
+    return `<div style="display:flex;align-items:center;justify-content:space-between;
+      padding:7px 10px;border-radius:8px;background:var(--bg2);margin-bottom:4px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div>
+          <span style="font-size:0.82rem;font-weight:600">${r.name}</span>
+          <span style="font-size:0.6rem;color:var(--text3);margin-left:4px">${r.code}</span>
+        </div>
+        <span style="font-size:0.62rem;background:var(--card);padding:1px 6px;border-radius:6px;color:var(--brown)">${r.score}分</span>
+      </div>
+      <div style="text-align:right">
+        ${isPending
+          ? `<div style="font-size:0.72rem;color:var(--text3)">等待中</div>`
+          : `<div style="font-size:0.85rem;font-weight:700;color:${col}">${mainRet >= 0 ? '+' : ''}${mainRet.toFixed(2)}%</div>
+             <div style="font-size:0.58rem;color:var(--text3)">${mainLabel} · 進場$${entry}${r.price3 ? ` · 收盤$${r.price3}` : ''}</div>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div style="margin-bottom:10px;background:var(--card);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px var(--shadow)">
+    <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.chevron').style.transform=this.nextElementSibling.style.display==='none'?'rotate(0deg)':'rotate(180deg)'"
+      style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;user-select:none">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:var(--brown);color:white;border-radius:8px;padding:3px 8px;font-size:0.72rem;font-weight:700">${mm}/${dd}</div>
+        <span style="font-size:0.78rem;color:var(--text2)">${dayRecords.length} 檔訊號</span>
+        ${dayAvg3d.length ? `<span style="font-size:0.72rem;font-weight:600;color:${dayAvgRet >= 0 ? 'var(--red)' : 'var(--blue)'}">均 ${dayAvgRet >= 0 ? '+' : ''}${dayAvgRet.toFixed(1)}%</span>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${dayAvg3d.length ? `<span style="font-size:0.65rem;color:var(--text3)">勝率 ${Math.round(dayWin / dayAvg3d.length * 100)}%</span>` : ''}
+        <span class="chevron" style="color:var(--text3);transition:transform 0.2s;display:inline-block">▼</span>
+      </div>
+    </div>
+    <div style="padding:0 10px 10px;display:none">${rowsHtml}</div>
+  </div>`;
+}).join('');
 
         return '<div style="margin-bottom:10px;background:var(--card);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px var(--shadow)">'
   + '<div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.chevron\').style.transform=this.nextElementSibling.style.display===\'none\'?\'rotate(0deg)\':\'rotate(180deg)\'"'
