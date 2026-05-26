@@ -835,28 +835,7 @@ async function loadBacktest() {
   </div>`;
 }).join('');
 
-        return '<div style="margin-bottom:10px;background:var(--card);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px var(--shadow)">'
-  + '<div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.chevron\').style.transform=this.nextElementSibling.style.display===\'none\'?\'rotate(0deg)\':\'rotate(180deg)\'"'
-  + ' style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;user-select:none">'
-  + '<div style="display:flex;align-items:center;gap:10px">'
-  + '<div style="background:var(--brown);color:white;border-radius:8px;padding:3px 8px;font-size:0.72rem;font-weight:700">' + mm + '/' + dd + '</div>'
-  + '<span style="font-size:0.78rem;color:var(--text2)">' + dayRecords.length + ' 檔訊號</span>'
-  + (dayAvg3d.length ? '<span style="font-size:0.72rem;font-weight:600;color:' + (dayAvgRet>=0?'var(--red)':'var(--blue)') + '">均 ' + (dayAvgRet>=0?'+':'') + dayAvgRet.toFixed(1) + '%</span>' : '')
-  + '</div>'
-  + '<div style="display:flex;align-items:center;gap:8px">'
-  + (dayAvg3d.length ? '<span style="font-size:0.65rem;color:var(--text3)">勝率 ' + Math.round(dayWin/dayAvg3d.length*100) + '%</span>' : '')
-  + '<span class="chevron" style="color:var(--text3);transition:transform 0.2s;display:inline-block">▼</span>'
-  + '</div>'
-  + '</div>'
-  + '<div style="padding:0 10px 10px;display:none">' + rowsHtml + '</div>'
-  + '</div>';
-              ${dayAvg3d.length?`<span style="font-size:0.65rem;color:var(--text3)">勝率 ${Math.round(dayWin/dayAvg3d.length*100)}%</span>`:''}
-              <span class="chevron" style="color:var(--text3);transition:transform 0.2s;display:inline-block">▼</span>
-            </div>
-          </div>
-          <div style="padding:0 10px 10px;display:none">${rowsHtml}</div>
-        </div>`;
-      }).join('');
+   
 
       document.getElementById('btContent').innerHTML = statsHtml +
         `<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
