@@ -1539,7 +1539,8 @@ async function loadMarket() {
     const vix = parseFloat(g(1)) || 0;
     const twii = parseFloat(g(2)) || 0;
     const twiiChangeRaw = g(3);
-    const twiiChangeNum = typeof twiiChangeRaw === 'number' ? twiiChangeRaw * 100 : parseFloat(String(twiiChangeRaw)) || 0;
+    const twiiStr = String(twiiChangeRaw || '');
+const twiiChangeNum = twiiStr.includes('%') ? parseFloat(twiiStr) : (typeof twiiChangeRaw === 'number' ? twiiChangeRaw * 100 : parseFloat(twiiStr) || 0);
     const r1 = parseFloat(g(4)) || 0;
     const status = String(g(5));
     const riskScore = Number(g(6)) || 0;
@@ -1588,24 +1589,7 @@ async function loadMarket() {
         </div>
       </div>
       <div class="market-status" style="${statusBg}">${status}</div>
-      ${(()=>{
-  let advice, adviceBg, adviceColor;
-  if (riskScore >= 6) {
-    advice = '🚫 今日不建議進場，等待觀望';
-    adviceBg = '#fef0ee'; adviceColor = 'var(--red)';
-  } else if (riskScore >= 3) {
-    advice = '⚠️ 今日謹慎操作，只考慮10分以上訊號';
-    adviceBg = '#fef8ea'; adviceColor = 'var(--yellow)';
-  } else {
-    advice = '✅ 今日適合進場，可按訊號操作';
-    adviceBg = '#eaf5ea'; adviceColor = 'var(--green)';
-  }
-  return `<div style="margin-top:8px;padding:8px 12px;border-radius:8px;
-    background:${adviceBg};color:${adviceColor};
-    font-size:0.82rem;font-weight:600;text-align:center">
-    ${advice}
-  </div>`;
-})()}
+      
       ${riskScore > 0 ? `
       <div style="margin-top:8px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
@@ -1909,7 +1893,7 @@ async function loadNews() {
         const cat = String(g(r.c,3));
         const col = catColors[cat] || 'var(--brown)';
         return `<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;user-select:none"
             <span style="font-size:0.6rem;background:${col};color:white;padding:1px 6px;border-radius:6px;white-space:nowrap">${cat}</span>
             <span style="font-size:0.78rem;font-weight:600;color:var(--text);line-height:1.4">${title}</span>
           </div>
