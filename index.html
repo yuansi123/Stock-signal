@@ -816,14 +816,13 @@ const mainLabel = r.return3!==null ? '3日' : r.return2!==null ? '2日' : r.retu
           </div>`;
         }).join('');
 
-        return `<div style="margin-bottom:10px;background:var(--card);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px var(--shadow)">
-          <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.chevron').style.transform=this.nextElementSibling.style.display==='none'?'rotate(0deg)':'rotate(180deg)'"
-            style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;user-select:none">
-            <div style="display:flex;align-items:center;gap:10px">
-              <div style="background:var(--brown);color:white;border-radius:8px;padding:3px 8px;font-size:0.72rem;font-weight:700">${mm}/${dd}</div>
-              <span style="font-size:0.78rem;color:var(--text2)">${dayRecords.length} 檔訊號</span>
-              ${dayAvg3d.length?`<span style="font-size:0.72rem;font-weight:600;color:${dayAvgRet>=0?'var(--red)':'var(--blue)'}">均 ${dayAvgRet>=0?'+':''}${dayAvgRet.toFixed(1)}%</span>`:''}
-            </div>
+        return `<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+  <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+    <span style="font-size:0.6rem;background:${col};color:white;padding:1px 6px;border-radius:6px;white-space:nowrap">${cat}</span>
+    <span style="font-size:0.78rem;font-weight:600;color:var(--text);line-height:1.4">${title}</span>
+  </div>
+  ${summary?`<div style="font-size:0.72rem;color:var(--text2);line-height:1.5;padding-left:2px">${summary}</div>`:''}
+</div>`;
             <div style="display:flex;align-items:center;gap:8px">
               ${dayAvg3d.length?`<span style="font-size:0.65rem;color:var(--text3)">勝率 ${Math.round(dayWin/dayAvg3d.length*100)}%</span>`:''}
               <span class="chevron" style="color:var(--text3);transition:transform 0.2s;display:inline-block">▼</span>
@@ -1539,8 +1538,7 @@ async function loadMarket() {
     const vix = parseFloat(g(1)) || 0;
     const twii = parseFloat(g(2)) || 0;
     const twiiChangeRaw = g(3);
-    const twiiStr = String(twiiChangeRaw || '');
-const twiiChangeNum = twiiStr.includes('%') ? parseFloat(twiiStr) : (typeof twiiChangeRaw === 'number' ? twiiChangeRaw * 100 : parseFloat(twiiStr) || 0);
+    const twiiChangeNum = typeof twiiChangeRaw === 'number' ? twiiChangeRaw * 100 : parseFloat(String(twiiChangeRaw).replace('%','')) || 0;
     const r1 = parseFloat(g(4)) || 0;
     const status = String(g(5));
     const riskScore = Number(g(6)) || 0;
