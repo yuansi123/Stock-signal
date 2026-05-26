@@ -711,16 +711,18 @@ async function loadBacktest() {
     const records = rows.map(row => {
       const c = row.c;
       return {
-        date: parseDate(g(c,0,'')),
-        code: String(g(c,1,'')),
-        name: String(g(c,2,'')),
-        score: parseNum(g(c,4,0))??0,
-        entryClose: parseNum(g(c,5,0))??0,
-        entryOpen: parseNum(g(c,6,'')),
-        return1: parseNum(g(c,7,'')),
-        price3: parseNum(g(c,8,'')),
-        return3: parseNum(g(c,9,'')),
-      };
+  date: parseDate(g(c,0,'')),
+  code: String(g(c,1,'')),
+  name: String(g(c,2,'')),
+  score: parseNum(g(c,4,0))??0,
+  entryClose: parseNum(g(c,5,0))??0,
+  entryOpen: parseNum(g(c,6,'')),
+  return1: parseNum(g(c,7,'')),
+  price2: parseNum(g(c,8,'')),   // 2日後收盤
+  return2: parseNum(g(c,9,'')),  // 2日報酬%
+  price3: parseNum(g(c,10,'')),  // 3日後收盤
+  return3: parseNum(g(c,11,'')), // 3日報酬%
+};
     }).filter(r => r.code && r.code !== 'undefined' && r.date.length === 10);
 
     // 整體統計
@@ -791,8 +793,8 @@ async function loadBacktest() {
 
         const rowsHtml = dayRecords.map(r => {
           const isPending = r.return1===null;
-          const mainRet = r.return3!==null?r.return3:r.return1;
-          const mainLabel = r.return3!==null?'3日':r.return1!==null?'1日':'';
+          const mainRet = r.return3!==null ? r.return3 : r.return2!==null ? r.return2 : r.return1;
+const mainLabel = r.return3!==null ? '3日' : r.return2!==null ? '2日' : r.return1!==null ? '1日' : '';
           const col = isPending?'var(--text3)':mainRet>0?'var(--red)':'var(--blue)';
           const entry = r.entryOpen||r.entryClose;
           return `<div style="display:flex;align-items:center;justify-content:space-between;
