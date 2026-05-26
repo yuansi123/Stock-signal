@@ -1620,10 +1620,8 @@ async function loadData() {
   document.getElementById('errorBox').style.display = 'none';
   
   const selectedDate = document.getElementById('dateSelect')?.value || '';
-  
-  // Load from 訊號日誌 if date selected, otherwise from 訊號看板
-  const sheetName = selectedDate ? '訊號日誌' : SHEET_NAME;
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+const sheetName = SHEET_NAME;
+const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
   try {
     const res = await fetch(url);
     const text = await res.text();
@@ -1719,18 +1717,20 @@ function renderCards() {
 
   let list = allStocks.filter(s => {
     if (q && !s.name.toLowerCase().includes(q) && !s.code.includes(q)) return false;
-    if (selectedSector && s.sector !== selectedSector) return false;
+    if (!q) {
+  if (selectedSector && s.sector !== selectedSector) return false;
 
-    if (volFilter) {
-      if (volFilter === 'whale' && s.vol < 10000) return false;
-      if (volFilter === 'fish' && (s.vol < 3000 || s.vol >= 10000)) return false;
-      if (volFilter === 'shrimp' && s.vol >= 3000) return false;
-    }
+  if (volFilter) {
+    if (volFilter === 'whale' && s.vol < 10000) return false;
+    if (volFilter === 'fish' && (s.vol < 3000 || s.vol >= 10000)) return false;
+    if (volFilter === 'shrimp' && s.vol >= 3000) return false;
+  }
 
-    if (currentFilter === 'buy') return s.op.includes('🟢');
-    if (currentFilter === 'watch') return s.op.includes('🟡');
-    if (currentFilter === 'avoid') return s.op.includes('🔴');
-    if (currentFilter === 'bear') return s.op.includes('⬇️');
+  if (currentFilter === 'buy') return s.op.includes('🟢');
+  if (currentFilter === 'watch') return s.op.includes('🟡');
+  if (currentFilter === 'avoid') return s.op.includes('🔴');
+  if (currentFilter === 'bear') return s.op.includes('⬇️');
+}
     return true;
   });
 
@@ -1788,8 +1788,8 @@ function renderCards() {
       return dm ? (parseInt(dm[2]) + 1) + '/' + dm[3] : String(s.date).substring(5,10).replace('-','/');
     })();
 
-    const dayTradeWarn = s.dayTradePenalty < 0;
-    const dayTradeColor = dayTradeWarn ? 'var(--red)' : 'var(--text2)';
+    const dayTradeWarn = Number(s.dayTradeRatio) >= 30 || String(s.dayTradeRatio).includes('%');
+const dayTradeColor = dayTradeWarn ? 'var(--yellow)' : 'var(--text2)';
 
     return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*0.04,0.6)}s">
       <div class="card-header">
@@ -1847,7 +1847,7 @@ function renderCards() {
         <div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">
           <span style="font-size:0.72rem;color:var(--brown)">風報比 <strong>${s.rr || '—'}</strong></span>
           <span style="font-size:0.72rem;color:${dayTradeColor}">
-            當沖比 <strong>${s.dayTradeRatio || '—'}</strong>${dayTradeWarn ? `（扣 ${Math.abs(s.dayTradePenalty)} 分）` : ''}
+            當沖比 <strong>${s.dayTradeRatio || '—'}</strong>${dayTradeWarn ? '（偏高）' : ''}
           </span>
         </div>
       </div>
