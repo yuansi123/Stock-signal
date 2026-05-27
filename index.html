@@ -312,8 +312,11 @@ header {
     <span>📊</span><span>回測</span>
   </button>
   <button class="nav-btn" id="navAI" onclick="showPage('ai')">
-    <span>🤖</span><span>AI分析</span>
-  </button>
+  <span>🤖</span><span>AI分析</span>
+</button>
+<button class="nav-btn" id="navLarge" onclick="showPage('large')">
+  <span>🐋</span><span>大型股</span>
+</button>
 </div>
 
 <!-- Sector Page -->
@@ -520,15 +523,18 @@ function showPage(page) {
   document.getElementById('navSector').classList.toggle('active', page==='sector');
   document.getElementById('navBacktest').classList.toggle('active', page==='backtest');
   document.getElementById('navAI').classList.toggle('active', page==='ai');
+  document.getElementById('navLarge').classList.toggle('active', page==='large');
 
   document.getElementById('signalPage').style.display = page==='signal' ? '' : 'none';
   document.getElementById('sectorPage').style.display = page==='sector' ? '' : 'none';
   document.getElementById('backtestPage').style.display = page==='backtest' ? '' : 'none';
   document.getElementById('aiPage').style.display = page==='ai' ? '' : 'none';
+  document.getElementById('largePage').style.display = page==='large' ? '' : 'none';
 
   if (page==='sector') loadSector();
   else if (page==='backtest') loadBacktest();
   else if (page==='ai') loadAI();
+  else if (page==='large') loadLarge();
 }
 
 async function loadSector() {
@@ -1902,6 +1908,44 @@ async function loadNews() {
     el.innerHTML = '<div style="font-size:0.78rem;color:var(--text3);text-align:center">載入失敗</div>';
   }
 }
+  async function loadLarge() {
+  document.getElementById('largeContent').innerHTML = '<div class="state"><div class="spinner"></div><div>載入中...</div></div>';
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('大型股監控')}`;
+  try {
+    const res = await fetch(url);
+    const text = await res.text();
+    const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?\s*$/, ''));
+    const rows = json.table?.rows || [];
+    if (!rows.length) {
+      document.getElementById('largeContent').innerHTML = '<div class="state">尚無資料<br><span style="font-size:0.75rem;color:var(--text3)">請先執行 fetchLargeCapMonitor</span></div>';
+      return;
+    }
+    const g = (c,i) => c[i]?.v ?? '';
+    const parseDateVal = v => {
+      const s = String(v);
+      const dm = s.match(/Date\((\d+),(\d+),(\d+)\)/);
+      return dm ? dm[1]+'-'+String(parseInt(dm[2])+1).padStart(2,'0')+'-'+String(dm[3]).padStart(2,'0') : s.substring(0,10);
+    };
+    const dates = [...new Set(rows.map(r => parseDateVal(g(r.c,0))).filter(d=>d.length===10))].sort().reverse();
+    const latest = dates[0];
+    const todayRows = rows.filter(r => parseDateVal(g(r.c,0)) === latest);
+
+    const html = todayRows.map(r => {
+      const c = r.c;
+      const name = String(g(c,2));
+      const code = String(g(c,1));
+      const foreign = Number(g(c,3)) || 0;
+      const trust = Number(g(c,4)) || 0;
+      const dealer = Number(g(c,5)) || 0;
+      const total = Number(g(c,6)) || 0;
+      const streak = Number(g(c,7)) || 0;
+      const fStreak = Number(g(c,8)) || 0;
+      const close = Number(g(c,9)) || 0;
+      const change = Number(g(c,10)) || 0;
+      const vol = Number(g(c,11)) || 0;
+      const alert = String(g(c,12) || '-');
+
+      const totalColor = total > 0 ? 'var(--red)' : total < 0 ? 'var(--blue
 
 // 初始化
 showPage('signal');
@@ -1919,5 +1963,23 @@ if(!window.navigator.standalone&&!localStorage.getItem('pwa-dismissed')){
   },2000);
 }
 </script>
+  <!-- Large Cap Page -->
+<div id="largePage" style="display:none">
+  <div class="wrap">
+    <div class="bt-header">
+      <div class="logo">
+        <div class="logo-icon">🐋</div>
+        <div>
+          <div class="logo-title">大型股監控</div>
+          <div class="logo-sub">LARGE CAP MONITOR</div>
+        </div>
+      </div>
+      <button class="refresh-btn" onclick="loadLarge()">↻ 重新載入</button>
+    </div>
+    <div id="largeContent">
+      <div class="state"><div class="spinner"></div><div>載入大型股資料...</div></div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
