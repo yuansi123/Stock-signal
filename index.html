@@ -394,24 +394,7 @@ header {
       </div>
       <button class="reload-btn" onclick="loadAI()">↺ 重新載入</button>
     </div>
-<!-- Large Cap Page -->
-<div id="largePage" style="display:none">
-  <div class="wrap">
-    <div class="bt-header">
-      <div class="logo">
-        <div class="logo-icon">🐋</div>
-        <div>
-          <div class="logo-title">大型股監控</div>
-          <div class="logo-sub">LARGE CAP MONITOR</div>
-        </div>
-      </div>
-      <button class="refresh-btn" onclick="loadLarge()">↻ 重新載入</button>
-    </div>
-    <div id="largeContent">
-      <div class="state"><div class="spinner"></div><div>載入大型股資料...</div></div>
-    </div>
-  </div>
-</div>
+
     <!-- 日期選擇 -->
     <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span style="font-size:0.8rem;color:var(--text2)">選擇日期：</span>
@@ -445,7 +428,24 @@ header {
     </div>
   </div>
 </div>
-
+<!-- Large Cap Page -->
+<div id="largePage" style="display:none">
+  <div class="wrap">
+    <div class="bt-header">
+      <div class="logo">
+        <div class="logo-icon">🐋</div>
+        <div>
+          <div class="logo-title">大型股監控</div>
+          <div class="logo-sub">LARGE CAP MONITOR</div>
+        </div>
+      </div>
+      <button class="refresh-btn" onclick="loadLarge()">↻ 重新載入</button>
+    </div>
+    <div id="largeContent">
+      <div class="state"><div class="spinner"></div><div>載入大型股資料...</div></div>
+    </div>
+  </div>
+</div>
 <style>
 .ai-card {
   background: var(--card);
@@ -2018,6 +2018,21 @@ async function loadLarge() {
   } catch (e) {
     el.innerHTML = '<div class="state">載入失敗：' + e.message + '</div>';
   }
+}
+  // 初始化
+showPage('signal');
+loadData();
+loadMarket();
+loadIntraday();
+loadNews();
+
+if(!window.navigator.standalone&&!localStorage.getItem('pwa-dismissed')){
+  setTimeout(()=>{
+    const el=document.createElement('div');
+    el.id='pwa-hint';
+    el.innerHTML=`<div style="flex:1">📲 Safari <strong>分享 □↑</strong> → <strong>加入主畫面</strong>，像 App 使用</div><button onclick="this.parentElement.remove();localStorage.setItem('pwa-dismissed','1')" style="background:transparent;border:none;color:rgba(255,255,255,0.6);font-size:1.1rem;cursor:pointer;flex-shrink:0">✕</button>`;
+    document.body.appendChild(el);
+  },2000);
 }
 </script>
 </body>
