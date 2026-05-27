@@ -1947,7 +1947,7 @@ async function loadLarge() {
     const rows = json.table?.rows || [];
 
     if (!rows.length) {
-      el.innerHTML = '<div class="state">尚無大型股資料<br><span style="font-size:0.75rem;color:var(--text3)">請先執行 fetchLargeCapMonitor</span></div>';
+      el.innerHTML = '<div class="state">尚無大型股資料</div>';
       return;
     }
 
@@ -1977,10 +1977,11 @@ async function loadLarge() {
           close: Number(g(c, 9)) || 0,
           change: Number(g(c, 10)) || 0,
           vol: Number(g(c, 11)) || 0,
-          alert: String(g(c, 12) || '-')
+          score: Number(g(c, 12)) || 0,
+          alert: String(g(c, 13) || '-')
         };
       })
-      .sort((a, b) => b.total - a.total);
+      .sort((a, b) => b.score - a.score || b.total - a.total);
 
     el.innerHTML = `
       <div style="font-size:0.7rem;color:var(--text3);margin-bottom:10px">${latest} 更新</div>
@@ -1988,7 +1989,6 @@ async function loadLarge() {
         ${data.map(s => {
           const totalColor = s.total > 0 ? 'var(--red)' : s.total < 0 ? 'var(--blue)' : 'var(--text2)';
           const chgColor = s.change > 0 ? 'var(--red)' : s.change < 0 ? 'var(--blue)' : 'var(--text2)';
-
           return `<div class="card">
             <div class="card-header">
               <div>
@@ -2004,7 +2004,7 @@ async function loadLarge() {
               <div class="stat-box"><div class="stat-label">外資連買</div><div class="stat-val neu">${s.fStreak} 天</div></div>
               <div class="stat-box"><div class="stat-label">外資</div><div class="stat-val">${s.foreign > 0 ? '+' : ''}${s.foreign}</div></div>
               <div class="stat-box"><div class="stat-label">投信</div><div class="stat-val">${s.trust > 0 ? '+' : ''}${s.trust}</div></div>
-              <div class="stat-box"><div class="stat-label">自營</div><div class="stat-val">${s.dealer > 0 ? '+' : ''}${s.dealer}</div></div>
+              <div class="stat-box"><div class="stat-label">風向分數</div><div class="stat-val neu">${s.score}/5</div></div>
             </div>
 
             <div class="reasons">
