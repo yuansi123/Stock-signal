@@ -1908,78 +1908,99 @@ async function loadNews() {
     el.innerHTML = '<div style="font-size:0.78rem;color:var(--text3);text-align:center">載入失敗</div>';
   }
 }
+
   async function loadLarge() {
-  document.getElementById('largeContent').innerHTML = '<div class="state"><div class="spinner"></div><div>載入中...</div></div>';
+  const el = document.getElementById('largeContent');
+  if (!el) return;
+
+  el.innerHTML = '<div class="state"><div class="spinner"></div><div>載入中...</div></div>';
+
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('大型股監控')}`;
+
   try {
     const res = await fetch(url);
     const text = await res.text();
-    const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?\s*$/, ''));
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1) throw new Error('格式錯誤');
+
+    const json = JSON.parse(text.slice(start, end + 1));
     const rows = json.table?.rows || [];
+
     if (!rows.length) {
-      document.getElementById('largeContent').innerHTML = '<div class="state">尚無資料<br><span style="font-size:0.75rem;color:var(--text3)">請先執行 fetchLargeCapMonitor</span></div>';
+      el.innerHTML = '<div class="state">尚無大型股資料</div>';
       return;
     }
-    const g = (c,i) => c[i]?.v ?? '';
+
+    const g = (c, i, fb = '') => c[i] ? (c[i].v ?? c[i].f ?? fb) : fb;
     const parseDateVal = v => {
-      const s = String(v);
+      const s = String(v || '');
       const dm = s.match(/Date\((\d+),(\d+),(\d+)\)/);
-      return dm ? dm[1]+'-'+String(parseInt(dm[2])+1).padStart(2,'0')+'-'+String(dm[3]).padStart(2,'0') : s.substring(0,10);
+      return dm ? dm[1] + '-' + String(parseInt(dm[2]) + 1).padStart(2, '0') + '-' + String(dm[3]).padStart(2, '0') : s.substring(0, 10);
     };
-    const dates = [...new Set(rows.map(r => parseDateVal(g(r.c,0))).filter(d=>d.length===10))].sort().reverse();
+
+    const dates = [...new Set(rows.map(r => parseDateVal(g(r.c, 0))).filter(d => d.length === 10))].sort().reverse();
     const latest = dates[0];
-    const todayRows = rows.filter(r => parseDateVal(g(r.c,0)) === latest);
 
-    const html = todayRows.map(r => {
-      const c = r.c;
-      const name = String(g(c,2));
-      const code = String(g(c,1));
-      const foreign = Number(g(c,3)) || 0;
-      const trust = Number(g(c,4)) || 0;
-      const dealer = Number(g(c,5)) || 0;
-      const total = Number(g(c,6)) || 0;
-      const streak = Number(g(c,7)) || 0;
-      const fStreak = Number(g(c,8)) || 0;
-      const close = Number(g(c,9)) || 0;
-      const change = Number(g(c,10)) || 0;
-      const vol = Number(g(c,11)) || 0;
-      const alert = String(g(c,12) || '-');
+    const data = rows
+      .filter(r => parseDateVal(g(r.c, 0)) === latest)
+      .map(r => {
+        const c = r.c;
+        return {
+          date: latest,
+          code: String(g(c, 1)),
+          name: String(g(c, 2)),
+          foreign: Number(g(c, 3)) || 0,
+          trust: Number(g(c, 4)) || 0,
+          dealer: Number(g(c, 5)) || 0,
+          total: Number(g(c, 6)) || 0,
+          streak: Number(g(c, 7)) || 0,
+          fStreak: Number(g(c, 8)) || 0,
+          close: Number(g(c, 9)) || 0,
+          change: Number(g(c, 10)) || 0,
+          vol: Number(g(c, 11)) || 0,
+          alert: String(g(c, 12) || '-')
+        };
+      })
+      .sort((a, b) => b.total - a.total);
 
-      const totalColor = total > 0 ? 'var(--red)' : total < 0 ? 'var(--blue
+    el.innerHTML = `
+      <div style="font-size:0.7rem;color:var(--text3);margin-bottom:10px">${latest} 更新</div>
+      <div class="cards">
+        ${data.map(s => {
+          const totalColor = s.total > 0 ? 'var(--red)' : s.total < 0 ? 'var(--blue)' : 'var(--text2)';
+          const chgColor = s.change > 0 ? 'var(--red)' : s.change < 0 ? 'var(--blue)' : 'var(--text2)';
 
-// 初始化
-showPage('signal');
-loadData();
-loadMarket();
-loadIntraday();
-loadNews();
+          return `<div class="card">
+            <div class="card-header">
+              <div>
+                <div class="stock-name">${s.name}</div>
+                <div class="stock-code">${s.code} · 收盤 $${s.close}</div>
+              </div>
+              <div class="price" style="color:${chgColor}">${s.change > 0 ? '+' : ''}${s.change.toFixed(2)}%</div>
+            </div>
 
-if(!window.navigator.standalone&&!localStorage.getItem('pwa-dismissed')){
-  setTimeout(()=>{
-    const el=document.createElement('div');
-    el.id='pwa-hint';
-    el.innerHTML=`<div style="flex:1">📲 Safari <strong>分享 □↑</strong> → <strong>加入主畫面</strong>，像 App 使用</div><button onclick="this.parentElement.remove();localStorage.setItem('pwa-dismissed','1')" style="background:transparent;border:none;color:rgba(255,255,255,0.6);font-size:1.1rem;cursor:pointer;flex-shrink:0">✕</button>`;
-    document.body.appendChild(el);
-  },2000);
-}
-</script>
-  <!-- Large Cap Page -->
-<div id="largePage" style="display:none">
-  <div class="wrap">
-    <div class="bt-header">
-      <div class="logo">
-        <div class="logo-icon">🐋</div>
-        <div>
-          <div class="logo-title">大型股監控</div>
-          <div class="logo-sub">LARGE CAP MONITOR</div>
-        </div>
+            <div class="stats-grid">
+              <div class="stat-box"><div class="stat-label">法人合計</div><div class="stat-val" style="color:${totalColor}">${s.total > 0 ? '+' : ''}${s.total}</div></div>
+              <div class="stat-box"><div class="stat-label">連續買超</div><div class="stat-val neu">${s.streak} 天</div></div>
+              <div class="stat-box"><div class="stat-label">外資連買</div><div class="stat-val neu">${s.fStreak} 天</div></div>
+              <div class="stat-box"><div class="stat-label">外資</div><div class="stat-val">${s.foreign > 0 ? '+' : ''}${s.foreign}</div></div>
+              <div class="stat-box"><div class="stat-label">投信</div><div class="stat-val">${s.trust > 0 ? '+' : ''}${s.trust}</div></div>
+              <div class="stat-box"><div class="stat-label">自營</div><div class="stat-val">${s.dealer > 0 ? '+' : ''}${s.dealer}</div></div>
+            </div>
+
+            <div class="reasons">
+              <span class="rtag info">${s.alert}</span>
+              <span class="rtag info">成交量 ${s.vol} 張</span>
+            </div>
+          </div>`;
+        }).join('')}
       </div>
-      <button class="refresh-btn" onclick="loadLarge()">↻ 重新載入</button>
-    </div>
-    <div id="largeContent">
-      <div class="state"><div class="spinner"></div><div>載入大型股資料...</div></div>
-    </div>
-  </div>
-</div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="state">載入失敗：${e.message}</div>`;
+  }
+}
+  
 </body>
 </html>
