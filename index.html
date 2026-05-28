@@ -209,11 +209,8 @@ header {
     <div class="header-right">
       <span class="date-tag" id="dateTag">載入中...</span>
       <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
-  <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
   <button class="refresh-btn" onclick="loadData()">↻ 重新載入</button>
   <button id="fetchAllBtn" onclick="triggerFetchAll()" style="background:var(--brown-dark);color:#fff;border:none;border-radius:20px;padding:0.35rem 1rem;font-size:0.73rem;font-weight:500;cursor:pointer;font-family:inherit">⚡ 觸發掃描</button>
-</div>
-  <button onclick="triggerFetchAll()" style="background:var(--brown-dark);color:#fff;border:none;border-radius:20px;padding:0.35rem 1rem;font-size:0.73rem;font-weight:500;cursor:pointer;font-family:inherit">⚡ 觸發掃描</button>
 </div>
     </div>
   </header>
@@ -1936,7 +1933,7 @@ async function loadNews() {
   }
 }
 async function triggerFetchAll() {
-  const btn = event.target;
+  const btn = document.getElementById('fetchAllBtn');
   btn.textContent = '⏳ 執行中...';
   btn.disabled = true;
   const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby-KbeEe-LDpu2Fdg_PlQjSOy6cqNQpYQ_eTZC86pZMz_yXVurPLysXd7kBQ6W-2KgKWA/exec';
