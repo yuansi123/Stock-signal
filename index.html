@@ -221,14 +221,7 @@ header {
     <div class="market-loading">載入大盤資料...</div>
   </div>
 
-  <!-- 盤中雷達 -->
-  <div id="intradayRadar" class="market-card" style="display:none">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div style="font-size:0.78rem;font-weight:700;color:var(--text)">⚡ 盤中放量雷達</div>
-      <div id="intradayTime" style="font-size:0.6rem;color:var(--text3)"></div>
-    </div>
-    <div id="intradayContent"></div>
-  </div>
+  
 
   <!-- 日期選單 -->
   <div style="margin-bottom:1rem">
@@ -2114,7 +2107,7 @@ async function loadLarge() {
 showPage('signal');
 loadData();
 loadMarket();
-loadIntraday();
+
 loadNews();
 // 每5分鐘自動更新大盤雷達
 setInterval(() => {
