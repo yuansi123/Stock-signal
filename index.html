@@ -208,14 +208,14 @@ header {
     </div>
     <div class="header-right">
       <span class="date-tag" id="dateTag">載入中...</span>
-      <div id="fetchProgress" style="display:none;margin-top:8px;padding:10px 12px;background:var(--bg2);border-radius:12px;min-width:200px"></div>
+      
       <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
   <button class="refresh-btn" onclick="loadData()">↻ 重新載入</button>
   <button id="fetchAllBtn" onclick="triggerFetchAll()" style="background:var(--brown-dark);color:#fff;border:none;border-radius:20px;padding:0.35rem 1rem;font-size:0.73rem;font-weight:500;cursor:pointer;font-family:inherit">⚡ 觸發掃描</button>
 </div>
     </div>
   </header>
-
+<div id="fetchProgress" style="display:none;margin-top:8px;padding:10px 12px;background:var(--bg2);border-radius:12px;min-width:200px"></div>
   <!-- 大盤雷達 -->
   <div id="marketRadar" class="market-card">
     <div class="market-loading">載入大盤資料...</div>
