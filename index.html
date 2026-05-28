@@ -1772,8 +1772,10 @@ function renderCards() {
   }
 
   if (list.length > 0) {
-    document.getElementById('dateTag').textContent = list[0].date || document.getElementById('dateTag').textContent;
-  }
+  const rawD = String(list[0].date || '');
+  const dmD = rawD.match(/Date\((\d+),(\d+),(\d+)\)/);
+  document.getElementById('dateTag').textContent = dmD ? dmD[1]+'-'+String(parseInt(dmD[2])+1).padStart(2,'0')+'-'+String(dmD[3]).padStart(2,'0') : rawD.substring(0,10) || document.getElementById('dateTag').textContent;
+}
 
   const pipDefs = [
     {label:'量能',key:'volS',max:2},
