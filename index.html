@@ -2083,7 +2083,11 @@ loadData();
 loadMarket();
 loadIntraday();
 loadNews();
-
+// 每5分鐘自動更新大盤雷達
+setInterval(() => {
+  loadMarket();
+}, 5 * 60 * 1000);
+  
 if(!window.navigator.standalone&&!localStorage.getItem('pwa-dismissed')){
   setTimeout(()=>{
     const el=document.createElement('div');
