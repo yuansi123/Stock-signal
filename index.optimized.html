@@ -257,6 +257,31 @@ button,select,input { font-family:inherit; }
   position:fixed; bottom:0; left:0; right:0; background:var(--card); border-top:1px solid var(--border);
   display:flex; z-index:1000; padding-bottom:env(safe-area-inset-bottom,0); box-shadow:0 -2px 12px var(--shadow);
 }
+#settingsOverlay {
+  display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.45); backdrop-filter:blur(2px);
+}
+#settingsPanel {
+  position:absolute; bottom:0; left:0; right:0; background:var(--card); border-radius:20px 20px 0 0;
+  padding:1.2rem 1rem 2rem; max-height:80vh; overflow-y:auto;
+  box-shadow:0 -4px 24px var(--shadow); animation:slideUp .22s ease;
+}
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.setting-row {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:.65rem 0; border-bottom:1px solid var(--border);
+}
+.setting-row:last-child { border-bottom:0; }
+.toggle-track {
+  width:44px; height:24px; border-radius:12px; background:var(--border);
+  position:relative; cursor:pointer; flex-shrink:0; transition:background .2s;
+}
+.toggle-track.on { background:var(--brown); }
+.toggle-thumb {
+  width:20px; height:20px; border-radius:50%; background:#fff;
+  position:absolute; top:2px; left:2px; transition:left .2s;
+  box-shadow:0 1px 4px rgba(0,0,0,.2);
+}
+.toggle-track.on .toggle-thumb { left:22px; }
 .nav-btn {
   flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:.58rem .2rem;
   background:transparent; border:0; color:var(--text3); font-size:.58rem; cursor:pointer;
@@ -294,6 +319,7 @@ button,select,input { font-family:inherit; }
         <span class="date-tag" id="dateTag">載入中...</span>
         <div style="display:flex;gap:6px;align-items:center">
           <button id="darkModeBtn" class="ghost-btn" onclick="toggleDarkMode()" style="font-size:1.1rem;padding:.15rem .3rem" title="切換深色模式">🌙</button>
+          <button class="ghost-btn" onclick="openSettings()" style="font-size:1.1rem;padding:.15rem .3rem" title="資料來源設定">⚙️</button>
           <button class="refresh-btn" onclick="loadAll(true)">↻ 重新載入</button>
         </div>
       </div>
@@ -487,6 +513,17 @@ button,select,input { font-family:inherit; }
       <div id="reviewCard" class="plain-card"></div>
     </div>
     <div id="largeContent"><div class="state"><div class="spinner"></div><div>載入權值股資料...</div></div></div>
+  </div>
+</div>
+
+<div id="settingsOverlay" onclick="closeSettings()">
+  <div id="settingsPanel" onclick="event.stopPropagation()">
+    <div class="row-between" style="margin-bottom:1rem">
+      <div style="font-size:1rem;font-weight:700">⚙️ 資料來源設定</div>
+      <button class="ghost-btn" onclick="closeSettings()" style="font-size:1.1rem">✕</button>
+    </div>
+    <div id="settingsBody"></div>
+    <button class="primary-btn" style="width:100%;margin-top:1rem;border-radius:12px" onclick="applySettings()">套用並重新載入</button>
   </div>
 </div>
 
@@ -1845,10 +1882,11 @@ function showPage(page) {
   qs('backtestPage').style.display = page === 'backtest' ? '' : 'none';
   qs('aiPage').style.display = page === 'ai' ? '' : 'none';
   qs('largePage').style.display = page === 'large' ? '' : 'none';
-  if (page === 'sector') loadSector();
-  if (page === 'backtest') loadBacktest();
-  if (page === 'ai') loadAI();
-  if (page === 'large') loadLarge();
+  const disabled = el => `<div class="state" style="padding:3rem 1rem"><div style="font-size:1.5rem;margin-bottom:8px">⚙️</div><div>已在設定中停用</div><div style="font-size:.72rem;color:var(--text3);margin-top:6px">點右上角 ⚙️ 開啟</div></div>`;
+  if (page === 'sector')   { dsEnabled('sector')   ? loadSector()   : qs('sectorContent').innerHTML  = disabled(); }
+  if (page === 'backtest') { dsEnabled('backtest')  ? loadBacktest() : qs('btContent').innerHTML      = disabled(); }
+  if (page === 'ai')       { dsEnabled('ai')        ? loadAI()       : qs('aiContent').innerHTML      = disabled(); }
+  if (page === 'large')    { dsEnabled('large')     ? loadLarge()    : qs('largeContent').innerHTML   = disabled(); }
 }
 function askAnyStock(code, name) {
   showPage('ai');
@@ -2904,6 +2942,47 @@ function clearCache() {
   Object.keys(localStorage).filter(k => k.startsWith('sc_')).forEach(k => localStorage.removeItem(k));
 }
 
+// ── Settings panel ────────────────────────────────────────
+const DS = [
+  {key:'news',     icon:'📰', label:'每日科技要聞', desc:'新聞摘要，關閉可加快啟動'},
+  {key:'ai',       icon:'🤖', label:'AI 分析',      desc:'個股 AI 報告（每次直連 Sheet）'},
+  {key:'sector',   icon:'🏭', label:'板塊資料',      desc:'板塊熱力圖與 5 日趨勢'},
+  {key:'backtest', icon:'📊', label:'回測分析',      desc:'歷史訊號績效'},
+  {key:'large',    icon:'🐋', label:'權值股監控',    desc:'法人資金動向與前日漲幅檢討'},
+  {key:'trend',    icon:'📈', label:'訊號變化趨勢',  desc:'趨勢追蹤 Sheet（影響訊號升降溫）'},
+];
+function getDS() {
+  try { return JSON.parse(localStorage.getItem('ds_cfg') || '{}'); } catch(e) { return {}; }
+}
+function dsEnabled(key) { const d = getDS(); return d[key] !== false; }
+function openSettings() {
+  const cfg = getDS();
+  qs('settingsBody').innerHTML = DS.map(s => `
+    <div class="setting-row">
+      <div>
+        <div style="font-size:.82rem;font-weight:700">${s.icon} ${s.label}</div>
+        <div style="font-size:.62rem;color:var(--text3);margin-top:2px">${s.desc}</div>
+      </div>
+      <div class="toggle-track ${cfg[s.key]!==false?'on':''}" onclick="toggleDS('${s.key}',this)">
+        <div class="toggle-thumb"></div>
+      </div>
+    </div>`).join('') +
+    `<div style="font-size:.62rem;color:var(--text3);margin-top:10px;line-height:1.5">訊號看板、大盤雷達為必選，其餘可依需求關閉。關閉後點頁面分頁仍可手動載入。</div>`;
+  qs('settingsOverlay').style.display = '';
+}
+function closeSettings() { qs('settingsOverlay').style.display = 'none'; }
+function toggleDS(key, el) {
+  const cfg = getDS();
+  cfg[key] = cfg[key] === false ? true : false;
+  localStorage.setItem('ds_cfg', JSON.stringify(cfg));
+  el.classList.toggle('on', cfg[key] !== false);
+}
+function applySettings() {
+  closeSettings();
+  clearCache(); trendRowsCache = null;
+  loadAll();
+}
+
 // ── Dark mode ──────────────────────────────────────────────
 function toggleDarkMode() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -2976,7 +3055,9 @@ window.addEventListener('scroll', () => {
 }, {passive: true});
 async function loadAll(force = false) {
   if (force) { clearCache(); trendRowsCache = null; }
-  await Promise.allSettled([loadData(), loadMarket(), loadNews()]);
+  const tasks = [loadData(), loadMarket()];
+  if (dsEnabled('news')) tasks.push(loadNews());
+  await Promise.allSettled(tasks);
 }
 
 initCollapsibleSections();
