@@ -1422,17 +1422,11 @@ const dateStr = dm ? dm[1]+'-'+String(parseInt(dm[2])+1).padStart(2,'0')+'-'+Str
 請直接輸出評論文字，不要加任何標題或Markdown格式。重點是點出法人資金集中流向哪個板塊、值得關注的個股，口吻像投顧分析師每日收盤短評，語氣專業簡潔。`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await res.json();
-    const text = data.content?.[0]?.text || '無法生成總結';
+    const res = await fetch(WEB_APP_URL + '?action=chat&prompt=' + encodeURIComponent(prompt), {
+  redirect: 'follow'
+});
+const data = await res.json();
+const text = data.text || '無法取得回答';
     card.innerHTML = text.replace(/\n/g, '<br>');
   } catch(e) {
     card.innerHTML = buildStaticSummary(sectorList, cntBuy, highStreak, dateStr);
