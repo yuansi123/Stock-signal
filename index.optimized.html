@@ -133,6 +133,12 @@ button,select,input { font-family:inherit; }
 .detail-panel { margin-top:10px; background:var(--card2); border:1px solid var(--border); border-radius:12px; padding:.8rem; }
 .detail-title { font-size:.72rem; font-weight:700; color:var(--brown); margin-bottom:6px; }
 .detail-grid { grid-template-columns:repeat(2,1fr); }
+.divergence-box {
+  margin-top:8px; border:1px solid var(--border); border-radius:10px; padding:.55rem .65rem;
+  background:var(--card2); font-size:.72rem; line-height:1.55; color:var(--text2);
+}
+.divergence-title { font-size:.65rem; font-weight:700; color:var(--brown); margin-bottom:4px; }
+.divergence-list { display:flex; flex-wrap:wrap; gap:4px; }
 .state { padding:3rem 1rem; line-height:1.7; }
 .spinner {
   width:28px; height:28px; border-radius:50%; border:2.5px solid var(--border); border-top-color:var(--brown);
@@ -452,6 +458,47 @@ function getTrendTag(s) {
   if (s.scoreDelta === -1) return '<span class="signal-tag trend-down">-1 轉弱</span>';
   return '<span class="signal-tag trend-flat">持平</span>';
 }
+function getDivergenceSignals(s, reasons) {
+  const list = [];
+  const reasonText = reasons.join(' ');
+  const concNum = num(s.conc5);
+  const rsiNum = num(s.rsi);
+  const dayTradePct = num(s.dayTradeRatio);
+
+  if (s.instNet < 0 && (reasonText.includes('突破') || reasonText.includes('站上') || s.momS >= 2)) {
+    list.push({level:'warn', label:'股價強但法人賣', detail:'技術面轉強時法人反向賣超，容易是假突破或短線拉高出貨。'});
+  }
+  if (s.instNet > 0 && s.streak >= 3 && s.score < 8 && !String(s.op || '').includes('🟢')) {
+    list.push({level:'good', label:'低調吸籌', detail:'法人連續買超但總分尚未過熱，可列入觀察，不急追價。'});
+  }
+  if (dayTradePct >= 50) {
+    list.push({level:'warn', label:'當沖過高', detail:'當沖比超過50%，短線籌碼波動大，追高風險偏高。'});
+  } else if (dayTradePct >= 30 && s.instNet <= 0) {
+    list.push({level:'warn', label:'短線籌碼亂', detail:'當沖偏高且法人沒有明顯買盤，隔日容易震盪。'});
+  }
+  if (concNum > 12 || rsiNum > 75) {
+    list.push({level:'warn', label:'過熱追價', detail:'集中度或RSI偏高，適合等拉回，不宜無腦追。'});
+  }
+  if ((s.scoreDelta || 0) >= 2 && (s.instNetDelta || 0) < 0) {
+    list.push({level:'warn', label:'分數升法人降', detail:'系統分數轉強但法人買盤減弱，要確認不是純技術反彈。'});
+  }
+  if ((s.scoreDelta || 0) <= -2 && s.instNet > 0) {
+    list.push({level:'good', label:'分數降法人仍買', detail:'技術降溫但法人仍買，可能是整理吸籌，留意支撐。'});
+  }
+
+  return list;
+}
+function renderDivergenceBox(signals) {
+  if (!signals.length) return '';
+  return `<div class="divergence-box">
+    <div class="divergence-title">🔎 籌碼背離偵測</div>
+    <div class="divergence-list">${signals.map(x => `<span class="rtag ${x.level === 'good' ? 'good' : 'warn'}" title="${x.detail}">${x.label}</span>`).join('')}</div>
+  </div>`;
+}
+function renderDivergenceDetail(signals) {
+  if (!signals.length) return '<div class="detail-cell"><div class="detail-label">背離偵測</div><div class="detail-val">無明顯背離</div></div>';
+  return `<div class="detail-cell" style="grid-column:1/-1"><div class="detail-label">背離偵測</div><div class="detail-val" style="font-size:.75rem;line-height:1.55">${signals.map(x => `${x.label}：${x.detail}`).join('<br>')}</div></div>`;
+}
 function toggleDetail(code) {
   const el = qs('detail-' + code);
   if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
@@ -608,6 +655,7 @@ function renderCards() {
     const pos = s.instNet > 0, reasons = parseReasons(s.reasons);
     const pips = pipDefs.map(p => `<span class="pip ${s[p.key] > 0 ? 'on' : ''}">${p.label} ${s[p.key]}/${p.max}</span>`).join('');
     const dayTradePct = num(s.dayTradeRatio), dayTradeWarn = dayTradePct >= 30;
+    const divergences = getDivergenceSignals(s, reasons);
     const fourCond = reasons.some(r => r.includes('四大條件'));
     const fColor = s.foreign > 0 ? 'color:var(--red)' : s.foreign < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
     const tColor = s.trust > 0 ? 'color:var(--red)' : s.trust < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
@@ -650,6 +698,7 @@ function renderCards() {
       </div>
       <div class="breakdown">${pips}</div>
       <div class="reasons">${reasons.map(r => `<span class="rtag ${rClass(r)}">${r}</span>`).join('')}</div>
+      ${renderDivergenceBox(divergences)}
       <div class="stock-actions">
         <button class="mini-btn ${isWatched(s.code)?'active':''}" onclick="toggleWatch('${s.code}')">${isWatched(s.code)?'⭐ 已追蹤':'☆ 加入追蹤'}</button>
         <button class="mini-btn" onclick="toggleDetail('${s.code}')">單檔詳情</button>
@@ -660,6 +709,7 @@ function renderCards() {
         <div class="detail-grid">
           <div class="detail-cell"><div class="detail-label">分數變化</div><div class="detail-val" style="color:${(s.scoreDelta||0)>0?'var(--green)':(s.scoreDelta||0)<0?'var(--red)':'var(--text)'}">${s.prevScore === null || s.prevScore === undefined ? '首次追蹤' : `${s.prevScore} → ${s.score} (${s.scoreDelta>=0?'+':''}${s.scoreDelta})`}</div></div>
           <div class="detail-cell"><div class="detail-label">法人變化</div><div class="detail-val" style="color:${(s.instNetDelta||0)>0?'var(--red)':(s.instNetDelta||0)<0?'var(--blue)':'var(--text)'}">${s.prevInstNet === null || s.prevInstNet === undefined ? '—' : `${s.prevInstNet} → ${s.instNet} 張`}</div></div>
+          ${renderDivergenceDetail(divergences)}
           <div class="detail-cell"><div class="detail-label">融資</div><div class="detail-val">${s.marginBal}張 <span style="${mChgColor}">(${s.marginChg>0?'+':''}${s.marginChg})</span></div></div>
           <div class="detail-cell"><div class="detail-label">融券 / 券資比</div><div class="detail-val">${s.shortBal}張 / ${s.shortRatio}%</div></div>
           <div class="detail-cell"><div class="detail-label">停利2</div><div class="detail-val green">$${fmtPrice(s.tp2)}</div></div>
