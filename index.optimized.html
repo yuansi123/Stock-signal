@@ -279,40 +279,44 @@ button,select,input { font-family:inherit; }
       <div id="breadthCard" class="plain-card"></div>
     </div>
 
-    <div id="riskPlanSection" style="display:none;margin-bottom:1rem">
+    <div id="dailySummarySection" style="display:none;margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">今日風控總覽</div>
-        <button class="ghost-btn" onclick="setActionFilter('actionable')">看可操作</button>
+        <div class="section-title" style="margin:0">每日總結</div>
+        <button class="ghost-btn" onclick="generateDailySummary()">重新生成</button>
       </div>
-      <div id="riskPlanCard" class="plain-card"></div>
+      <div id="dailySummaryCard" class="plain-card"><div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div></div>
     </div>
 
-    <div id="pricePositionSection" style="display:none;margin-bottom:1rem">
+    <div id="watchRadarSection" style="display:none;margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">價格位置雷達</div>
-        <button class="ghost-btn" onclick="setEntryFilter('')">清除位置篩選</button>
+        <div class="section-title" style="margin:0">自選股雷達</div>
+        <div style="display:flex;gap:8px">
+          <button class="ghost-btn" onclick="copyWatchList()">複製代號</button>
+          <button class="ghost-btn" onclick="importWatchList()">匯入</button>
+        </div>
       </div>
-      <div id="pricePositionCard" class="plain-card"></div>
+      <div id="watchRadarCard" class="plain-card"></div>
     </div>
 
-    <div id="riskFactorSection" style="display:none;margin-bottom:1rem">
+    <div id="actionListSection" style="display:none;margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">風險因子雷達</div>
-        <button class="ghost-btn" onclick="setRiskFilter('')">清除風險篩選</button>
+        <div class="section-title" style="margin:0">今日操作清單</div>
+        <button class="ghost-btn" onclick="copyDailyBrief()">複製簡報</button>
       </div>
-      <div id="riskFactorCard" class="plain-card"></div>
+      <div id="actionFilterRow" class="filters" style="margin-bottom:8px"></div>
+      <div id="actionListCard" class="plain-card"></div>
+    </div>
+
+    <div id="dailyNewsSection" style="margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">今日科技要聞</div>
+        <button class="ghost-btn" onclick="loadNews()">重新載入</button>
+      </div>
+      <div id="newsContent" class="plain-card"><div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div></div>
     </div>
 
     <div id="sectorChipsSection" style="display:none;margin-bottom:1rem">
       <div id="sectorChipsCard" class="sector-chip-row"></div>
-    </div>
-
-    <div id="rotationRadarSection" style="display:none;margin-bottom:1rem">
-      <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">板塊輪動雷達</div>
-        <button class="ghost-btn" onclick="showPage('sector')">看板塊頁</button>
-      </div>
-      <div id="rotationRadarCard" class="plain-card"></div>
     </div>
 
     <div id="changeRadarSection" style="display:none;margin-bottom:1rem">
@@ -323,56 +327,12 @@ button,select,input { font-family:inherit; }
       <div id="changeRadarCard" class="plain-card"></div>
     </div>
 
-    <div id="continuationSection" style="display:none;margin-bottom:1rem">
-      <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">強勢續航雷達</div>
-        <button class="ghost-btn" onclick="setActionFilter('wait')">看拉回名單</button>
-      </div>
-      <div id="continuationCard" class="plain-card"></div>
-    </div>
-
     <div id="compareSection" style="display:none;margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
         <div class="section-title" style="margin:0">⚖️ 高分股比較</div>
         <button class="ghost-btn" onclick="renderCompareTable(true)">重新整理</button>
       </div>
       <div id="compareCard" class="plain-card"></div>
-    </div>
-
-    <div id="dailySummarySection" style="display:none;margin-bottom:1rem">
-      <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">📝 每日總結</div>
-        <button class="ghost-btn" onclick="generateDailySummary()">↻ 重新生成</button>
-      </div>
-      <div id="dailySummaryCard" class="plain-card"><div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div></div>
-    </div>
-
-    <div id="watchRadarSection" style="display:none;margin-bottom:1rem">
-      <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">⭐ 自選股雷達</div>
-        <div style="display:flex;gap:8px">
-          <button class="ghost-btn" onclick="copyWatchList()">複製清單</button>
-          <button class="ghost-btn" onclick="importWatchList()">匯入</button>
-        </div>
-      </div>
-      <div id="watchRadarCard" class="plain-card"></div>
-    </div>
-
-    <div id="actionListSection" style="display:none;margin-bottom:1rem">
-      <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">✅ 今日操作清單</div>
-        <button class="ghost-btn" onclick="copyDailyBrief()">複製簡報</button>
-      </div>
-      <div id="actionFilterRow" class="filters" style="margin-bottom:8px"></div>
-      <div id="actionListCard" class="plain-card"></div>
-    </div>
-
-    <div id="dailyNewsSection" style="margin-bottom:1rem">
-      <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">📰 今日科技要聞</div>
-        <button class="ghost-btn" onclick="loadNews()">↻ 重新載入</button>
-      </div>
-      <div id="newsContent" class="plain-card"><div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div></div>
     </div>
 
     <div class="sector-filter">
@@ -430,6 +390,12 @@ button,select,input { font-family:inherit; }
     <div class="bt-header">
       <div class="logo"><div class="logo-icon">🏭</div><div><div class="logo-title">板塊熱度</div><div class="logo-sub">SECTOR HEAT MAP</div></div></div>
       <button class="refresh-btn" onclick="loadSector()">↻ 重新載入</button>
+    </div>
+    <div id="rotationRadarSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">板塊輪動雷達</div>
+      </div>
+      <div id="rotationRadarCard" class="plain-card"></div>
     </div>
     <div id="sectorContent"><div class="state"><div class="spinner"></div><div>載入板塊資料...</div></div></div>
   </div>
@@ -1516,13 +1482,8 @@ async function loadData() {
     qs('dateTag').textContent = filterDate || allStocks[0]?.date || '—';
     qs('dateMeta').textContent = filterDate ? `目前顯示 ${filterDate}，共 ${allStocks.length} 檔；日期來源含訊號看板與訊號日誌` : '';
     renderMarketBreadth();
-    renderRiskPlan();
-    renderPricePositionRadar();
-    renderRiskFactorRadar();
     renderSectorChips();
-    renderRotationRadar();
     renderChangeRadar();
-    renderContinuationRadar();
     renderCompareTable();
     renderWatchRadar();
     renderActionList();
@@ -1803,6 +1764,7 @@ async function loadNews() {
 async function loadSector() {
   qs('sectorContent').innerHTML = '<div class="state"><div class="spinner"></div><div>載入板塊資料...</div></div>';
   if (!allStocks.length) await loadData();
+  renderRotationRadar();
   try {
     const rows = await fetchSheet('板塊熱度');
     if (!rows.length) { qs('sectorContent').innerHTML = '<div class="state">還沒有板塊資料</div>'; return; }
