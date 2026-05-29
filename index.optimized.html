@@ -2796,13 +2796,14 @@ async function loadLarge() {
         : relDiff > -0.1 ? {lbl:'接近均值', col:'var(--text3)'}
         : relDiff > -0.5 ? {lbl:'略偏弱',   col:'var(--blue)'}
         :                  {lbl:'明顯偏弱', col:'var(--blue)'};
+      const todayFmt = (todayNet >= 0 ? '+' : '') + Math.round(todayNet).toLocaleString('zh-TW');
       if (histNets.length >= 9) {
         const sorted = [...histNets].sort((a,b) => a-b);
         const pct = Math.round(sorted.filter(n => n <= todayNet).length / sorted.length * 100);
         const col = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--text3)' : 'var(--blue)';
-        benchmarkHtml = `<div style="font-size:.6rem;color:${col};margin-top:2px">歷史第 ${pct} 百分位 · 近期均值 ${avgFmt} 張 · 今日${strength.lbl}</div>`;
+        benchmarkHtml = `<div style="font-size:.6rem;color:${col};margin-top:2px">均值 ${avgFmt} · 今日 ${todayFmt} 張（歷史第 ${pct} 百分位，${strength.lbl}）</div>`;
       } else {
-        benchmarkHtml = `<div style="font-size:.6rem;color:${strength.col};margin-top:2px">近${histNets.length}日均 ${avgFmt} 張 · 今日${strength.lbl}</div>`;
+        benchmarkHtml = `<div style="font-size:.6rem;color:${strength.col};margin-top:2px">近${histNets.length}日均 ${avgFmt} · 今日 ${todayFmt} 張（${strength.lbl}）</div>`;
       }
     }
 
