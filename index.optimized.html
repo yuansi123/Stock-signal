@@ -87,7 +87,7 @@ button,select,input { font-family:inherit; }
 .search-icon { position:absolute; left:.9rem; top:50%; transform:translateY(-50%); font-size:.85rem; color:var(--text3); }
 .cards { display:flex; flex-direction:column; gap:10px; }
 .card { padding:1.1rem 1.2rem; border-left:4px solid transparent; animation:fadeUp .28s ease both; }
-.card.op-buy { border-left-color:var(--green); } .card.op-watch { border-left-color:var(--yellow); }
+.card.op-buy { border-left-color:var(--green); } .card.op-watch,.card.op-hot { border-left-color:var(--yellow); }
 .card.op-avoid { border-left-color:var(--red); } .card.op-bear { border-left-color:var(--text3); }
 @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 .card-header { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:8px; }
@@ -99,6 +99,7 @@ button,select,input { font-family:inherit; }
 }
 .op-badge.buy,.signal-tag.new { background:#eaf5ea; color:var(--green); }
 .op-badge.watch,.signal-tag.cont { background:#fef8ea; color:var(--yellow); }
+.op-badge.hot { background:#fff1df; color:#b46512; }
 .op-badge.avoid,.signal-tag.hot { background:#fef0ee; color:var(--red); }
 .op-badge.bear,.op-badge.neutral { background:var(--bg2); color:var(--text2); }
 .signal-tag { font-size:.62rem; padding:1px 6px; margin:0 0 0 5px; vertical-align:middle; }
@@ -537,6 +538,25 @@ function getRiskRewardDistance(s) {
   };
 }
 function num(v){ const n = Number(String(v ?? '').replace('%','').trim()); return isNaN(n) ? 0 : n; }
+function isOverheatSignal(s) {
+  return String(s.op || '').includes('過熱');
+}
+function getOverheatState(s) {
+  if (!isOverheatSignal(s)) return null;
+  const rsi = num(s.rsi);
+  const conc = num(s.conc5);
+  const dayTradePct = num(s.dayTradeRatio);
+  const strongFlow = Number(s.instNet) > 0 && Number(s.score) >= 8;
+  const strongTrend = Number(s.momS) >= 2 || Number(s.kdS) > 0 || Number(s.streak) >= 2;
+  const danger = Number(s.instNet) < 0 || dayTradePct >= 50 || conc >= 18 || rsi >= 82;
+  if (danger && !strongFlow) {
+    return {kind:'danger', label:'🔴 危險過熱', className:'avoid', plan:'暫不進場', note:'過熱且籌碼或短線風險偏高，先避開追價。'};
+  }
+  if (strongFlow && strongTrend) {
+    return {kind:'strong', label:'🟠 強勢過熱', className:'hot', plan:'拉回觀察', note:'強勢股可能續漲，但追價風險高，等回測或分批控風險。'};
+  }
+  return {kind:'neutral', label:'🟡 過熱觀察', className:'watch', plan:'拉回觀察', note:'動能偏熱，等量價降溫後再評估。'};
+}
 function getOpClass(op) {
   op = String(op || '');
   if (op.includes('🟢')) return 'buy';
@@ -544,6 +564,20 @@ function getOpClass(op) {
   if (op.includes('⬇️')) return 'bear';
   if (op.includes('🔴')) return 'avoid';
   return 'neutral';
+}
+function getDisplayOp(s) {
+  const heat = getOverheatState(s);
+  return heat ? heat.label : (s.op || '－');
+}
+function getDisplayOpClass(s) {
+  const heat = getOverheatState(s);
+  return heat ? heat.className : getOpClass(s.op);
+}
+function getTradePlanLabels(s) {
+  const heat = getOverheatState(s);
+  if (!heat) return {title:'進出場規劃', entry:'進場', stop:'停損', tp1:'停利1', position:'位置判斷', note:''};
+  if (heat.kind === 'danger') return {title:'風險控管規劃', entry:'暫不進場', stop:'失守警戒', tp1:'反彈目標', position:'風險判斷', note:heat.note};
+  return {title:'強勢股拉回規劃', entry:'拉回觀察區', stop:'防守價', tp1:'續漲目標', position:'追價判斷', note:heat.note};
 }
 function getBarColor(s,m) { const p=s/m; return p>=.75?'#5a9460':p>=.5?'#c08830':p>=.25?'#a07850':'#d0c8bc'; }
 function parseReasons(str) { return String(str || '').split('|').map(s => s.trim()).filter(Boolean); }
@@ -677,6 +711,9 @@ function getActionMeta(s) {
 }
 function getActionCategory(s) {
   const x = getActionMeta(s);
+  const heat = getOverheatState(x.stock);
+  if (heat?.kind === 'danger') return 'avoid';
+  if (heat?.kind === 'strong' || heat?.kind === 'neutral') return 'wait';
   const opClass = getOpClass(x.stock.op);
   if (opClass === 'buy' && x.entryStatus === 'inside' && x.warnCount === 0 && x.dayTradePct < 30) return 'actionable';
   if (opClass === 'buy' && (x.entryStatus === 'above' || x.warnCount > 0 || x.dayTradePct >= 30)) return 'wait';
@@ -763,15 +800,15 @@ function renderActionList() {
   const enriched = allStocks.map(getActionMeta);
 
   const actionable = enriched
-    .filter(x => x.stock.op.includes('🟢') && x.entry.label === '進場區間內' && x.warnCount === 0 && x.dayTradePct < 30)
+    .filter(x => getActionCategory(x.stock) === 'actionable')
     .sort((a,b) => b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet)
     .slice(0, 5);
   const waitPullback = enriched
-    .filter(x => x.stock.op.includes('🟢') && (x.entry.label === '高於進場區間' || x.warnCount > 0 || x.dayTradePct >= 30))
+    .filter(x => getActionCategory(x.stock) === 'wait')
     .sort((a,b) => b.stock.score - a.stock.score)
     .slice(0, 5);
   const avoid = enriched
-    .filter(x => x.stock.op.includes('🔴') || x.stock.op.includes('⬇️') || x.warnCount >= 2)
+    .filter(x => getActionCategory(x.stock) === 'avoid')
     .sort((a,b) => b.warnCount - a.warnCount || b.stock.score - a.stock.score)
     .slice(0, 5);
 
@@ -786,7 +823,7 @@ function renderActionList() {
 
   card.innerHTML = `<div class="action-grid">
     ${col('可操作', actionable, '目前沒有完全落在條件內的標的', 'var(--green)', x => x.entry.label)}
-    ${col('等拉回', waitPullback, '目前沒有需要等拉回的買入股', 'var(--yellow)', x => x.entry.label === '高於進場區間' ? '避免追高' : (x.divs[0]?.label || '風險確認'))}
+    ${col('等拉回', waitPullback, '目前沒有需要等拉回的買入股', 'var(--yellow)', x => getOverheatState(x.stock)?.plan || (x.entry.label === '高於進場區間' ? '避免追高' : (x.divs[0]?.label || '風險確認')))}
     ${col('先避開', avoid, '目前沒有明顯避開名單', 'var(--red)', x => x.divs[0]?.label || x.stock.op)}
   </div>`;
   renderActionFilterButtons();
@@ -797,9 +834,9 @@ function renderMarketBreadth() {
   if (!section || !card || !allStocks.length) return;
 
   const total = allStocks.length;
-  const buy = allStocks.filter(s => s.op.includes('🟢')).length;
-  const watch = allStocks.filter(s => s.op.includes('🟡')).length;
-  const avoid = allStocks.filter(s => s.op.includes('🔴') || s.op.includes('⬇️')).length;
+  const buy = allStocks.filter(s => getDisplayOpClass(s) === 'buy').length;
+  const watch = allStocks.filter(s => ['watch','hot'].includes(getDisplayOpClass(s))).length;
+  const avoid = allStocks.filter(s => ['avoid','bear'].includes(getDisplayOpClass(s))).length;
   const totalNet = allStocks.reduce((sum, s) => sum + (Number(s.instNet) || 0), 0);
   const avgScore = allStocks.reduce((sum, s) => sum + (Number(s.score) || 0), 0) / total;
   const sectorMap = {};
@@ -906,34 +943,27 @@ function renderCompareTable() {
   section.style.display = '';
 }
 function buildActionBuckets() {
-  const enriched = allStocks.map(s => {
-    const reasons = parseReasons(s.reasons);
-    const divs = getDivergenceSignals(s, reasons);
-    const entry = getEntryPosition(s);
-    const warnCount = divs.filter(d => d.level === 'warn').length;
-    const dayTradePct = num(s.dayTradeRatio);
-    return {stock:s, divs, entry, warnCount, dayTradePct};
-  });
+  const enriched = allStocks.map(getActionMeta);
   return {
     actionable: enriched
-      .filter(x => x.stock.op.includes('🟢') && x.entry.label === '進場區間內' && x.warnCount === 0 && x.dayTradePct < 30)
+      .filter(x => getActionCategory(x.stock) === 'actionable')
       .sort((a,b) => b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet)
       .slice(0, 5),
     waitPullback: enriched
-      .filter(x => x.stock.op.includes('🟢') && (x.entry.label === '高於進場區間' || x.warnCount > 0 || x.dayTradePct >= 30))
+      .filter(x => getActionCategory(x.stock) === 'wait')
       .sort((a,b) => b.stock.score - a.stock.score)
       .slice(0, 5),
     avoid: enriched
-      .filter(x => x.stock.op.includes('🔴') || x.stock.op.includes('⬇️') || x.warnCount >= 2)
+      .filter(x => getActionCategory(x.stock) === 'avoid')
       .sort((a,b) => b.warnCount - a.warnCount || b.stock.score - a.stock.score)
       .slice(0, 5)
   };
 }
 function buildDailyBrief() {
   const date = qs('dateTag')?.textContent || '';
-  const buy = allStocks.filter(s => s.op.includes('🟢')).length;
-  const watch = allStocks.filter(s => s.op.includes('🟡')).length;
-  const avoidCount = allStocks.filter(s => s.op.includes('🔴') || s.op.includes('⬇️')).length;
+  const buy = allStocks.filter(s => getDisplayOpClass(s) === 'buy').length;
+  const watch = allStocks.filter(s => ['watch','hot'].includes(getDisplayOpClass(s))).length;
+  const avoidCount = allStocks.filter(s => ['avoid','bear'].includes(getDisplayOpClass(s))).length;
   const buckets = buildActionBuckets();
   const topSectors = {};
   allStocks.forEach(s => {
@@ -1145,10 +1175,10 @@ function renderCards() {
       if (volFilter === 'fish' && (s.vol < 3000 || s.vol >= 10000)) return false;
       if (volFilter === 'shrimp' && s.vol >= 3000) return false;
       if (actionFilter && getActionCategory(s) !== actionFilter) return false;
-      if (currentFilter === 'buy') return s.op.includes('🟢');
-      if (currentFilter === 'watch') return s.op.includes('🟡');
-      if (currentFilter === 'avoid') return s.op.includes('🔴');
-      if (currentFilter === 'bear') return s.op.includes('⬇️');
+      if (currentFilter === 'buy') return getDisplayOpClass(s) === 'buy';
+      if (currentFilter === 'watch') return ['watch','hot'].includes(getDisplayOpClass(s));
+      if (currentFilter === 'avoid') return getDisplayOpClass(s) === 'avoid';
+      if (currentFilter === 'bear') return getDisplayOpClass(s) === 'bear';
     }
     return true;
   });
@@ -1170,7 +1200,8 @@ function renderCards() {
     {label:'集中',key:'concS',max:2},{label:'RSI',key:'rsiS',max:1},{label:'KD',key:'kdS',max:1}
   ];
   qs('content').innerHTML = '<div class="cards">' + list.map((s,i) => {
-    const opClass = getOpClass(s.op), barPct = Math.min(s.score / MAX * 100, 100), barColor = getBarColor(s.score, MAX);
+    const opClass = getDisplayOpClass(s), barPct = Math.min(s.score / MAX * 100, 100), barColor = getBarColor(s.score, MAX);
+    const displayOp = getDisplayOp(s), planLabels = getTradePlanLabels(s);
     const pos = s.instNet > 0, reasons = parseReasons(s.reasons);
     const pips = pipDefs.map(p => `<span class="pip ${s[p.key] > 0 ? 'on' : ''}">${p.label} ${s[p.key]}/${p.max}</span>`).join('');
     const dayTradePct = num(s.dayTradeRatio), dayTradeWarn = dayTradePct >= 30;
@@ -1190,7 +1221,7 @@ function renderCards() {
         </div>
         <div class="price">$${s.price}</div>
       </div>
-      <div class="op-badge ${opClass}">${s.op || '－'}</div>
+      <div class="op-badge ${opClass}">${displayOp}</div>
       <div class="score-section">
         <div class="score-top"><span class="score-text">綜合評分</span><span class="score-num">${s.score} / ${MAX} 分</span></div>
         <div class="score-bar-bg"><div class="score-bar-fill" style="width:${barPct}%;background:${barColor}"></div></div>
@@ -1209,13 +1240,13 @@ function renderCards() {
         <div class="stat-box"><div class="stat-label">自營</div><div class="stat-val" style="${dColor}">${s.dealer>0?'+':''}${s.dealer}</div></div>
       </div>
       <div class="detail-panel" style="margin-bottom:8px">
-        <div class="detail-title">進出場規劃</div>
+        <div class="detail-title">${planLabels.title}</div>
         <div class="detail-grid">
-          <div class="detail-cell"><div class="detail-label">進場</div><div class="detail-val">$${fmtPrice(s.entry)}</div></div>
-          <div class="detail-cell"><div class="detail-label">停損</div><div class="detail-val red">$${fmtPrice(s.stop)}</div></div>
-          <div class="detail-cell"><div class="detail-label">停利1</div><div class="detail-val green">$${fmtPrice(s.tp1)}</div></div>
+          <div class="detail-cell"><div class="detail-label">${planLabels.entry}</div><div class="detail-val">$${fmtPrice(s.entry)}</div></div>
+          <div class="detail-cell"><div class="detail-label">${planLabels.stop}</div><div class="detail-val red">$${fmtPrice(s.stop)}</div></div>
+          <div class="detail-cell"><div class="detail-label">${planLabels.tp1}</div><div class="detail-val green">$${fmtPrice(s.tp1)}</div></div>
           <div class="detail-cell"><div class="detail-label">風報比 / 當沖</div><div class="detail-val">${s.rr || '—'} · <span style="color:${dayTradeWarn?'var(--yellow)':'var(--text)'}">${s.dayTradeRatio || '—'}</span></div></div>
-          <div class="detail-cell" style="grid-column:1/-1"><div class="detail-label">位置判斷</div><div class="detail-val" style="color:${entryPosition.color}">${entryPosition.label}</div></div>
+          <div class="detail-cell" style="grid-column:1/-1"><div class="detail-label">${planLabels.position}</div><div class="detail-val" style="color:${entryPosition.color}">${planLabels.note || entryPosition.label}</div></div>
         </div>
       </div>
       <div class="breakdown">${pips}</div>
@@ -1233,7 +1264,7 @@ function renderCards() {
           <div class="detail-cell"><div class="detail-label">法人變化</div><div class="detail-val" style="color:${(s.instNetDelta||0)>0?'var(--red)':(s.instNetDelta||0)<0?'var(--blue)':'var(--text)'}">${s.prevInstNet === null || s.prevInstNet === undefined ? '—' : `${s.prevInstNet} → ${s.instNet} 張`}</div></div>
           <div class="detail-cell"><div class="detail-label">距停損</div><div class="detail-val red">${rrDistance.stopPct}</div></div>
           <div class="detail-cell"><div class="detail-label">距停利1</div><div class="detail-val green">${rrDistance.tp1Pct}</div></div>
-          <div class="detail-cell" style="grid-column:1/-1"><div class="detail-label">進場位置說明</div><div class="detail-val" style="font-size:.75rem;line-height:1.55;color:${entryPosition.color}">${entryPosition.detail}</div></div>
+          <div class="detail-cell" style="grid-column:1/-1"><div class="detail-label">${planLabels.position}說明</div><div class="detail-val" style="font-size:.75rem;line-height:1.55;color:${entryPosition.color}">${planLabels.note || entryPosition.detail}</div></div>
           ${renderDivergenceDetail(divergences)}
           <div class="detail-cell"><div class="detail-label">融資</div><div class="detail-val">${s.marginBal}張 <span style="${mChgColor}">(${s.marginChg>0?'+':''}${s.marginChg})</span></div></div>
           <div class="detail-cell"><div class="detail-label">融券 / 券資比</div><div class="detail-val">${s.shortBal}張 / ${s.shortRatio}%</div></div>
