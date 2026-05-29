@@ -1067,13 +1067,14 @@ ${target ? `
   const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby-KbeEe-LDpu2Fdg_PlQjSOy6cqNQpYQ_eTZC86pZMz_yXVurPLysXd7kBQ6W-2KgKWA/exec';
   
   try {
-    const res = await fetch(WEB_APP_URL, {
+   const res = await fetch(WEB_APP_URL, {
   method: 'POST',
   redirect: 'follow',
   body: JSON.stringify({prompt}),
   headers: {'Content-Type': 'text/plain'}
 });
-const data = await res.json();
+const text_raw = await res.text();
+const data = JSON.parse(text_raw);
 const text = data.text || '無法取得回答';
     // Markdown 轉 HTML
     const formatted = text
@@ -1432,7 +1433,8 @@ const dateStr = dm ? dm[1]+'-'+String(parseInt(dm[2])+1).padStart(2,'0')+'-'+Str
   body: JSON.stringify({prompt}),
   headers: {'Content-Type': 'text/plain'}
 });
-const data = await res.json();
+const text_raw = await res.text();
+const data = JSON.parse(text_raw);
 const text = data.text || '無法取得回答';
     card.innerHTML = text.replace(/\n/g, '<br>');
   } catch(e) {
