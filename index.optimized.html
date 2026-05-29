@@ -2213,34 +2213,34 @@ async function loadSector() {
         </div>`;
       }).join('')}</div></div>`;
     const html = data.map(s => {
-      const cls = s.heat.includes('??')?'hot':s.heat.includes('??')?'up':s.heat.includes('??')?'down':'neutral';
+      const cls = s.heat.includes('強勢')?'hot':s.heat.includes('偏強')?'up':s.heat.includes('偏弱')?'down':'neutral';
       const col = cls==='hot'?'var(--red)':cls==='up'?'var(--green)':cls==='down'?'var(--blue)':'var(--text3)';
       const stocks = allStocks.filter(st=>st.sector===s.name).sort((a,b)=>b.instNet-a.instNet).slice(0,8);
       const buyRatio = s.count ? Math.round(s.buyCount / s.count * 100) : 0;
       const leader = stocks[0];
-      const note = s.avgNet > 500 ? '?????????????????????'
-        : s.avgNet > 0 ? '??????????????????'
-        : s.avgNet < -300 ? '???????????????'
-        : '??????????????';
+      const note = s.avgNet > 500 ? '法人強力湧入，板塊動能充沛，可留意龍頭股突破機會'
+        : s.avgNet > 0 ? '法人溫和流入，板塊偏多，留意個股分化'
+        : s.avgNet < -300 ? '法人明顯流出，板塊偏空，避免追高'
+        : '法人資金持平，板塊觀望，等待方向明確';
       return `<div class="sector-card ${cls}">
         <div class="sector-top">
           <div>
             <div class="sector-name">${s.name}</div>
-            <div style="font-size:.66rem;color:var(--text3);margin-top:2px">${s.heat} ? ${s.count}? ? ????${buyRatio}%</div>
+            <div style="font-size:.66rem;color:var(--text3);margin-top:2px">${s.heat} · ${s.count}檔 · 買入${buyRatio}%</div>
           </div>
           <div style="text-align:right">
-            <div class="sector-heat" style="color:${netColor(s.avgNet)}">${fmtSigned(s.avgNet)} ?/?</div>
-            <div style="font-size:.58rem;color:var(--text3);margin-top:2px">????</div>
+            <div class="sector-heat" style="color:${netColor(s.avgNet)}">${fmtSigned(s.avgNet)} 張/檔</div>
+            <div style="font-size:.58rem;color:var(--text3);margin-top:2px">每檔均買</div>
           </div>
         </div>
         <div class="sector-bar-bg"><div class="sector-bar-fill" style="width:${Math.abs(s.avgNet)/max*100}%;background:${col}"></div></div>
         <div class="sector-stats">
-          <div class="sector-stat"><div class="sector-stat-label">????</div><div class="sector-stat-val" style="color:${netColor(s.totalNet)}">${fmtSigned(s.totalNet)}?</div></div>
-          <div class="sector-stat"><div class="sector-stat-label">????</div><div class="sector-stat-val">${s.avgScore.toFixed(1)}/12</div></div>
-          <div class="sector-stat"><div class="sector-stat-label">???</div><div class="sector-stat-val" style="font-size:.78rem">${leader ? leader.name : '?'}</div></div>
+          <div class="sector-stat"><div class="sector-stat-label">法人合計</div><div class="sector-stat-val" style="color:${netColor(s.totalNet)}">${fmtSigned(s.totalNet)}張</div></div>
+          <div class="sector-stat"><div class="sector-stat-label">平均評分</div><div class="sector-stat-val">${s.avgScore.toFixed(1)}/12</div></div>
+          <div class="sector-stat"><div class="sector-stat-label">領頭股</div><div class="sector-stat-val" style="font-size:.78rem">${leader ? leader.name : '—'}</div></div>
         </div>
-        <div style="font-size:.72rem;color:var(--text2);line-height:1.55;margin-top:8px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:7px 9px">???${note}</div>
-        ${stocks.length ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">${stocks.map(st => `<div class="row-between" style="background:var(--bg2);border-radius:8px;padding:5px 8px;margin-bottom:4px"><div style="font-size:.72rem;font-weight:600">${st.name} <span style="font-size:.6rem;color:var(--text3)">${st.code}</span></div><div style="font-size:.7rem;font-weight:700;color:${netColor(st.instNet)}">${fmtSigned(st.instNet)}?</div></div>`).join('')}</div>` : ''}
+        <div style="font-size:.72rem;color:var(--text2);line-height:1.55;margin-top:8px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:7px 9px">解讀：${note}</div>
+        ${stocks.length ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">${stocks.map(st => `<div class="row-between" style="background:var(--bg2);border-radius:8px;padding:5px 8px;margin-bottom:4px"><div style="font-size:.72rem;font-weight:600">${st.name} <span style="font-size:.6rem;color:var(--text3)">${st.code}</span></div><div style="font-size:.7rem;font-weight:700;color:${netColor(st.instNet)}">${fmtSigned(st.instNet)}張</div></div>`).join('')}</div>` : ''}
       </div>`;
     }).join('');
     qs('sectorContent').innerHTML = sectorExplainHtml + sectorTrendHtml + heatmap + html;
