@@ -2777,6 +2777,32 @@ async function loadLarge() {
     const trendText = trendDelta > 10000 ? '權值升溫' : trendDelta < -10000 ? '權值退潮' : '權值平穩';
     const trendColor = trendDelta > 10000 ? 'var(--green)' : trendDelta < -10000 ? 'var(--red)' : 'var(--yellow)';
 
+    // ── 歷史基準比較 ──────────────────────────────────────────
+    const allHistDates = [...new Set(rows.map(r => parseDateVal(cell(r.c,0,''))).filter(Boolean))].sort().reverse();
+    const netByDate = allHistDates.map(date => ({
+      date,
+      net: rows.filter(r => parseDateVal(cell(r.c,0,'')) === date).reduce((s,r) => s + (Number(cell(r.c,6,0)) || 0), 0)
+    }));
+    const todayNet = netByDate[0]?.net ?? totalNet;
+    const histNets  = netByDate.slice(1).map(d => d.net);
+    let benchmarkHtml = '';
+    if (histNets.length >= 1) {
+      const avg = Math.round(histNets.reduce((a,b) => a+b, 0) / histNets.length);
+      const avgFmt = (avg >= 0 ? '+' : '') + avg.toLocaleString('zh-TW');
+      if (histNets.length >= 9) {
+        const sorted = [...histNets].sort((a,b) => a-b);
+        const pct = Math.round(sorted.filter(n => n <= todayNet).length / sorted.length * 100);
+        const lbl = pct >= 80 ? '強' : pct >= 50 ? '普通' : '弱';
+        const col = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--text3)' : 'var(--blue)';
+        benchmarkHtml = `<div style="font-size:.6rem;color:${col};margin-top:2px">今日 歷史第 ${pct} 百分位（${lbl}）· 均值 ${avgFmt} 張</div>`;
+      } else {
+        const ratio = avg !== 0 ? (todayNet / avg).toFixed(1) : null;
+        const vs = todayNet > avg ? `高於近${histNets.length}日均` : todayNet < avg ? `低於近${histNets.length}日均` : '等於近期均值';
+        const col = todayNet > avg ? 'var(--green)' : todayNet < avg ? 'var(--blue)' : 'var(--text3)';
+        benchmarkHtml = `<div style="font-size:.6rem;color:${col};margin-top:2px">近${histNets.length}日均 ${avgFmt} 張 · ${vs}${ratio ? ` ${ratio}×` : ''}</div>`;
+      }
+    }
+
     const filterBtn = (label, filter) => `<button class="sector-chip" onclick="renderLargeCards('${filter}')">${label}</button>`;
     el.innerHTML = `<div class="plain-card" style="margin-bottom:10px;border-left:4px solid var(--brown-light)">
       <div class="row-between" style="margin-bottom:8px">
@@ -2797,7 +2823,10 @@ async function loadLarge() {
     <div class="plain-card" style="margin-bottom:10px">
       <div class="row-between" style="margin-bottom:8px">
         <div class="section-title" style="margin:0">大型股 5 日資金趨勢</div>
-        <div style="font-size:.72rem;font-weight:700;color:${trendColor}">${trendText} ${trendDelta >= 0 ? '+' : ''}${trendDelta}</div>
+        <div>
+          <div style="font-size:.72rem;font-weight:700;color:${trendColor}">${trendText} ${trendDelta >= 0 ? '+' : ''}${trendDelta}</div>
+          ${benchmarkHtml}
+        </div>
       </div>
       <div style="display:flex;align-items:flex-end;gap:5px;height:64px">
         ${largeTrend.map(d => {
