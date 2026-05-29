@@ -673,6 +673,14 @@ function toggleWatch(code) {
   renderWatchRadar();
   renderCards();
 }
+function removeWatch(code, event) {
+  if (event) event.stopPropagation();
+  const list = watchList().filter(x => x !== String(code));
+  saveWatchList(list);
+  updateWatchButton();
+  renderWatchRadar();
+  renderCards();
+}
 function toggleWatchOnly(btn) {
   watchOnly = !watchOnly;
   updateWatchButton();
@@ -850,17 +858,20 @@ function renderWatchRadar() {
     return `<div class="watch-radar-row" onclick="focusStock('${s.code}')">
       <div style="min-width:0">
         <div class="watch-radar-name">${s.name} <span style="font-size:.62rem;color:var(--text3)">${s.score}分</span></div>
-        <div class="watch-radar-code">${s.code} · ${s.op || '—'}</div>
+        <div class="watch-radar-code">${s.code} · ${s.sector || '未分類'} · ${s.op || '—'}</div>
       </div>
-      <div class="watch-radar-stat">
-        <div style="color:${deltaColor}">分數 ${deltaText}</div>
-        <div class="watch-radar-sub" style="color:${netColor}">法人 ${s.instNet > 0 ? '+' : ''}${s.instNet}張</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <div class="watch-radar-stat">
+          <div style="color:${deltaColor}">分數 ${deltaText}</div>
+          <div class="watch-radar-sub" style="color:${netColor}">法人 ${s.instNet > 0 ? '+' : ''}${s.instNet}張</div>
+        </div>
+        <button class="mini-btn" onclick="removeWatch('${s.code}', event)" title="從自選股移除" style="padding:2px 7px;font-size:.62rem">移除</button>
       </div>
     </div>`;
   }).join('');
 
   const missingHtml = missing.length ? `<div style="font-size:.68rem;color:var(--text3);line-height:1.6;margin-top:6px">
-    今日未入榜：${missing.map(s => s.code).join('、')}
+    今日未入榜：${missing.map(s => `<button class="mini-btn" onclick="removeWatch('${s.code}', event)" style="margin:2px 3px;padding:2px 7px;font-size:.62rem">移除 ${s.code}</button>`).join('')}
   </div>` : '';
 
   card.innerHTML = rows || '<div class="focus-empty">自選股今天沒有出現在目前日期資料中</div>';
@@ -887,7 +898,7 @@ function renderActionList() {
     .slice(0, 5);
 
   const row = (x, meta, color) => `<div class="action-row" onclick="focusStock('${x.stock.code}')">
-    <div class="action-name">${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span></div>
+    <div class="action-name">${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span><span style="font-size:.58rem;color:var(--brown);background:var(--bg2);border-radius:6px;padding:1px 5px;margin-left:4px">${x.stock.sector || '未分類'}</span></div>
     <div class="action-meta"><span style="color:${color};font-weight:700">${meta}</span> · ${x.stock.score}分 · 法人 ${x.stock.instNet > 0 ? '+' : ''}${x.stock.instNet}張</div>
   </div>`;
   const col = (title, rows, empty, color, renderMeta) => `<div class="action-col">
@@ -1104,10 +1115,16 @@ function renderChangeRadar() {
     .sort((a,b) => (a.scoreDelta || 0) - (b.scoreDelta || 0) || (a.instNetDelta || 0) - (b.instNetDelta || 0))
     .slice(0, 4);
 
+  const firstTracked = tracked.find(s => s.prevTrendDate && s.trendCompareDate) || tracked[0];
+  const compareText = firstTracked && firstTracked.prevTrendDate
+    ? `${firstTracked.prevTrendDate} → ${firstTracked.trendCompareDate || qs('dateTag').textContent || '目前日期'}`
+    : '前一筆追蹤日 → 目前選取日期';
+  const metaDate = s => s.prevTrendDate ? ` · ${s.prevTrendDate}→${s.trendCompareDate || qs('dateTag').textContent || ''}` : '';
+
   const row = (s, meta, color) => `<div class="action-row" onclick="focusStock('${s.code}')">
     <div>
       <div class="action-name">${s.name} <span style="font-size:.6rem;color:var(--text3)">${s.code}</span></div>
-      <div class="action-meta">${getDisplayOp(s)} · ${meta}</div>
+      <div class="action-meta">${getDisplayOp(s)} · ${meta}${metaDate(s)}</div>
     </div>
     <div style="text-align:right;color:${color};font-size:.74rem;font-weight:800">${s.score}分<br><span style="font-size:.62rem;color:var(--text3)">法人 ${s.instNet > 0 ? '+' : ''}${s.instNet}</span></div>
   </div>`;
@@ -1116,7 +1133,8 @@ function renderChangeRadar() {
     ${rows.length ? rows.map(s => row(s, renderMeta(s), color)).join('') : `<div class="focus-empty">${empty}</div>`}
   </div>`;
 
-  card.innerHTML = `<div class="action-grid">
+  card.innerHTML = `<div style="font-size:.68rem;color:var(--text3);margin-bottom:8px">比較區間：${compareText}。每檔以目前選取日期，對照該股票在「趨勢追蹤」中的前一筆日期。</div>
+  <div class="action-grid">
     ${col('升溫', warming, '沒有明顯升溫股', 'var(--green)', s => `分數 ${s.prevScore} → ${s.score}（+${s.scoreDelta}）`)}
     ${col('籌碼轉強', flowUp, '沒有明顯加碼股', 'var(--red)', s => `法人變化 ${s.instNetDelta > 0 ? '+' : ''}${s.instNetDelta}張`)}
     ${col('降溫警示', cooling, '沒有明顯轉弱警示', 'var(--yellow)', s => `分數 ${s.scoreDelta >= 0 ? '+' : ''}${s.scoreDelta || 0} / 法人 ${s.instNetDelta >= 0 ? '+' : ''}${s.instNetDelta || 0}`)}
@@ -1516,12 +1534,16 @@ async function applyTrendChanges(currentDate) {
         s.scoreDelta = null;
         s.prevScore = null;
         s.prevInstNet = null;
+        s.prevTrendDate = null;
+        s.trendCompareDate = currentDate;
         return;
       }
       const prev = history[history.length - 1];
       s.prevScore = prev.score;
       s.prevInstNet = prev.instNet;
       s.prevOp = prev.op;
+      s.prevTrendDate = prev.date;
+      s.trendCompareDate = currentDate;
       s.scoreDelta = s.score - prev.score;
       s.instNetDelta = s.instNet - prev.instNet;
     });
@@ -1530,6 +1552,8 @@ async function applyTrendChanges(currentDate) {
       s.scoreDelta = null;
       s.prevScore = null;
       s.prevInstNet = null;
+      s.prevTrendDate = null;
+      s.trendCompareDate = currentDate;
     });
   }
 }
@@ -1745,8 +1769,11 @@ async function loadNews() {
     const todayRows = rows.filter(r => parseDateVal(cell(r.c,0,'')) === latest);
     const colors = {'記憶體':'#4878a0','AI供應鏈':'#c05848','半導體':'#a07850','AI晶片':'#c05848','機器人':'#5a9460','台股籌碼':'#7a5830'};
     const visibleRows = newsExpanded ? todayRows : todayRows.slice(0, 5);
-    el.innerHTML = `<div class="row-between" style="margin-bottom:8px">
-      <div style="font-size:.62rem;color:var(--text3)">${latest} 更新 · ${todayRows.length} 則</div>
+    el.innerHTML = `<div class="row-between" style="margin-bottom:8px;align-items:flex-start">
+      <div>
+        <div style="font-size:.75rem;font-weight:800;color:var(--brown)">新聞日期：${latest || '—'}</div>
+        <div style="font-size:.62rem;color:var(--text3);margin-top:2px">今日科技要聞 · ${todayRows.length} 則</div>
+      </div>
       ${todayRows.length > 5 ? `<button class="ghost-btn" onclick="newsExpanded=!newsExpanded;loadNews()">${newsExpanded ? '收合' : '展開全部'}</button>` : ''}
     </div>` + visibleRows.map(r => {
       const title = String(cell(r.c,1,'')), summary = String(cell(r.c,2,'')), cat = String(cell(r.c,3,''));
