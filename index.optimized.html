@@ -666,6 +666,36 @@ function getPositionSizing(s) {
   if (level === 2) return {label:'半倉分批', pct:'30-50%', color:'var(--yellow)', level, reason:reasons.join('、')};
   return {label:'觀察倉', pct:'10-20%', color:'var(--brown)', level, reason:reasons.join('、')};
 }
+function getTradeNarrator(s) {
+  const price = Number(s.price);
+  const range = parseEntryRange(s.entry);
+  const entry = getEntryPosition(s);
+  const opClass = getDisplayOpClass(s);
+  const heat = getOverheatState(s);
+  const risks = getRiskFactors(s);
+  const dayTradePct = num(s.dayTradeRatio);
+  const rr = parseFloat(s.rr) || 0;
+  const riskText = risks.length ? `提醒：${risks.slice(0,2).map(x => x.label).join('、')}` : '風險訊號不重';
+
+  if (!price || !range) {
+    return {tone:'資料不足', color:'var(--text3)', icon:'🗣️', text:'旁白：目前缺少收盤價或進場區間，先不要硬判斷。'};
+  }
+  if (opClass === 'avoid' || opClass === 'bear' || heat?.kind === 'danger') {
+    return {tone:'先不要買', color:'var(--red)', icon:'🛑', text:`旁白：訊號偏風險，現在不適合追。${riskText}，等下一次轉強再看。`};
+  }
+  if (price > range.high) {
+    const over = pctDiff(range.high, price) || 0;
+    return {tone:'不要追高', color:'var(--red)', icon:'🗣️', text:`旁白：收盤價已高於進場上緣約 ${over.toFixed(1)}%，這裡不要急，等拉回到 ${fmtPrice(s.entry)} 再評估。`};
+  }
+  if (price >= range.low && price <= range.high) {
+    if (opClass === 'buy' && Number(s.score) >= 8 && dayTradePct < 30 && (rr === 0 || rr >= 1.2)) {
+      return {tone:'可分批', color:'var(--green)', icon:'✅', text:`旁白：價格在進場區間內，訊號也配合。可用分批方式處理，停損看 ${fmtPrice(s.stop)}。`};
+    }
+    return {tone:'小量試單', color:'var(--yellow)', icon:'🟡', text:`旁白：價格有到位，但條件還不是滿分。可以小量觀察，別一次打滿。${riskText}。`};
+  }
+  const under = pctDiff(price, range.low) || 0;
+  return {tone:'等轉強', color:'var(--yellow)', icon:'⏳', text:`旁白：收盤價低於進場區間約 ${under.toFixed(1)}%，先等站回區間或放量轉強，不用急著出手。`};
+}
 function getBarColor(s,m) { const p=s/m; return p>=.75?'#5a9460':p>=.5?'#c08830':p>=.25?'#a07850':'#d0c8bc'; }
 function parseReasons(str) { return String(str || '').split('|').map(s => s.trim()).filter(Boolean); }
 function rClass(r) {
@@ -1751,6 +1781,7 @@ function renderCards() {
     const divergences = getDivergenceSignals(s, reasons);
     const entryPosition = getEntryPosition(s);
     const rrDistance = getRiskRewardDistance(s);
+    const narrator = getTradeNarrator(s);
     const fourCond = reasons.some(r => r.includes('四大條件'));
     const fColor = s.foreign > 0 ? 'color:var(--red)' : s.foreign < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
     const tColor = s.trust > 0 ? 'color:var(--red)' : s.trust < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
@@ -1793,6 +1824,13 @@ function renderCards() {
           <div class="detail-cell"><div class="detail-label">倉位原因</div><div class="detail-val" style="font-size:.75rem;color:var(--text2)">${sizing.reason}</div></div>
           <div class="detail-cell" style="grid-column:1/-1"><div class="detail-label">${planLabels.position}</div><div class="detail-val" style="color:${entryPosition.color}">${planLabels.note || entryPosition.label}</div></div>
         </div>
+      </div>
+      <div style="margin:-2px 0 10px;padding:.62rem .78rem;border-radius:12px;background:var(--bg2);border:1px solid var(--border);border-left:4px solid ${narrator.color}">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <span>${narrator.icon}</span>
+          <span style="font-size:.72rem;font-weight:800;color:${narrator.color}">交易旁白：${narrator.tone}</span>
+        </div>
+        <div style="font-size:.74rem;line-height:1.55;color:var(--text2)">${narrator.text}</div>
       </div>
       <div class="breakdown">${pips}</div>
       <div class="reasons">${reasons.map(r => `<span class="rtag ${rClass(r)}">${r}</span>`).join('')}</div>
