@@ -2023,20 +2023,26 @@ async function loadLarge() {
     const bullCount = data.filter(isBull).length;
     const bearCount = data.filter(isBear).length;
 
-    let largeConclusion = '';
-    if (semiBull.length >= 2) {
-      largeConclusion = '半導體大型股偏多，法人資金有回流跡象。';
-    } else if (aiBull.length >= 2) {
-      largeConclusion = 'AI伺服器/電源大型股偏多，資金主軸偏向AI供應鏈。';
-    } else if (defensiveBull.length && bullCount <= 2) {
-      largeConclusion = '防守型權值股偏多，電子大型股動能較弱，資金偏保守。';
-    } else if (bullCount >= 5 && bearCount <= 2) {
-      largeConclusion = '大型股整體偏多，大盤底氣較強。';
-    } else if (bearCount >= 5 && bullCount <= 2) {
-      largeConclusion = '大型股整體偏空，中小型股訊號需保守看待。';
-    } else {
-      largeConclusion = '大型股多空混雜，大盤尚穩但資金輪動，並非全面多頭。';
-    }
+    const totalNet = data.reduce((s, d) => s + d.total, 0);
+const avgNet = data.length ? Math.round(totalNet / data.length) : 0;
+const topBull = data.filter(d => d.total > 0).sort((a,b) => b.total - a.total).slice(0,3).map(d => `${d.name}買超${d.total}張`).join('、');
+const topBear = data.filter(d => d.total < 0).sort((a,b) => a.total - b.total).slice(0,2).map(d => `${d.name}賣超${Math.abs(d.total)}張`).join('、');
+const longStreak = data.filter(d => d.streak >= 3).map(d => `${d.name}連買${d.streak}天`).join('、');
+
+let largeConclusion = '';
+if (semiBull.length >= 2) {
+  largeConclusion = `半導體大型股偏多，${topBull ? topBull + '，' : ''}法人資金有回流跡象。`;
+} else if (aiBull.length >= 2) {
+  largeConclusion = `AI伺服器/電源大型股偏多，資金主軸偏向AI供應鏈。${topBull ? '其中' + topBull + '。' : ''}`;
+} else if (defensiveBull.length && bullCount <= 2) {
+  largeConclusion = `防守型權值股偏多，電子大型股動能較弱，資金偏保守。${topBear ? '注意' + topBear + '持續流出。' : ''}`;
+} else if (bullCount >= 5 && bearCount <= 2) {
+  largeConclusion = `大型股整體偏多（${bullCount}檔偏多），大盤底氣較強。${longStreak ? '法人連續布局：' + longStreak + '。' : ''}`;
+} else if (bearCount >= 5 && bullCount <= 2) {
+  largeConclusion = `大型股整體偏空（${bearCount}檔偏空），中小型股訊號需保守看待。${topBear ? '主要賣壓來自' + topBear + '。' : ''}`;
+} else {
+  largeConclusion = `大型股多空混雜（偏多${bullCount}檔，偏空${bearCount}檔），資金輪動明顯。${topBull ? '買超標的：' + topBull + '。' : ''}${topBear ? '賣超標的：' + topBear + '。' : ''}${longStreak ? '連續布局：' + longStreak + '。' : ''}`;
+}
 
     el.innerHTML = `
       <div style="font-size:0.7rem;color:var(--text3);margin-bottom:10px">${latest} 更新</div>
