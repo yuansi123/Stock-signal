@@ -2045,10 +2045,28 @@ if (semiBull.length >= 2) {
 
       <div style="background:var(--card);border-left:4px solid var(--brown-light);border-radius:14px;padding:0.85rem 1rem;margin-bottom:10px;box-shadow:0 2px 8px var(--shadow)">
         <div style="font-size:0.72rem;color:var(--text3);margin-bottom:4px">大型股結論</div>
-        <div style="font-size:0.86rem;font-weight:600;color:var(--text);line-height:1.6">${largeConclusion}</div>
+        <div id="largeAIConclusion" style="font-size:0.86rem;font-weight:600;color:var(--text);line-height:1.6"><div class="spinner" style="width:16px;height:16px;margin:4px auto"></div></div>
         <div style="font-size:0.68rem;color:var(--text3);margin-top:4px">偏多 ${bullCount} 檔 · 偏空 ${bearCount} 檔</div>
       </div>
+// 呼叫 AI 產生結論
+    const largePrompt = `你是台灣股票分析師，根據今日（${latest}）大型權值股法人籌碼資料，給出簡短專業結論（100字內，繁體中文，不要標題）。
 
+大型股資料：
+${data.map(s => `${s.name}(${s.code})：法人${s.total > 0 ? '買超' : '賣超'}${Math.abs(s.total)}張，連買${s.streak}天，外資連買${s.fStreak}天，漲跌${s.change > 0 ? '+' : ''}${s.change}%`).join('\n')}
+
+偏多${bullCount}檔，偏空${bearCount}檔。重點說明資金流向、哪些大型股值得關注、對大盤意義。`;
+
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt: largePrompt})
+    }).then(r => r.json()).then(d => {
+      const el2 = document.getElementById('largeAIConclusion');
+      if (el2) el2.textContent = d.text || largeConclusion;
+    }).catch(() => {
+      const el2 = document.getElementById('largeAIConclusion');
+      if (el2) el2.textContent = largeConclusion;
+    });
       <div class="cards">
         ${data.map(s => {
           const totalColor = s.total > 0 ? 'var(--red)' : s.total < 0 ? 'var(--blue)' : 'var(--text2)';
