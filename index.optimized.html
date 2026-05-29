@@ -268,7 +268,10 @@ button,select,input { font-family:inherit; }
     </div>
 
     <div id="actionListSection" style="display:none;margin-bottom:1rem">
-      <div class="section-title">✅ 今日操作清單</div>
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">✅ 今日操作清單</div>
+        <button class="ghost-btn" onclick="copyDailyBrief()">複製簡報</button>
+      </div>
       <div id="actionListCard" class="plain-card"></div>
     </div>
 
@@ -712,6 +715,84 @@ function renderActionList() {
     ${col('先避開', avoid, '目前沒有明顯避開名單', 'var(--red)', x => x.divs[0]?.label || x.stock.op)}
   </div>`;
   section.style.display = '';
+}
+function buildActionBuckets() {
+  const enriched = allStocks.map(s => {
+    const reasons = parseReasons(s.reasons);
+    const divs = getDivergenceSignals(s, reasons);
+    const entry = getEntryPosition(s);
+    const warnCount = divs.filter(d => d.level === 'warn').length;
+    const dayTradePct = num(s.dayTradeRatio);
+    return {stock:s, divs, entry, warnCount, dayTradePct};
+  });
+  return {
+    actionable: enriched
+      .filter(x => x.stock.op.includes('🟢') && x.entry.label === '進場區間內' && x.warnCount === 0 && x.dayTradePct < 30)
+      .sort((a,b) => b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet)
+      .slice(0, 5),
+    waitPullback: enriched
+      .filter(x => x.stock.op.includes('🟢') && (x.entry.label === '高於進場區間' || x.warnCount > 0 || x.dayTradePct >= 30))
+      .sort((a,b) => b.stock.score - a.stock.score)
+      .slice(0, 5),
+    avoid: enriched
+      .filter(x => x.stock.op.includes('🔴') || x.stock.op.includes('⬇️') || x.warnCount >= 2)
+      .sort((a,b) => b.warnCount - a.warnCount || b.stock.score - a.stock.score)
+      .slice(0, 5)
+  };
+}
+function buildDailyBrief() {
+  const date = qs('dateTag')?.textContent || '';
+  const buy = allStocks.filter(s => s.op.includes('🟢')).length;
+  const watch = allStocks.filter(s => s.op.includes('🟡')).length;
+  const avoidCount = allStocks.filter(s => s.op.includes('🔴') || s.op.includes('⬇️')).length;
+  const buckets = buildActionBuckets();
+  const topSectors = {};
+  allStocks.forEach(s => {
+    const sec = s.sector || '其他電子';
+    if (!topSectors[sec]) topSectors[sec] = {net:0, count:0, buy:0};
+    topSectors[sec].net += s.instNet || 0;
+    topSectors[sec].count++;
+    if (s.op.includes('🟢')) topSectors[sec].buy++;
+  });
+  const sectorText = Object.entries(topSectors)
+    .map(([name,d]) => ({name, avg:Math.round(d.net / d.count), buy:d.buy}))
+    .sort((a,b) => b.avg - a.avg)
+    .slice(0,3)
+    .map(s => `${s.name}(均${s.avg >= 0 ? '+' : ''}${s.avg}張, 買入${s.buy})`)
+    .join('、') || '—';
+  const fmtList = rows => rows.length
+    ? rows.map(x => `${x.stock.name}(${x.stock.code}) ${x.stock.score}分 法人${x.stock.instNet >= 0 ? '+' : ''}${x.stock.instNet}張 ${x.entry.label}`).join('\n')
+    : '無';
+  const riskText = buckets.avoid.length
+    ? buckets.avoid.map(x => `${x.stock.name}(${x.stock.code})：${x.divs[0]?.label || x.stock.op}`).join('、')
+    : '無明顯避開名單';
+
+  return `📊 台股籌碼作戰簡報 ${date}
+
+掃描 ${allStocks.length} 檔：買入 ${buy}、觀察 ${watch}、避開/空頭 ${avoidCount}
+強勢板塊：${sectorText}
+
+✅ 可操作
+${fmtList(buckets.actionable)}
+
+⏳ 等拉回
+${fmtList(buckets.waitPullback)}
+
+⚠️ 先避開
+${riskText}
+
+備註：此簡報依系統訊號、進場區間、背離偵測與當沖風險整理，選股原始邏輯未改變。`;
+}
+async function copyDailyBrief() {
+  const text = buildDailyBrief();
+  try {
+    await navigator.clipboard.writeText(text);
+    const old = qs('dateMeta').textContent;
+    qs('dateMeta').textContent = '已複製今日作戰簡報';
+    setTimeout(() => { qs('dateMeta').textContent = old; }, 1800);
+  } catch(e) {
+    window.prompt('剪貼簿被瀏覽器阻擋，請手動複製：', text);
+  }
 }
 function toggleDetail(code) {
   const el = qs('detail-' + code);
