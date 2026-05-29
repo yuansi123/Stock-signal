@@ -412,6 +412,7 @@ button,select,input { font-family:inherit; }
       <input class="search-input" id="searchInput" placeholder="搜尋股票名稱或代號..." oninput="saveFilters();renderCards()">
     </div>
     <div id="resultCount" style="font-size:.66rem;color:var(--text3);margin:-.5rem 0 .7rem;padding-left:.3rem"></div>
+    <div id="filterStatus" style="display:none;margin:-.35rem 0 .85rem"></div>
 
     <div id="errorBox" class="error-box"></div>
     <div id="content"><div class="state"><div class="spinner"></div><div>載入資料中...</div></div></div>
@@ -1497,6 +1498,64 @@ function setFilter(f,el) {
   renderCards();
   saveFilters();
 }
+function getFilterLabelMap() {
+  return {
+    op: {all:'全部', buy:'買入', watch:'觀察', avoid:'避開', bear:'空頭'},
+    vol: {whale:'大型量', fish:'中型量', shrimp:'小型量'},
+    action: {actionable:'可操作', wait:'等拉回', avoid:'先避開'},
+    entry: {inside:'進場區間內', above:'高於區間', below:'低於區間'},
+    risk: {daytrade:'當沖偏高', concentration:'集中過熱', rsi:'RSI過熱', rr:'風報偏低', chase:'追高風險', dangerHeat:'過熱風險'}
+  };
+}
+function getActiveFilterLabels() {
+  const map = getFilterLabelMap();
+  const labels = [];
+  const q = qs('searchInput')?.value.trim();
+  const sec = qs('sectorFilter')?.value || '';
+  const vol = qs('volFilter')?.value || '';
+  const sort = qs('sortSelect')?.selectedOptions?.[0]?.textContent?.trim() || '';
+  if (q) labels.push('搜尋：' + q);
+  if (watchOnly) labels.push('只看自選股');
+  if (currentFilter && currentFilter !== 'all') labels.push('訊號：' + (map.op[currentFilter] || currentFilter));
+  if (sec) labels.push('板塊：' + sec);
+  if (vol) labels.push('規模：' + (map.vol[vol] || vol));
+  if (actionFilter) labels.push('操作：' + (map.action[actionFilter] || actionFilter));
+  if (entryFilter) labels.push('位置：' + (map.entry[entryFilter] || entryFilter));
+  if (riskFilter) labels.push('風險：' + (map.risk[riskFilter] || riskFilter));
+  if (sort) labels.push('排序：' + sort);
+  return labels;
+}
+function clearAllFilters() {
+  currentFilter = 'all';
+  actionFilter = '';
+  entryFilter = '';
+  riskFilter = '';
+  watchOnly = false;
+  if (qs('searchInput')) qs('searchInput').value = '';
+  if (qs('sectorFilter')) qs('sectorFilter').value = '';
+  if (qs('volFilter')) qs('volFilter').value = '';
+  if (qs('sortSelect')) qs('sortSelect').value = 'score';
+  document.querySelectorAll('.filters .filter-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  updateWatchButton();
+  renderActionFilterButtons();
+  renderCards();
+  saveFilters();
+}
+function renderFilterStatus(count, total) {
+  const el = qs('filterStatus');
+  if (!el) return;
+  const labels = getActiveFilterLabels();
+  if (!labels.length || count === total) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  el.style.display = '';
+  el.innerHTML = `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:.55rem .7rem;box-shadow:0 1px 6px var(--shadow)">
+    <div style="display:flex;flex-wrap:wrap;gap:4px;min-width:0">${labels.map(x => `<span class="rtag info">${x}</span>`).join('')}</div>
+    <button class="ghost-btn" onclick="clearAllFilters()" style="white-space:nowrap">清除</button>
+  </div>`;
+}
 function showPage(page) {
   ['Signal','Sector','Backtest','AI','Large'].forEach(name => {
     const key = name.toLowerCase();
@@ -1672,6 +1731,7 @@ function renderCards() {
   if (countEl) countEl.textContent = list.length === allStocks.length
     ? `共 ${allStocks.length} 檔`
     : `顯示 ${list.length} / ${allStocks.length} 檔`;
+  renderFilterStatus(list.length, allStocks.length);
   if (!list.length) {
     qs('content').innerHTML = '<div class="state"><div style="font-size:2.2rem;margin-bottom:10px">🌾</div><div>沒有符合條件的股票</div></div>';
     return;
