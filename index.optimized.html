@@ -415,13 +415,26 @@ function rClass(r) {
 function watchList(){ try { return JSON.parse(localStorage.getItem('watchList') || '[]'); } catch(e){ return []; } }
 function saveWatchList(list){ localStorage.setItem('watchList', JSON.stringify(list)); }
 function isWatched(code){ return watchList().includes(String(code)); }
+function updateWatchButton() {
+  const btn = qs('watchOnlyBtn');
+  if (!btn) return;
+  const count = watchList().length;
+  btn.textContent = count ? `⭐ 自選股 ${count}` : '⭐ 自選股';
+  btn.classList.toggle('active', watchOnly);
+}
 function toggleWatch(code) {
   code = String(code);
   const list = watchList(), idx = list.indexOf(code);
   if (idx >= 0) list.splice(idx,1); else list.push(code);
-  saveWatchList(list); renderCards();
+  saveWatchList(list);
+  updateWatchButton();
+  renderCards();
 }
-function toggleWatchOnly(btn) { watchOnly = !watchOnly; btn.classList.toggle('active', watchOnly); renderCards(); }
+function toggleWatchOnly(btn) {
+  watchOnly = !watchOnly;
+  updateWatchButton();
+  renderCards();
+}
 function getSignalTag(s) {
   if (!String(s.op || '').includes('🟢')) return '';
   if (s.streak <= 1) return '<span class="signal-tag new">NEW</span>';
@@ -501,6 +514,7 @@ async function loadData() {
 }
 
 function renderCards() {
+  updateWatchButton();
   const q = qs('searchInput').value.trim().toLowerCase();
   const selectedSector = qs('sectorFilter')?.value || '';
   const volFilter = qs('volFilter')?.value || '';
