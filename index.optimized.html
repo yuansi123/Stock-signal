@@ -367,13 +367,6 @@ button,select,input { font-family:inherit; }
       <div id="compareCard" class="plain-card"></div>
     </div>
 
-    <div id="reviewSection" style="display:none;margin-bottom:1rem">
-      <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">📋 前日漲幅檢討</div>
-      </div>
-      <div id="reviewCard" class="plain-card"></div>
-    </div>
-
     <div class="sector-filter">
       <select class="sector-select" id="sectorFilter" onchange="setSectorFilter(this.value)">
         <option value="">🏭 所有板塊</option>
@@ -486,6 +479,12 @@ button,select,input { font-family:inherit; }
     <div class="bt-header">
       <div class="logo"><div class="logo-icon">🐋</div><div><div class="logo-title">大型股監控</div><div class="logo-sub">LARGE CAP MONITOR</div></div></div>
       <button class="refresh-btn" onclick="loadLarge()">↻ 重新載入</button>
+    </div>
+    <div id="reviewSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">📋 前日漲幅檢討</div>
+      </div>
+      <div id="reviewCard" class="plain-card"></div>
     </div>
     <div id="largeContent"><div class="state"><div class="spinner"></div><div>載入大型股資料...</div></div></div>
   </div>
@@ -1902,7 +1901,6 @@ async function loadData() {
     renderSectorChips();
     renderChangeRadar();
     renderCompareTable();
-    renderReviewSection();
     renderWatchRadar();
     renderActionList();
     renderCards();
@@ -2656,6 +2654,8 @@ function renderKBar(data) {
 async function loadLarge() {
   const el = qs('largeContent');
   el.innerHTML = '<div class="state"><div class="spinner"></div><div>載入中...</div></div>';
+  if (!allRowsCache.length) await loadData();
+  renderReviewSection();
   try {
     const rows = await fetchSheet('大型股監控');
     if (!rows.length) { el.innerHTML = '<div class="state">尚無大型股資料</div>'; return; }
@@ -2814,8 +2814,7 @@ const COLLAPSIBLE = [
   {id:'actionList',   sec:'actionListSection'},
   {id:'dailyNews',    sec:'dailyNewsSection'},
   {id:'changeRadar',  sec:'changeRadarSection'},
-  {id:'compare',      sec:'compareSection'},
-  {id:'review',       sec:'reviewSection'}
+  {id:'compare',      sec:'compareSection'}
 ];
 function initCollapsibleSections() {
   const saved = JSON.parse(localStorage.getItem('sec_state') || '{}');
