@@ -1566,11 +1566,11 @@ function renderReviewSection() {
   }).join('');
 
   card.innerHTML = `
-    <div class="breadth-grid" style="margin-bottom:10px">
-      <div class="breadth-cell"><div class="breadth-label">比較區間</div><div class="breadth-val" style="font-size:.72rem">${prevDate.slice(5)} → ${currentDate.slice(5)}</div></div>
-      <div class="breadth-cell"><div class="breadth-label">✅ 有買入</div><div class="breadth-val green">${cntBuy} / 10</div></div>
-      <div class="breadth-cell"><div class="breadth-label">⚠️ 觀察中</div><div class="breadth-val yellow">${cntWatch} / 10</div></div>
-      <div class="breadth-cell"><div class="breadth-label">❌ 未抓到</div><div class="breadth-val red">${cntMiss} / 10</div></div>
+    <div class="breadth-grid" style="margin-bottom:8px">
+      <div class="breadth-cell" style="padding:.3rem .4rem"><div class="breadth-label">比較區間</div><div class="breadth-val" style="font-size:.65rem">${prevDate.slice(5)} → ${currentDate.slice(5)}</div></div>
+      <div class="breadth-cell" style="padding:.3rem .4rem"><div class="breadth-label">✅ 有買入</div><div class="breadth-val green" style="font-size:.8rem">${cntBuy} / 10</div></div>
+      <div class="breadth-cell" style="padding:.3rem .4rem"><div class="breadth-label">⚠️ 觀察中</div><div class="breadth-val yellow" style="font-size:.8rem">${cntWatch} / 10</div></div>
+      <div class="breadth-cell" style="padding:.3rem .4rem"><div class="breadth-label">❌ 未抓到</div><div class="breadth-val red" style="font-size:.8rem">${cntMiss} / 10</div></div>
     </div>
     <div style="display:flex;flex-direction:column;gap:6px">${rows}</div>
     <div style="font-size:.62rem;color:var(--text3);margin-top:10px;line-height:1.55;padding:6px 8px;background:var(--bg2);border-radius:8px">範圍限於掃描池內股票。比較 ${prevDate} → ${currentDate} 收盤漲幅，對照 ${prevDate} 當日訊號。</div>
