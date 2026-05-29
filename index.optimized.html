@@ -283,6 +283,14 @@ button,select,input { font-family:inherit; }
       <div id="sectorChipsCard" class="sector-chip-row"></div>
     </div>
 
+    <div id="continuationSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">強勢續航雷達</div>
+        <button class="ghost-btn" onclick="setActionFilter('wait')">看拉回名單</button>
+      </div>
+      <div id="continuationCard" class="plain-card"></div>
+    </div>
+
     <div id="compareSection" style="display:none;margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
         <div class="section-title" style="margin:0">⚖️ 高分股比較</div>
@@ -873,6 +881,73 @@ function renderMarketBreadth() {
   </div>`;
   section.style.display = '';
 }
+function getContinuationProfile(s) {
+  const heat = getOverheatState(s);
+  const displayClass = getDisplayOpClass(s);
+  const rsi = num(s.rsi);
+  const conc = num(s.conc5);
+  const dayTradePct = num(s.dayTradeRatio);
+  if (['avoid','bear'].includes(displayClass)) return null;
+  if (Number(s.score) < 7 || Number(s.instNet) <= 0) return null;
+
+  let score = 0;
+  score += Math.min(Number(s.score) || 0, 12) * 4;
+  score += Math.min(Math.max(Number(s.instNet) || 0, 0) / 250, 18);
+  score += Math.min(Number(s.streak) || 0, 6) * 4;
+  score += Math.max(Number(s.momS) || 0, 0) * 6;
+  score += Math.max(Number(s.kdS) || 0, 0) * 4;
+  if (heat?.kind === 'strong') score += 10;
+  if (rsi >= 75) score -= 5;
+  if (conc >= 12) score -= 6;
+  if (dayTradePct >= 30) score -= 8;
+
+  const label = heat?.kind === 'strong' ? '強勢過熱續航'
+    : displayClass === 'buy' ? '買盤延續'
+    : Number(s.streak) >= 3 ? '法人連買延續'
+    : '轉強觀察';
+  const risk = dayTradePct >= 30 ? '當沖偏高'
+    : conc >= 12 ? '集中偏熱'
+    : rsi >= 75 ? 'RSI偏熱'
+    : '風險可控';
+  return {stock:s, score:Math.round(score), label, risk, heat};
+}
+function renderContinuationRadar() {
+  const section = qs('continuationSection'), card = qs('continuationCard');
+  if (!section || !card || !allStocks.length) return;
+
+  const rows = allStocks
+    .map(getContinuationProfile)
+    .filter(Boolean)
+    .sort((a,b) => b.score - a.score || b.stock.score - a.stock.score)
+    .slice(0, 6);
+
+  if (!rows.length) {
+    section.style.display = 'none';
+    card.innerHTML = '';
+    return;
+  }
+
+  card.innerHTML = rows.map(x => {
+    const s = x.stock;
+    const width = Math.max(12, Math.min(x.score, 100));
+    const color = x.risk === '風險可控' ? 'var(--green)' : x.risk === '當沖偏高' ? 'var(--red)' : 'var(--yellow)';
+    const op = getDisplayOp(s);
+    return `<div class="action-row" onclick="focusStock('${s.code}')">
+      <div style="min-width:0;flex:1">
+        <div class="action-name">${s.name} <span style="font-size:.6rem;color:var(--text3)">${s.code}</span></div>
+        <div class="action-meta">${x.label} · ${op} · 法人 ${s.instNet > 0 ? '+' : ''}${s.instNet}張 · 連買 ${s.streak}天</div>
+        <div style="height:5px;background:var(--bg2);border-radius:4px;margin-top:5px;overflow:hidden">
+          <div style="width:${width}%;height:100%;background:${color};border-radius:4px"></div>
+        </div>
+      </div>
+      <div style="text-align:right;min-width:74px">
+        <div style="font-size:.9rem;font-weight:800;color:${color}">${x.score}</div>
+        <div style="font-size:.62rem;color:var(--text3)">${x.risk}</div>
+      </div>
+    </div>`;
+  }).join('');
+  section.style.display = '';
+}
 function renderSectorChips() {
   const section = qs('sectorChipsSection'), card = qs('sectorChipsCard');
   if (!section || !card || !allStocks.length) return;
@@ -1110,6 +1185,7 @@ async function loadData() {
     qs('dateMeta').textContent = filterDate ? `目前顯示 ${filterDate}，共 ${allStocks.length} 檔；日期來源含訊號看板與訊號日誌` : '';
     renderMarketBreadth();
     renderSectorChips();
+    renderContinuationRadar();
     renderCompareTable();
     renderWatchRadar();
     renderActionList();
