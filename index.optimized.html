@@ -1579,23 +1579,25 @@ function renderReviewSection() {
   const cntWatch = gainers.filter(s => ['watch','hot'].includes(s.prevOpClass)).length;
   const cntMiss  = gainers.filter(s => !['buy','watch','hot'].includes(s.prevOpClass)).length;
 
+  window._reviewGainers = gainers;
+
   const rows = gainers.map((s, i) => {
     const isBuy   = s.prevOpClass === 'buy';
     const isWatch = ['watch','hot'].includes(s.prevOpClass);
     const icon    = isBuy ? '✅' : isWatch ? '⚠️' : '❌';
-    const tag     = isBuy ? '有買入訊號' : isWatch ? '觀察中' : '未抓到';
+    const tag     = isBuy ? '有買入' : isWatch ? '觀察中' : '未抓到';
     const tagCol  = isBuy ? 'var(--green)' : isWatch ? 'var(--yellow)' : 'var(--red)';
     const diag    = reviewDiagnosis(s);
-    return `<div class="action-row" onclick="focusStock('${s.code}')">
-      <div style="min-width:26px;font-size:.95rem;text-align:center">${icon}</div>
+    return `<div class="action-row" style="padding:5px 7px;margin-bottom:3px" onclick="focusStock('${s.code}')">
+      <div style="min-width:22px;font-size:.82rem;text-align:center">${icon}</div>
       <div style="flex:1;min-width:0">
-        <div class="action-name">#${i+1} ${s.name} <span style="font-size:.6rem;color:var(--text3)">${s.code}</span></div>
-        <div class="action-meta">${prevDate} 訊號：${s.prevOp || '未入榜'} · ${s.prevScore}分 · $${s.prevPrice.toFixed(2)} → $${s.price.toFixed(2)}</div>
-        <div style="font-size:.68rem;margin-top:4px;padding:3px 7px;border-radius:6px;background:var(--bg2);color:${diag.color};line-height:1.4">診斷：${diag.text}</div>
+        <div style="font-size:.78rem;font-weight:700;color:var(--text)">#${i+1} ${s.name} <span style="font-size:.58rem;color:var(--text3);font-weight:400">${s.code}</span></div>
+        <div style="font-size:.63rem;color:var(--text2);margin-top:1px">${s.prevOp || '未入榜'} ${s.prevScore}分 · $${s.prevPrice.toFixed(2)}→$${s.price.toFixed(2)}</div>
+        <div style="font-size:.62rem;margin-top:3px;padding:2px 6px;border-radius:5px;background:var(--bg2);color:${diag.color};line-height:1.35">診斷：${diag.text}</div>
       </div>
-      <div style="text-align:right;flex-shrink:0;padding-left:8px">
-        <div style="font-size:.88rem;font-weight:800;color:var(--red)">+${s.priceChange.toFixed(2)}%</div>
-        <div style="font-size:.6rem;color:${tagCol};margin-top:2px">${tag}</div>
+      <div style="text-align:right;flex-shrink:0;padding-left:6px">
+        <div style="font-size:.82rem;font-weight:800;color:var(--red)">+${s.priceChange.toFixed(1)}%</div>
+        <div style="font-size:.58rem;color:${tagCol};margin-top:1px">${tag}</div>
       </div>
     </div>`;
   }).join('');
@@ -1607,10 +1609,38 @@ function renderReviewSection() {
       <div class="breadth-cell" style="padding:.3rem .4rem"><div class="breadth-label">⚠️ 觀察中</div><div class="breadth-val yellow" style="font-size:.8rem">${cntWatch} / 10</div></div>
       <div class="breadth-cell" style="padding:.3rem .4rem"><div class="breadth-label">❌ 未抓到</div><div class="breadth-val red" style="font-size:.8rem">${cntMiss} / 10</div></div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:6px">${rows}</div>
-    <div style="font-size:.62rem;color:var(--text3);margin-top:10px;line-height:1.55;padding:6px 8px;background:var(--bg2);border-radius:8px">範圍限於掃描池內股票。比較 ${prevDate} → ${currentDate} 收盤漲幅，對照 ${prevDate} 當日訊號。</div>
+    <div style="display:flex;flex-direction:column;gap:0">${rows}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px">
+      <button class="ghost-btn" id="reviewAiBtn" onclick="runReviewAI()" style="font-size:.72rem;padding:.3rem .7rem;border:1px solid var(--border);border-radius:12px">🤖 AI 分析為何沒抓到</button>
+    </div>
+    <div id="reviewAiResult"></div>
+    <div style="font-size:.6rem;color:var(--text3);margin-top:8px;line-height:1.5;padding:5px 7px;background:var(--bg2);border-radius:7px">範圍限於掃描池內股票。${prevDate} → ${currentDate} 收盤漲幅對照前日訊號。</div>
   `;
   section.style.display = '';
+}
+async function runReviewAI() {
+  const btn = qs('reviewAiBtn'), result = qs('reviewAiResult');
+  if (!btn || !result) return;
+  const missed = (window._reviewGainers || []).filter(s => s.prevOpClass !== 'buy');
+  if (!missed.length) { result.innerHTML = '<div style="font-size:.72rem;color:var(--text3);margin-top:6px">所有股票都有買入訊號，無需分析。</div>'; return; }
+  btn.disabled = true; btn.textContent = '分析中...';
+  result.innerHTML = '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:.72rem;color:var(--text3)"><div class="spinner" style="width:14px;height:14px;border-width:2px"></div>AI 分析中...</div>';
+  const lines = missed.map((s, i) =>
+    `${i+1}. ${s.name}(${s.code})：漲幅+${s.priceChange.toFixed(1)}%，前日分數${s.prevScore}分，法人${s.prevInstNet>=0?'+':''}${s.prevInstNet}張，動能子分${s.prevMomS}，量能子分${s.prevVolS}，前日訊號「${s.prevOp||'未入榜'}」`
+  ).join('\n');
+  const prompt = `你是台股法人籌碼分析師。以下是昨日漲幅最大但系統「未發出買入訊號」的股票，請用繁體中文分析：\n\n${lines}\n\n針對每一檔，用1-2句說明：為何系統分數低但股票大漲？可能哪些因素（消息面、技術型態、板塊輪動、主力暗吃等）被系統遺漏？\n格式：[股票名稱]：[分析]`;
+  try {
+    const res = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt})});
+    const data = await res.json();
+    const text = String(data.text || '').trim();
+    result.innerHTML = `<div style="margin-top:8px;padding:8px 10px;background:var(--bg2);border-radius:10px;border-left:3px solid var(--brown)">
+      <div style="font-size:.63rem;color:var(--brown);font-weight:700;margin-bottom:4px">🤖 AI 分析</div>
+      <div style="font-size:.72rem;color:var(--text2);line-height:1.7">${formatMarkdown(text)}</div>
+    </div>`;
+  } catch(e) {
+    result.innerHTML = `<div style="font-size:.7rem;color:var(--red);margin-top:6px">AI 分析失敗：${e.message}</div>`;
+  }
+  btn.disabled = false; btn.textContent = '🤖 AI 分析為何沒抓到';
 }
 function buildActionBuckets() {
   const enriched = allStocks.map(getActionMeta);
