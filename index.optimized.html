@@ -732,7 +732,7 @@ function getPlainRiskText(risks) {
     daytrade:'當沖比偏高，短線容易震盪',
     concentration:'籌碼集中度偏熱，容易洗盤',
     rsi:'RSI偏熱，追價容易買在短線高點',
-    rr:'停利空間不夠漂亮',
+    rr:'上漲空間不夠大，賠賺不划算',
     chase:'價格已經追高',
     dangerHeat:'過熱風險偏高'
   };
@@ -936,7 +936,7 @@ function getRiskFactors(s) {
   if (dayTradePct >= 30) factors.push({key:'daytrade', label:'當沖偏高', color:'var(--yellow)'});
   if (conc >= 12) factors.push({key:'concentration', label:'集中偏熱', color:'var(--red)'});
   if (rsi >= 75) factors.push({key:'rsi', label:'RSI偏熱', color:'var(--yellow)'});
-  if (rr > 0 && rr < 1.2) factors.push({key:'rr', label:'停利空間不足', color:'var(--brown)'});
+  if (rr > 0 && rr < 1.2) factors.push({key:'rr', label:'賠賺不划算', color:'var(--brown)'});
   if (entryStatus === 'above') factors.push({key:'chase', label:'追高風險', color:'var(--red)'});
   if (heat?.kind === 'danger') factors.push({key:'dangerHeat', label:'危險過熱', color:'var(--red)'});
   return factors;
@@ -1622,7 +1622,7 @@ function getFilterLabelMap() {
     vol: {whale:'大型量', fish:'中型量', shrimp:'小型量'},
     action: {actionable:'可操作', wait:'等拉回', avoid:'先避開'},
     entry: {inside:'進場區間內', above:'高於區間', below:'低於區間'},
-    risk: {daytrade:'當沖偏高', concentration:'集中過熱', rsi:'RSI過熱', rr:'停利空間不足', chase:'追高風險', dangerHeat:'過熱風險'}
+    risk: {daytrade:'當沖偏高', concentration:'集中過熱', rsi:'RSI過熱', rr:'賠賺不划算', chase:'追高風險', dangerHeat:'過熱風險'}
   };
 }
 function getActiveFilterLabels() {
@@ -1697,6 +1697,16 @@ function askAnyStock(code, name) {
     sendAIChat();
   }, 250);
 }
+function addLookupToWatch(code) {
+  const list = watchList();
+  code = String(code);
+  if (!list.includes(code)) {
+    list.push(code);
+    saveWatchList(list);
+  }
+  updateWatchButton();
+  renderCards();
+}
 function renderUniversalSearch(q) {
   const cached = stockLookupCache[q];
   if (!cached && !stockLookupPending[q]) {
@@ -1738,6 +1748,7 @@ function renderUniversalSearch(q) {
         旁白：這檔目前沒有出現在今日訊號名單，所以不要把它當成系統買入訊號。你可以先問 AI 做基本面/消息面判讀，或等它之後進入訊號看板再操作。
       </div>
       <div class="stock-actions">
+        <button class="mini-btn ${isWatched(item.code)?'active':''}" onclick="addLookupToWatch('${item.code}')">${isWatched(item.code)?'⭐ 已追蹤':'☆ 加入追蹤'}</button>
         <button class="mini-btn" onclick="askAnyStock('${item.code}','${String(item.name || '').replace(/'/g, "\\'")}')">問 AI</button>
       </div>
     </div>`).join('')}
