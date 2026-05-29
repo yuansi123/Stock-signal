@@ -150,6 +150,15 @@ button,select,input { font-family:inherit; }
 .focus-name { font-size:.72rem; font-weight:700; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .focus-meta { font-size:.58rem; color:var(--text3); white-space:nowrap; }
 .focus-empty { font-size:.68rem; color:var(--text3); line-height:1.5; }
+.watch-radar-row {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  background:var(--card2); border:1px solid var(--border); border-radius:12px;
+  padding:.65rem .75rem; margin-bottom:7px; cursor:pointer;
+}
+.watch-radar-name { font-size:.82rem; font-weight:700; color:var(--text); }
+.watch-radar-code { font-size:.62rem; color:var(--text3); margin-top:1px; }
+.watch-radar-stat { text-align:right; font-size:.7rem; font-weight:700; white-space:nowrap; }
+.watch-radar-sub { font-size:.58rem; color:var(--text3); margin-top:2px; font-weight:400; }
 .state { padding:3rem 1rem; line-height:1.7; }
 .spinner {
   width:28px; height:28px; border-radius:50%; border:2.5px solid var(--border); border-top-color:var(--brown);
@@ -236,6 +245,11 @@ button,select,input { font-family:inherit; }
         <button class="ghost-btn" onclick="generateDailySummary()">↻ 重新生成</button>
       </div>
       <div id="dailySummaryCard" class="plain-card"><div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div></div>
+    </div>
+
+    <div id="watchRadarSection" style="display:none;margin-bottom:1rem">
+      <div class="section-title">⭐ 自選股雷達</div>
+      <div id="watchRadarCard" class="plain-card"></div>
     </div>
 
     <div id="focusRadarSection" style="display:none;margin-bottom:1rem">
@@ -455,6 +469,7 @@ function toggleWatch(code) {
   if (idx >= 0) list.splice(idx,1); else list.push(code);
   saveWatchList(list);
   updateWatchButton();
+  renderWatchRadar();
   renderCards();
 }
 function toggleWatchOnly(btn) {
@@ -564,6 +579,45 @@ function renderFocusRadar() {
   </div>`;
   section.style.display = '';
 }
+function renderWatchRadar() {
+  const section = qs('watchRadarSection'), card = qs('watchRadarCard');
+  if (!section || !card) return;
+
+  const list = watchList();
+  if (!list.length) {
+    section.style.display = 'none';
+    card.innerHTML = '';
+    return;
+  }
+
+  const found = list.map(code => allStocks.find(s => s.code === code) || {code, missing:true});
+  const active = found.filter(s => !s.missing).sort((a,b) => b.score - a.score || b.instNet - a.instNet);
+  const missing = found.filter(s => s.missing);
+
+  const rows = active.map(s => {
+    const deltaText = s.scoreDelta === null || s.scoreDelta === undefined ? '首次' : `${s.scoreDelta >= 0 ? '+' : ''}${s.scoreDelta}`;
+    const deltaColor = (s.scoreDelta || 0) > 0 ? 'var(--green)' : (s.scoreDelta || 0) < 0 ? 'var(--red)' : 'var(--text3)';
+    const netColor = s.instNet > 0 ? 'var(--red)' : s.instNet < 0 ? 'var(--blue)' : 'var(--text3)';
+    return `<div class="watch-radar-row" onclick="focusStock('${s.code}')">
+      <div style="min-width:0">
+        <div class="watch-radar-name">${s.name} <span style="font-size:.62rem;color:var(--text3)">${s.score}分</span></div>
+        <div class="watch-radar-code">${s.code} · ${s.op || '—'}</div>
+      </div>
+      <div class="watch-radar-stat">
+        <div style="color:${deltaColor}">分數 ${deltaText}</div>
+        <div class="watch-radar-sub" style="color:${netColor}">法人 ${s.instNet > 0 ? '+' : ''}${s.instNet}張</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const missingHtml = missing.length ? `<div style="font-size:.68rem;color:var(--text3);line-height:1.6;margin-top:6px">
+    今日未入榜：${missing.map(s => s.code).join('、')}
+  </div>` : '';
+
+  card.innerHTML = rows || '<div class="focus-empty">自選股今天沒有出現在目前日期資料中</div>';
+  card.innerHTML += missingHtml;
+  section.style.display = '';
+}
 function toggleDetail(code) {
   const el = qs('detail-' + code);
   if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
@@ -656,6 +710,7 @@ async function loadData() {
     await applyTrendChanges(filterDate);
     qs('dateTag').textContent = filterDate || allStocks[0]?.date || '—';
     qs('dateMeta').textContent = filterDate ? `目前顯示 ${filterDate}，共 ${allStocks.length} 檔；日期來源含訊號看板與訊號日誌` : '';
+    renderWatchRadar();
     renderFocusRadar();
     renderCards();
     generateDailySummary();
