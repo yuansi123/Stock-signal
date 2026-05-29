@@ -139,14 +139,6 @@ button,select,input { font-family:inherit; }
 }
 .divergence-title { font-size:.65rem; font-weight:700; color:var(--brown); margin-bottom:4px; }
 .divergence-list { display:flex; flex-wrap:wrap; gap:4px; }
-.focus-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
-.focus-col { background:var(--card2); border:1px solid var(--border); border-radius:12px; padding:.7rem .75rem; min-width:0; }
-.focus-title { font-size:.68rem; font-weight:700; color:var(--brown); margin-bottom:6px; }
-.focus-chip {
-  display:flex; align-items:center; justify-content:space-between; gap:6px;
-  background:var(--card); border:1px solid var(--border); border-radius:9px;
-  padding:5px 7px; margin-bottom:5px; cursor:pointer;
-}
 .focus-name { font-size:.72rem; font-weight:700; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .focus-meta { font-size:.58rem; color:var(--text3); white-space:nowrap; }
 .focus-empty { font-size:.68rem; color:var(--text3); line-height:1.5; }
@@ -244,7 +236,6 @@ button,select,input { font-family:inherit; }
   header,.bt-header { padding:.9rem 1rem; border-radius:16px; }
   .market-grid,.stats-grid { grid-template-columns:repeat(2,1fr); }
   .detail-grid,.sector-stats { grid-template-columns:1fr; }
-  .focus-grid { grid-template-columns:1fr; }
   .action-grid { grid-template-columns:1fr; }
   .breadth-grid { grid-template-columns:repeat(2,1fr); }
   .stock-actions { flex-direction:column; }
@@ -309,11 +300,6 @@ button,select,input { font-family:inherit; }
         </div>
       </div>
       <div id="watchRadarCard" class="plain-card"></div>
-    </div>
-
-    <div id="focusRadarSection" style="display:none;margin-bottom:1rem">
-      <div class="section-title">🎯 今日焦點雷達</div>
-      <div id="focusRadarCard" class="plain-card"></div>
     </div>
 
     <div id="actionListSection" style="display:none;margin-bottom:1rem">
@@ -674,43 +660,6 @@ function focusStock(code) {
   qs('searchInput').value = code;
   renderCards();
   window.scrollTo({top: 0, behavior: 'smooth'});
-}
-function renderFocusRadar() {
-  const section = qs('focusRadarSection'), card = qs('focusRadarCard');
-  if (!section || !card || !allStocks.length) return;
-
-  const withSignals = allStocks.map(s => ({
-    stock: s,
-    divs: getDivergenceSignals(s, parseReasons(s.reasons))
-  }));
-  const newBuys = allStocks
-    .filter(s => String(s.op || '').includes('🟢') && (s.prevScore === null || s.prevScore === undefined || !String(s.prevOp || '').includes('🟢')))
-    .sort((a,b) => b.score - a.score || b.instNet - a.instNet)
-    .slice(0, 4);
-  const turnStrong = allStocks
-    .filter(s => (s.scoreDelta || 0) >= 2)
-    .sort((a,b) => (b.scoreDelta || 0) - (a.scoreDelta || 0) || b.score - a.score)
-    .slice(0, 4);
-  const highRisk = withSignals
-    .filter(x => x.divs.some(d => d.level === 'warn'))
-    .sort((a,b) => b.stock.score - a.stock.score)
-    .slice(0, 4);
-
-  const chip = (s, meta, color) => `<div class="focus-chip" onclick="focusStock('${s.code}')">
-    <div style="min-width:0"><div class="focus-name">${s.name}</div><div class="focus-meta">${s.code} · ${s.score}分</div></div>
-    <div class="focus-meta" style="color:${color};font-weight:700">${meta}</div>
-  </div>`;
-  const col = (title, rows, empty, render) => `<div class="focus-col">
-    <div class="focus-title">${title}</div>
-    ${rows.length ? rows.map(render).join('') : `<div class="focus-empty">${empty}</div>`}
-  </div>`;
-
-  card.innerHTML = `<div class="focus-grid">
-    ${col('🟢 新買入', newBuys, '今天沒有新的買入訊號', s => chip(s, s.streak <= 1 ? 'NEW' : '續強', 'var(--green)'))}
-    ${col('📈 轉強', turnStrong, '目前沒有明顯轉強股', s => chip(s, `+${s.scoreDelta}`, 'var(--green)'))}
-    ${col('⚠️ 風險', highRisk, '目前無明顯背離風險', x => chip(x.stock, x.divs[0]?.label || '警示', 'var(--red)'))}
-  </div>`;
-  section.style.display = '';
 }
 function renderWatchRadar() {
   const section = qs('watchRadarSection'), card = qs('watchRadarCard');
@@ -1080,7 +1029,6 @@ async function loadData() {
     renderSectorChips();
     renderCompareTable();
     renderWatchRadar();
-    renderFocusRadar();
     renderActionList();
     renderCards();
     generateDailySummary();
