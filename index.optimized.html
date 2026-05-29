@@ -2968,7 +2968,7 @@ function openSettings() {
       </div>
     </div>`).join('') +
     `<div style="font-size:.62rem;color:var(--text3);margin-top:10px;line-height:1.5">訊號看板、大盤雷達為必選，其餘可依需求關閉。關閉後點頁面分頁仍可手動載入。</div>`;
-  qs('settingsOverlay').style.display = '';
+  qs('settingsOverlay').style.display = 'block';
 }
 function closeSettings() { qs('settingsOverlay').style.display = 'none'; }
 function toggleDS(key, el) {
