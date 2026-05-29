@@ -477,7 +477,7 @@ button,select,input { font-family:inherit; }
 <div id="largePage" style="display:none">
   <div class="wrap">
     <div class="bt-header">
-      <div class="logo"><div class="logo-icon">🐋</div><div><div class="logo-title">大型股監控</div><div class="logo-sub">LARGE CAP MONITOR</div></div></div>
+      <div class="logo"><div class="logo-icon">🐋</div><div><div class="logo-title">權值股監控</div><div class="logo-sub">LARGE CAP MONITOR</div></div></div>
       <button class="refresh-btn" onclick="loadLarge()">↻ 重新載入</button>
     </div>
     <div id="reviewSection" style="display:none;margin-bottom:1rem">
@@ -486,7 +486,7 @@ button,select,input { font-family:inherit; }
       </div>
       <div id="reviewCard" class="plain-card"></div>
     </div>
-    <div id="largeContent"><div class="state"><div class="spinner"></div><div>載入大型股資料...</div></div></div>
+    <div id="largeContent"><div class="state"><div class="spinner"></div><div>載入權值股資料...</div></div></div>
   </div>
 </div>
 
@@ -497,7 +497,7 @@ button,select,input { font-family:inherit; }
   <button class="nav-btn" id="navSector" onclick="showPage('sector')"><span>🏭</span><span>板塊</span></button>
   <button class="nav-btn" id="navBacktest" onclick="showPage('backtest')"><span>📊</span><span>回測</span></button>
   <button class="nav-btn" id="navAI" onclick="showPage('ai')"><span>🤖</span><span>AI</span></button>
-  <button class="nav-btn" id="navLarge" onclick="showPage('large')"><span>🐋</span><span>大型股</span></button>
+  <button class="nav-btn" id="navLarge" onclick="showPage('large')"><span>🐋</span><span>權值股</span></button>
 </div>
 
 <script>
@@ -2738,7 +2738,7 @@ async function loadLarge() {
   renderReviewSection();
   try {
     const rows = await fetchSheet('大型股監控');
-    if (!rows.length) { el.innerHTML = '<div class="state">尚無大型股資料</div>'; return; }
+    if (!rows.length) { el.innerHTML = '<div class="state">尚無權值股資料</div>'; return; }
     const latest = [...new Set(rows.map(r => parseDateVal(cell(r.c,0,''))).filter(Boolean))].sort().reverse()[0];
     const largeDates = [...new Set(rows.map(r => parseDateVal(cell(r.c,0,''))).filter(Boolean))].sort().reverse().slice(0, 5).reverse();
     const data = rows.filter(r => parseDateVal(cell(r.c,0,'')) === latest).map(r => ({
@@ -2810,7 +2810,7 @@ async function loadLarge() {
     const filterBtn = (label, filter) => `<button class="sector-chip" onclick="renderLargeCards('${filter}')">${label}</button>`;
     el.innerHTML = `<div class="plain-card" style="margin-bottom:10px;border-left:4px solid var(--brown-light)">
       <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">大型股資金風向</div>
+        <div class="section-title" style="margin:0">權值股資金風向</div>
         <div style="font-size:.72rem;font-weight:700;color:${moodColor}">${mood}</div>
       </div>
       <div class="breadth-grid">
@@ -2826,7 +2826,7 @@ async function loadLarge() {
     </div>
     <div class="plain-card" style="margin-bottom:10px">
       <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">大型股 5 日資金趨勢</div>
+        <div class="section-title" style="margin:0">權值股 5 日資金趨勢</div>
         <div>
           <div style="font-size:.72rem;font-weight:700;color:${trendColor}">${trendText} ${trendDelta >= 0 ? '+' : ''}${trendDelta}</div>
           ${benchmarkHtml}
@@ -2875,7 +2875,7 @@ function renderLargeCards(filter) {
   if (filter === 'foreignStreak') list = list.filter(s => s.fStreak >= 2);
   if (filter === 'netBuy') list = list.filter(s => s.total > 0);
   if (!list.length) {
-    el.innerHTML = '<div class="state" style="padding:2rem 1rem">沒有符合條件的大型股</div>';
+    el.innerHTML = '<div class="state" style="padding:2rem 1rem">沒有符合條件的權值股</div>';
     return;
   }
   el.innerHTML = `<div class="cards">${list.map(s => {
