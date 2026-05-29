@@ -1587,32 +1587,94 @@ async function loadLarge() {
   try {
     const rows = await fetchSheet('大型股監控');
     if (!rows.length) { el.innerHTML = '<div class="state">尚無大型股資料</div>'; return; }
-    const latest = [...new Set(rows.map(r=>parseDateVal(cell(r.c,0,''))).filter(Boolean))].sort().reverse()[0];
-    const data = rows.filter(r=>parseDateVal(cell(r.c,0,''))===latest).map(r => ({
-      code:String(cell(r.c,1,'')), name:String(cell(r.c,2,'')), foreign:Number(cell(r.c,3,0))||0,
-      trust:Number(cell(r.c,4,0))||0, dealer:Number(cell(r.c,5,0))||0, total:Number(cell(r.c,6,0))||0,
-      streak:Number(cell(r.c,7,0))||0, fStreak:Number(cell(r.c,8,0))||0, close:Number(cell(r.c,9,0))||0,
-      change:Number(cell(r.c,10,0))||0, vol:Number(cell(r.c,11,0))||0, score:Number(cell(r.c,12,0))||0,
+    const latest = [...new Set(rows.map(r => parseDateVal(cell(r.c,0,''))).filter(Boolean))].sort().reverse()[0];
+    const data = rows.filter(r => parseDateVal(cell(r.c,0,'')) === latest).map(r => ({
+      code:String(cell(r.c,1,'')), name:String(cell(r.c,2,'')),
+      foreign:Number(cell(r.c,3,0)) || 0, trust:Number(cell(r.c,4,0)) || 0,
+      dealer:Number(cell(r.c,5,0)) || 0, total:Number(cell(r.c,6,0)) || 0,
+      streak:Number(cell(r.c,7,0)) || 0, fStreak:Number(cell(r.c,8,0)) || 0,
+      close:Number(cell(r.c,9,0)) || 0, change:Number(cell(r.c,10,0)) || 0,
+      vol:Number(cell(r.c,11,0)) || 0, score:Number(cell(r.c,12,0)) || 0,
       alert:String(cell(r.c,13,'-'))
-    })).sort((a,b)=>b.score-a.score||b.total-a.total);
-    const bull = data.filter(s=>s.score>=4 || s.alert.includes('偏多')).length;
-    const bear = data.filter(s=>s.score<=1 || s.alert.includes('偏空') || s.total < -5000).length;
-    el.innerHTML = `<div class="plain-card" style="margin-bottom:10px;border-left:4px solid var(--brown-light)"><div class="section-title">大型股結論</div><div style="font-size:.86rem;font-weight:600;line-height:1.6">大型股偏多 ${bull} 檔，偏空 ${bear} 檔。</div><div style="font-size:.68rem;color:var(--text3);margin-top:4px">${latest} 更新</div></div>
-    <div class="cards">${data.map(s => {
-      const totalColor = s.total>0?'var(--red)':s.total<0?'var(--blue)':'var(--text2)', chgColor=s.change>0?'var(--red)':s.change<0?'var(--blue)':'var(--text2)';
-      return `<div class="card"><div class="card-header"><div><div class="stock-name">${s.name}</div><div class="stock-code">${s.code} · 收盤 $${s.close}</div></div><div class="price" style="color:${chgColor}">${s.change>0?'+':''}${s.change.toFixed(2)}%</div></div>
-        <div class="stats-grid">
-          <div class="stat-box"><div class="stat-label">法人合計</div><div class="stat-val" style="color:${totalColor}">${s.total>0?'+':''}${s.total}</div></div>
-          <div class="stat-box"><div class="stat-label">連買</div><div class="stat-val">${s.streak} 天</div></div>
-          <div class="stat-box"><div class="stat-label">外資連買</div><div class="stat-val">${s.fStreak} 天</div></div>
-          <div class="stat-box"><div class="stat-label">外資</div><div class="stat-val">${s.foreign>0?'+':''}${s.foreign}</div></div>
-          <div class="stat-box"><div class="stat-label">投信</div><div class="stat-val">${s.trust>0?'+':''}${s.trust}</div></div>
-          <div class="stat-box"><div class="stat-label">風向分數</div><div class="stat-val">${s.score}/5</div></div>
-        </div><div class="reasons"><span class="rtag info">${s.alert}</span><span class="rtag info">成交量 ${s.vol} 張</span></div></div>`;
-    }).join('')}</div>`;
+    })).sort((a,b) => b.score - a.score || b.total - a.total);
+
+    const bull = data.filter(s => s.score >= 4 || s.alert.includes('偏多')).length;
+    const bear = data.filter(s => s.score <= 1 || s.alert.includes('偏空') || s.total < -5000).length;
+    const totalNet = data.reduce((sum,s) => sum + s.total, 0);
+    const upCount = data.filter(s => s.change > 0).length;
+    const foreignNet = data.reduce((sum,s) => sum + s.foreign, 0);
+    const trustNet = data.reduce((sum,s) => sum + s.trust, 0);
+    const topForeign = data.slice().sort((a,b) => b.foreign - a.foreign)[0];
+    const bottomForeign = data.slice().sort((a,b) => a.foreign - b.foreign)[0];
+    const mood = totalNet > 10000 && bull > bear ? '權值偏多' : totalNet < -10000 && bear >= bull ? '權值偏空' : '權值中性';
+    const moodColor = mood.includes('偏多') ? 'var(--green)' : mood.includes('偏空') ? 'var(--red)' : 'var(--yellow)';
+
+    const filterBtn = (label, filter) => `<button class="sector-chip" onclick="renderLargeCards('${filter}')">${label}</button>`;
+    el.innerHTML = `<div class="plain-card" style="margin-bottom:10px;border-left:4px solid var(--brown-light)">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">大型股資金風向</div>
+        <div style="font-size:.72rem;font-weight:700;color:${moodColor}">${mood}</div>
+      </div>
+      <div class="breadth-grid">
+        <div class="breadth-cell"><div class="breadth-label">法人合計</div><div class="breadth-val" style="color:${totalNet>=0?'var(--red)':'var(--blue)'}">${totalNet>=0?'+':''}${totalNet}</div></div>
+        <div class="breadth-cell"><div class="breadth-label">上漲家數</div><div class="breadth-val green">${upCount}/${data.length}</div></div>
+        <div class="breadth-cell"><div class="breadth-label">外資合計</div><div class="breadth-val" style="color:${foreignNet>=0?'var(--red)':'var(--blue)'}">${foreignNet>=0?'+':''}${foreignNet}</div></div>
+        <div class="breadth-cell"><div class="breadth-label">投信合計</div><div class="breadth-val" style="color:${trustNet>=0?'var(--red)':'var(--blue)'}">${trustNet>=0?'+':''}${trustNet}</div></div>
+      </div>
+      <div style="font-size:.68rem;color:var(--text2);line-height:1.6;margin-top:8px">
+        外資買超王：${topForeign ? `${topForeign.name} +${topForeign.foreign}張` : '—'}；外資賣超王：${bottomForeign ? `${bottomForeign.name} ${bottomForeign.foreign}張` : '—'}
+      </div>
+      <div style="font-size:.62rem;color:var(--text3);margin-top:4px">${latest} 更新 · 偏多 ${bull} 檔 · 偏空 ${bear} 檔</div>
+    </div>
+    <div class="sector-chip-row" style="margin-bottom:10px">
+      ${filterBtn('全部', 'all')}
+      ${filterBtn('偏多', 'bull')}
+      ${filterBtn('偏空', 'bear')}
+      ${filterBtn('外資連買', 'foreignStreak')}
+      ${filterBtn('法人買超', 'netBuy')}
+    </div>
+    <div id="largeCards"></div>`;
+
+    window._largeData = data;
+    renderLargeCards('all');
   } catch(e) {
     el.innerHTML = '<div class="state">載入失敗：' + e.message + '</div>';
   }
+}
+
+function renderLargeCards(filter) {
+  const el = qs('largeCards');
+  const data = window._largeData || [];
+  if (!el) return;
+  let list = data.slice();
+  if (filter === 'bull') list = list.filter(s => s.score >= 4 || s.alert.includes('偏多'));
+  if (filter === 'bear') list = list.filter(s => s.score <= 1 || s.alert.includes('偏空') || s.total < -5000);
+  if (filter === 'foreignStreak') list = list.filter(s => s.fStreak >= 2);
+  if (filter === 'netBuy') list = list.filter(s => s.total > 0);
+  if (!list.length) {
+    el.innerHTML = '<div class="state" style="padding:2rem 1rem">沒有符合條件的大型股</div>';
+    return;
+  }
+  el.innerHTML = `<div class="cards">${list.map(s => {
+    const totalColor = s.total > 0 ? 'var(--red)' : s.total < 0 ? 'var(--blue)' : 'var(--text2)';
+    const chgColor = s.change > 0 ? 'var(--red)' : s.change < 0 ? 'var(--blue)' : 'var(--text2)';
+    const flow = s.total > 0 && s.change < 0 ? '法人低接' : s.total < 0 && s.change > 0 ? '上漲賣壓' : s.total > 0 ? '資金流入' : s.total < 0 ? '資金流出' : '中性';
+    return `<div class="card">
+      <div class="card-header">
+        <div><div class="stock-name">${s.name}</div><div class="stock-code">${s.code} · 收盤 $${s.close}</div></div>
+        <div class="price" style="color:${chgColor}">${s.change > 0 ? '+' : ''}${s.change.toFixed(2)}%</div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-box"><div class="stat-label">法人合計</div><div class="stat-val" style="color:${totalColor}">${s.total > 0 ? '+' : ''}${s.total}</div></div>
+        <div class="stat-box"><div class="stat-label">連買</div><div class="stat-val">${s.streak} 天</div></div>
+        <div class="stat-box"><div class="stat-label">外資連買</div><div class="stat-val">${s.fStreak} 天</div></div>
+        <div class="stat-box"><div class="stat-label">外資</div><div class="stat-val">${s.foreign > 0 ? '+' : ''}${s.foreign}</div></div>
+        <div class="stat-box"><div class="stat-label">投信</div><div class="stat-val">${s.trust > 0 ? '+' : ''}${s.trust}</div></div>
+        <div class="stat-box"><div class="stat-label">風向分數</div><div class="stat-val">${s.score}/5</div></div>
+      </div>
+      <div class="reasons"><span class="rtag info">${s.alert}</span><span class="rtag info">${flow}</span><span class="rtag info">成交量 ${s.vol} 張</span></div>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 async function loadAll() {
