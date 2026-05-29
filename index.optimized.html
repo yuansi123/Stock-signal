@@ -279,6 +279,14 @@ button,select,input { font-family:inherit; }
       <div id="breadthCard" class="plain-card"></div>
     </div>
 
+    <div id="riskPlanSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">今日風控總覽</div>
+        <button class="ghost-btn" onclick="setActionFilter('actionable')">看可操作</button>
+      </div>
+      <div id="riskPlanCard" class="plain-card"></div>
+    </div>
+
     <div id="sectorChipsSection" style="display:none;margin-bottom:1rem">
       <div id="sectorChipsCard" class="sector-chip-row"></div>
     </div>
@@ -907,6 +915,48 @@ function renderMarketBreadth() {
   </div>`;
   section.style.display = '';
 }
+function renderRiskPlan() {
+  const section = qs('riskPlanSection'), card = qs('riskPlanCard');
+  if (!section || !card || !allStocks.length) return;
+
+  const plans = allStocks.map(s => ({stock:s, sizing:getPositionSizing(s)}));
+  const count = level => plans.filter(x => x.sizing.level === level).length;
+  const standard = count(3);
+  const half = count(2);
+  const observe = count(1);
+  const closed = count(0);
+  const suggestedExposure = Math.min(100, Math.round(standard * 22 + half * 11 + observe * 4));
+  const candidates = plans
+    .filter(x => x.sizing.level > 0)
+    .sort((a,b) => b.sizing.level - a.sizing.level || b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet)
+    .slice(0, 4);
+  const tone = suggestedExposure >= 70 ? {label:'積極但分散', color:'var(--green)', text:'買點多，但仍建議分批，不要單壓。'}
+    : suggestedExposure >= 35 ? {label:'選股操作', color:'var(--yellow)', text:'只挑高勝率標的，過熱股等拉回。'}
+    : {label:'保守觀察', color:'var(--brown)', text:'可操作標的不多，資金保留彈性。'};
+
+  card.innerHTML = `
+    <div class="breadth-grid">
+      <div class="breadth-cell"><div class="breadth-label">建議曝險</div><div class="breadth-val" style="color:${tone.color}">${suggestedExposure}%</div></div>
+      <div class="breadth-cell"><div class="breadth-label">標準倉</div><div class="breadth-val green">${standard}</div></div>
+      <div class="breadth-cell"><div class="breadth-label">半倉分批</div><div class="breadth-val brown">${half}</div></div>
+      <div class="breadth-cell"><div class="breadth-label">不開倉</div><div class="breadth-val red">${closed}</div></div>
+    </div>
+    <div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--bg2);border-left:3px solid ${tone.color}">
+      <div style="font-size:.78rem;font-weight:800;color:${tone.color};margin-bottom:2px">${tone.label}</div>
+      <div style="font-size:.72rem;line-height:1.55;color:var(--text2)">${tone.text} 觀察倉 ${observe} 檔，優先檢查風報比與當沖比。</div>
+    </div>
+    ${candidates.length ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">
+      ${candidates.map(x => `<div class="action-row" onclick="focusStock('${x.stock.code}')">
+        <div>
+          <div class="action-name">${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span></div>
+          <div class="action-meta">${getDisplayOp(x.stock)} · ${x.sizing.reason}</div>
+        </div>
+        <div style="text-align:right;color:${x.sizing.color};font-size:.74rem;font-weight:800">${x.sizing.label}<br><span style="font-size:.62rem;color:var(--text3)">${x.sizing.pct}</span></div>
+      </div>`).join('')}
+    </div>` : ''}
+  `;
+  section.style.display = '';
+}
 function getContinuationProfile(s) {
   const heat = getOverheatState(s);
   const displayClass = getDisplayOpClass(s);
@@ -1210,6 +1260,7 @@ async function loadData() {
     qs('dateTag').textContent = filterDate || allStocks[0]?.date || '—';
     qs('dateMeta').textContent = filterDate ? `目前顯示 ${filterDate}，共 ${allStocks.length} 檔；日期來源含訊號看板與訊號日誌` : '';
     renderMarketBreadth();
+    renderRiskPlan();
     renderSectorChips();
     renderContinuationRadar();
     renderCompareTable();
