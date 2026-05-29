@@ -367,6 +367,13 @@ button,select,input { font-family:inherit; }
       <div id="compareCard" class="plain-card"></div>
     </div>
 
+    <div id="reviewSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">📋 前日漲幅檢討</div>
+      </div>
+      <div id="reviewCard" class="plain-card"></div>
+    </div>
+
     <div class="sector-filter">
       <select class="sector-select" id="sectorFilter" onchange="setSectorFilter(this.value)">
         <option value="">🏭 所有板塊</option>
@@ -1497,6 +1504,80 @@ function renderCompareTable() {
   </table></div>`;
   section.style.display = '';
 }
+function renderReviewSection() {
+  const section = qs('reviewSection'), card = qs('reviewCard');
+  if (!section || !card || !allRowsCache.length) return;
+
+  const dates = [...new Set(allRowsCache.map(r => parseDateVal(cell(r.c,0,''))).filter(d => d.length===10))].sort().reverse();
+  if (dates.length < 2) { section.style.display = 'none'; return; }
+
+  const currentDate = dates[0];
+  const prevDate = dates[1];
+  const allMapped = allRowsCache.map(mapSignalRow);
+  const currentDay = allMapped.filter(s => s.date === currentDate && s.code && Number(s.price) > 0);
+  const prevDay    = allMapped.filter(s => s.date === prevDate   && s.code && Number(s.price) > 0);
+
+  const prevByCode = {};
+  prevDay.forEach(s => { prevByCode[s.code] = s; });
+
+  const gainers = currentDay
+    .map(s => {
+      const prev = prevByCode[s.code];
+      if (!prev) return null;
+      const change = (Number(s.price) - Number(prev.price)) / Number(prev.price) * 100;
+      if (isNaN(change)) return null;
+      return {
+        code: s.code, name: s.name, sector: s.sector,
+        price: Number(s.price), prevPrice: Number(prev.price),
+        priceChange: change,
+        prevOp: prev.op, prevScore: prev.score,
+        prevOpClass: getOpClass(prev.op),
+        prevReasons: prev.reasons
+      };
+    })
+    .filter(Boolean)
+    .sort((a,b) => b.priceChange - a.priceChange)
+    .slice(0, 10);
+
+  if (!gainers.length) { section.style.display = 'none'; return; }
+
+  const cntBuy   = gainers.filter(s => s.prevOpClass === 'buy').length;
+  const cntWatch = gainers.filter(s => ['watch','hot'].includes(s.prevOpClass)).length;
+  const cntMiss  = gainers.filter(s => ['avoid','bear','neutral'].includes(s.prevOpClass) || !s.prevOp).length;
+
+  const rows = gainers.map((s, i) => {
+    const isBuy   = s.prevOpClass === 'buy';
+    const isWatch = ['watch','hot'].includes(s.prevOpClass);
+    const icon    = isBuy ? '✅' : isWatch ? '⚠️' : '❌';
+    const tag     = isBuy ? '有買入訊號' : isWatch ? '觀察中' : '未抓到';
+    const tagCol  = isBuy ? 'var(--green)' : isWatch ? 'var(--yellow)' : 'var(--red)';
+    const reasons = parseReasons(s.prevReasons).slice(0, 2).join(' · ') || '—';
+    return `<div class="action-row" onclick="focusStock('${s.code}')">
+      <div style="min-width:26px;font-size:.95rem;text-align:center">${icon}</div>
+      <div style="flex:1;min-width:0">
+        <div class="action-name">#${i+1} ${s.name} <span style="font-size:.6rem;color:var(--text3)">${s.code}</span></div>
+        <div class="action-meta">${prevDate} 訊號：${s.prevOp || '未入榜'} · ${s.prevScore}分 · 前收 $${s.prevPrice.toFixed(2)} → $${s.price.toFixed(2)}</div>
+        <div class="action-meta" style="color:var(--text3);margin-top:2px">${reasons}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:.88rem;font-weight:800;color:var(--red)">+${s.priceChange.toFixed(2)}%</div>
+        <div style="font-size:.6rem;color:${tagCol};margin-top:2px">${tag}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  card.innerHTML = `
+    <div class="breadth-grid" style="margin-bottom:10px">
+      <div class="breadth-cell"><div class="breadth-label">比較區間</div><div class="breadth-val" style="font-size:.72rem">${prevDate.slice(5)} → ${currentDate.slice(5)}</div></div>
+      <div class="breadth-cell"><div class="breadth-label">✅ 有買入</div><div class="breadth-val green">${cntBuy} / 10</div></div>
+      <div class="breadth-cell"><div class="breadth-label">⚠️ 觀察中</div><div class="breadth-val yellow">${cntWatch} / 10</div></div>
+      <div class="breadth-cell"><div class="breadth-label">❌ 未抓到</div><div class="breadth-val red">${cntMiss} / 10</div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">${rows}</div>
+    <div style="font-size:.62rem;color:var(--text3);margin-top:10px;line-height:1.55;padding:6px 8px;background:var(--bg2);border-radius:8px">範圍限於掃描池內股票。比較 ${prevDate} → ${currentDate} 收盤漲幅，對照 ${prevDate} 當日訊號。</div>
+  `;
+  section.style.display = '';
+}
 function buildActionBuckets() {
   const enriched = allStocks.map(getActionMeta);
   return {
@@ -1821,6 +1902,7 @@ async function loadData() {
     renderSectorChips();
     renderChangeRadar();
     renderCompareTable();
+    renderReviewSection();
     renderWatchRadar();
     renderActionList();
     renderCards();
@@ -2732,7 +2814,8 @@ const COLLAPSIBLE = [
   {id:'actionList',   sec:'actionListSection'},
   {id:'dailyNews',    sec:'dailyNewsSection'},
   {id:'changeRadar',  sec:'changeRadarSection'},
-  {id:'compare',      sec:'compareSection'}
+  {id:'compare',      sec:'compareSection'},
+  {id:'review',       sec:'reviewSection'}
 ];
 function initCollapsibleSections() {
   const saved = JSON.parse(localStorage.getItem('sec_state') || '{}');
