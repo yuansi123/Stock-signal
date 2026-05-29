@@ -1529,9 +1529,19 @@ function renderReviewSection() {
         code: s.code, name: s.name, sector: s.sector,
         price: Number(s.price), prevPrice: Number(prev.price),
         priceChange: change,
-        prevOp: prev.op, prevScore: prev.score,
+        prevOp: prev.op, prevScore: Number(prev.score) || 0,
         prevOpClass: getOpClass(prev.op),
-        prevReasons: prev.reasons
+        prevReasons: prev.reasons,
+        prevInstNet: Number(prev.instNet) || 0,
+        prevStreak:  Number(prev.streak)  || 0,
+        prevInstS:   Number(prev.instS)   || 0,
+        prevMomS:    Number(prev.momS)    || 0,
+        prevVolS:    Number(prev.volS)    || 0,
+        prevRsiS:    Number(prev.rsiS)    || 0,
+        prevKdS:     Number(prev.kdS)     || 0,
+        prevRsi:     prev.rsi,
+        prevConc5:   prev.conc5,
+        prevDayTrade: prev.dayTradeRatio
       };
     })
     .filter(Boolean)
@@ -1540,9 +1550,34 @@ function renderReviewSection() {
 
   if (!gainers.length) { section.style.display = 'none'; return; }
 
+  function reviewDiagnosis(s) {
+    if (s.prevOpClass === 'buy') return { text: '系統已發出買入訊號，可確認當日是否執行', color: 'var(--green)' };
+    const d = [];
+    if (s.prevInstNet < 0)      d.push(`法人賣超 ${s.prevInstNet} 張`);
+    else if (s.prevInstNet === 0) d.push('法人未買超（淨買 0）');
+    if (s.prevScore < 6)        d.push(`分數過低（${s.prevScore} 分）`);
+    else if (s.prevScore < 8)   d.push(`分數未達門檻（${s.prevScore} 分，需 8+）`);
+    if (s.prevInstS  === 0)     d.push('法人子分 0');
+    if (s.prevMomS   === 0)     d.push('動能子分 0');
+    if (s.prevVolS   === 0)     d.push('量能子分 0');
+    const dt = num(s.prevDayTrade);
+    if (dt >= 30)               d.push(`當沖比 ${dt.toFixed(0)}% 偏高`);
+    const rsi = num(s.prevRsi);
+    if (rsi >= 75)              d.push(`RSI ${rsi} 過熱`);
+    if (s.prevOpClass === 'avoid') d.push('前日判定為避開');
+    if (s.prevOpClass === 'bear')  d.push('前日判定為空頭');
+    if (['watch','hot'].includes(s.prevOpClass) && d.length === 0)
+      d.push('訊號為觀察，尚未完全符合買入條件');
+    const text = d.length ? d.slice(0, 2).join('、') : '前日條件不足，未達買入門檻';
+    const color = ['avoid','bear'].includes(s.prevOpClass) ? 'var(--red)'
+      : ['watch','hot'].includes(s.prevOpClass) ? 'var(--yellow)'
+      : 'var(--text2)';
+    return { text, color };
+  }
+
   const cntBuy   = gainers.filter(s => s.prevOpClass === 'buy').length;
   const cntWatch = gainers.filter(s => ['watch','hot'].includes(s.prevOpClass)).length;
-  const cntMiss  = gainers.filter(s => ['avoid','bear','neutral'].includes(s.prevOpClass) || !s.prevOp).length;
+  const cntMiss  = gainers.filter(s => !['buy','watch','hot'].includes(s.prevOpClass)).length;
 
   const rows = gainers.map((s, i) => {
     const isBuy   = s.prevOpClass === 'buy';
@@ -1550,15 +1585,15 @@ function renderReviewSection() {
     const icon    = isBuy ? '✅' : isWatch ? '⚠️' : '❌';
     const tag     = isBuy ? '有買入訊號' : isWatch ? '觀察中' : '未抓到';
     const tagCol  = isBuy ? 'var(--green)' : isWatch ? 'var(--yellow)' : 'var(--red)';
-    const reasons = parseReasons(s.prevReasons).slice(0, 2).join(' · ') || '—';
+    const diag    = reviewDiagnosis(s);
     return `<div class="action-row" onclick="focusStock('${s.code}')">
       <div style="min-width:26px;font-size:.95rem;text-align:center">${icon}</div>
       <div style="flex:1;min-width:0">
         <div class="action-name">#${i+1} ${s.name} <span style="font-size:.6rem;color:var(--text3)">${s.code}</span></div>
-        <div class="action-meta">${prevDate} 訊號：${s.prevOp || '未入榜'} · ${s.prevScore}分 · 前收 $${s.prevPrice.toFixed(2)} → $${s.price.toFixed(2)}</div>
-        <div class="action-meta" style="color:var(--text3);margin-top:2px">${reasons}</div>
+        <div class="action-meta">${prevDate} 訊號：${s.prevOp || '未入榜'} · ${s.prevScore}分 · $${s.prevPrice.toFixed(2)} → $${s.price.toFixed(2)}</div>
+        <div style="font-size:.68rem;margin-top:4px;padding:3px 7px;border-radius:6px;background:var(--bg2);color:${diag.color};line-height:1.4">診斷：${diag.text}</div>
       </div>
-      <div style="text-align:right;flex-shrink:0">
+      <div style="text-align:right;flex-shrink:0;padding-left:8px">
         <div style="font-size:.88rem;font-weight:800;color:var(--red)">+${s.priceChange.toFixed(2)}%</div>
         <div style="font-size:.6rem;color:${tagCol};margin-top:2px">${tag}</div>
       </div>
