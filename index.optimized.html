@@ -666,35 +666,62 @@ function getPositionSizing(s) {
   if (level === 2) return {label:'半倉分批', pct:'30-50%', color:'var(--yellow)', level, reason:reasons.join('、')};
   return {label:'觀察倉', pct:'10-20%', color:'var(--brown)', level, reason:reasons.join('、')};
 }
+function getPlainRiskText(risks) {
+  if (!risks.length) return '目前沒有明顯警訊';
+  const map = {
+    daytrade:'當沖比偏高，短線容易震盪',
+    concentration:'籌碼集中度偏熱，容易洗盤',
+    rsi:'RSI偏熱，追價容易買在短線高點',
+    rr:'停利空間不夠漂亮',
+    chase:'價格已經追高',
+    dangerHeat:'過熱風險偏高'
+  };
+  return risks.slice(0,2).map(x => map[x.key] || x.label).join('；');
+}
+function getInstitutionalWhy(s) {
+  const parts = [];
+  if (s.instNet > 0) parts.push(`法人合計買超 ${s.instNet} 張`);
+  if (s.foreign > 0) parts.push(`外資買 ${s.foreign} 張`);
+  if (s.trust > 0) parts.push(`投信買 ${s.trust} 張`);
+  if (s.dealer > 0) parts.push(`自營商買 ${s.dealer} 張`);
+  if (s.streak >= 2) parts.push(`已連買 ${s.streak} 天`);
+  const reasons = parseReasons(s.reasons).join(' ');
+  if (/異常買超|法人買|連買|集中甜蜜|量能放大|多頭排列|站上/.test(reasons)) {
+    const hit = parseReasons(s.reasons).filter(r => /異常買超|法人買|連買|集中甜蜜|量能放大|多頭排列|站上/.test(r)).slice(0,2);
+    if (hit.length) parts.push(hit.join('、'));
+  }
+  return parts.length ? `法人可能買的理由：${parts.slice(0,4).join('，')}。` : '法人買盤理由不夠明確，先把它當觀察名單。';
+}
 function getTradeNarrator(s) {
   const price = Number(s.price);
   const range = parseEntryRange(s.entry);
-  const entry = getEntryPosition(s);
   const opClass = getDisplayOpClass(s);
   const heat = getOverheatState(s);
   const risks = getRiskFactors(s);
   const dayTradePct = num(s.dayTradeRatio);
   const rr = parseFloat(s.rr) || 0;
-  const riskText = risks.length ? `提醒：${risks.slice(0,2).map(x => x.label).join('、')}` : '風險訊號不重';
+  const riskText = getPlainRiskText(risks);
+  const why = getInstitutionalWhy(s);
+  const entryText = `${fmtPrice(range?.low)}~${fmtPrice(range?.high)}`;
 
   if (!price || !range) {
     return {tone:'資料不足', color:'var(--text3)', icon:'🗣️', text:'旁白：目前缺少收盤價或進場區間，先不要硬判斷。'};
   }
   if (opClass === 'avoid' || opClass === 'bear' || heat?.kind === 'danger') {
-    return {tone:'先不要買', color:'var(--red)', icon:'🛑', text:`旁白：訊號偏風險，現在不適合追。${riskText}，等下一次轉強再看。`};
+    return {tone:'先不要買', color:'var(--red)', icon:'🛑', text:`旁白：這檔現在偏風險，不適合硬買。主要原因是 ${riskText}。等它重新站回進場區間、法人轉買或分數回升，再看下一次機會。${why}`};
   }
   if (price > range.high) {
     const over = pctDiff(range.high, price) || 0;
-    return {tone:'不要追高', color:'var(--red)', icon:'🗣️', text:`旁白：收盤價已高於進場上緣約 ${over.toFixed(1)}%，這裡不要急，等拉回到 ${fmtPrice(s.entry)} 再評估。`};
+    return {tone:'不要追高', color:'var(--red)', icon:'🗣️', text:`旁白：收盤價已高於進場上緣約 ${over.toFixed(1)}%，這裡不要急著追。比較好的做法是等拉回 ${entryText}，或明天放量站穩高點且法人續買，再考慮小量跟進。${why}`};
   }
   if (price >= range.low && price <= range.high) {
     if (opClass === 'buy' && Number(s.score) >= 8 && dayTradePct < 30 && (rr === 0 || rr >= 1.2)) {
-      return {tone:'可分批', color:'var(--green)', icon:'✅', text:`旁白：價格在進場區間內，訊號也配合。可用分批方式處理，停損看 ${fmtPrice(s.stop)}。`};
+      return {tone:'可分批', color:'var(--green)', icon:'✅', text:`旁白：價格在 ${entryText} 進場區間內，訊號也配合。若你本來就想做，可以先分批進，不要一次打滿；若明天續強、法人再買、量能不縮，可以更積極。停損看 ${fmtPrice(s.stop)}。${why}`};
     }
-    return {tone:'小量試單', color:'var(--yellow)', icon:'🟡', text:`旁白：價格有到位，但條件還不是滿分。可以小量觀察，別一次打滿。${riskText}。`};
+    return {tone:'小量試單', color:'var(--yellow)', icon:'🟡', text:`旁白：價格有到位，但條件還不是滿分。若你想試，可以在 ${entryText} 先買一點點觀察；等它站穩區間上緣、法人續買、量能放大，再提高部位。別一次打滿。提醒：${riskText}。${why}`};
   }
   const under = pctDiff(price, range.low) || 0;
-  return {tone:'等轉強', color:'var(--yellow)', icon:'⏳', text:`旁白：收盤價低於進場區間約 ${under.toFixed(1)}%，先等站回區間或放量轉強，不用急著出手。`};
+  return {tone:'等轉強', color:'var(--yellow)', icon:'⏳', text:`旁白：收盤價低於進場區間約 ${under.toFixed(1)}%，現在還不用急。等它站回 ${fmtPrice(range.low)} 以上、量能轉強或法人續買，再把它拉回可操作名單。${why}`};
 }
 function getBarColor(s,m) { const p=s/m; return p>=.75?'#5a9460':p>=.5?'#c08830':p>=.25?'#a07850':'#d0c8bc'; }
 function parseReasons(str) { return String(str || '').split('|').map(s => s.trim()).filter(Boolean); }
@@ -849,7 +876,7 @@ function getRiskFactors(s) {
   if (dayTradePct >= 30) factors.push({key:'daytrade', label:'當沖偏高', color:'var(--yellow)'});
   if (conc >= 12) factors.push({key:'concentration', label:'集中偏熱', color:'var(--red)'});
   if (rsi >= 75) factors.push({key:'rsi', label:'RSI偏熱', color:'var(--yellow)'});
-  if (rr > 0 && rr < 1.2) factors.push({key:'rr', label:'風報比不足', color:'var(--brown)'});
+  if (rr > 0 && rr < 1.2) factors.push({key:'rr', label:'停利空間不足', color:'var(--brown)'});
   if (entryStatus === 'above') factors.push({key:'chase', label:'追高風險', color:'var(--red)'});
   if (heat?.kind === 'danger') factors.push({key:'dangerHeat', label:'危險過熱', color:'var(--red)'});
   return factors;
@@ -1535,7 +1562,7 @@ function getFilterLabelMap() {
     vol: {whale:'大型量', fish:'中型量', shrimp:'小型量'},
     action: {actionable:'可操作', wait:'等拉回', avoid:'先避開'},
     entry: {inside:'進場區間內', above:'高於區間', below:'低於區間'},
-    risk: {daytrade:'當沖偏高', concentration:'集中過熱', rsi:'RSI過熱', rr:'風報偏低', chase:'追高風險', dangerHeat:'過熱風險'}
+    risk: {daytrade:'當沖偏高', concentration:'集中過熱', rsi:'RSI過熱', rr:'停利空間不足', chase:'追高風險', dangerHeat:'過熱風險'}
   };
 }
 function getActiveFilterLabels() {
