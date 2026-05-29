@@ -1592,7 +1592,7 @@ function renderReviewSection() {
       <div style="display:flex;align-items:center;gap:6px" onclick="focusStock('${s.code}')">
         <span style="font-size:.72rem;flex-shrink:0">${icon}</span>
         <div style="flex:1;min-width:0">
-          <div style="font-size:.74rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name} <span style="font-weight:400;font-size:.58rem;color:var(--text3)">${s.code}</span></div>
+          <div style="font-size:.74rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name} <span style="font-weight:400;font-size:.58rem;color:var(--text3)">${s.code}</span>${s.sector ? ` <span style="font-size:.54rem;color:var(--brown);background:var(--bg2);padding:1px 4px;border-radius:4px">${s.sector.split('/')[0]}</span>` : ''}</div>
           <div style="font-size:.6rem;color:${diag.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${diag.text}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
@@ -2789,17 +2789,19 @@ async function loadLarge() {
     if (histNets.length >= 1) {
       const avg = Math.round(histNets.reduce((a,b) => a+b, 0) / histNets.length);
       const avgFmt = (avg >= 0 ? '+' : '') + avg.toLocaleString('zh-TW');
+      const diff = todayNet - avg;
+      const diffAbs = Math.abs(diff).toLocaleString('zh-TW');
       if (histNets.length >= 9) {
         const sorted = [...histNets].sort((a,b) => a-b);
         const pct = Math.round(sorted.filter(n => n <= todayNet).length / sorted.length * 100);
         const lbl = pct >= 80 ? '強' : pct >= 50 ? '普通' : '弱';
         const col = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--text3)' : 'var(--blue)';
-        benchmarkHtml = `<div style="font-size:.6rem;color:${col};margin-top:2px">今日 歷史第 ${pct} 百分位（${lbl}）· 均值 ${avgFmt} 張</div>`;
+        const dir = diff > 0 ? `好於均值 +${diffAbs} 張` : diff < 0 ? `差於均值 -${diffAbs} 張` : '與均值持平';
+        benchmarkHtml = `<div style="font-size:.6rem;color:${col};margin-top:2px">歷史第 ${pct} 百分位（${lbl}）· 均值 ${avgFmt} · ${dir}</div>`;
       } else {
-        const ratio = avg !== 0 ? (todayNet / avg).toFixed(1) : null;
-        const vs = todayNet > avg ? `高於近${histNets.length}日均` : todayNet < avg ? `低於近${histNets.length}日均` : '等於近期均值';
-        const col = todayNet > avg ? 'var(--green)' : todayNet < avg ? 'var(--blue)' : 'var(--text3)';
-        benchmarkHtml = `<div style="font-size:.6rem;color:${col};margin-top:2px">近${histNets.length}日均 ${avgFmt} 張 · ${vs}${ratio ? ` ${ratio}×` : ''}</div>`;
+        const dir = diff > 0 ? `好於均值 +${diffAbs} 張` : diff < 0 ? `差於均值 -${diffAbs} 張` : '與均值持平';
+        const col = diff > 0 ? 'var(--green)' : diff < 0 ? 'var(--blue)' : 'var(--text3)';
+        benchmarkHtml = `<div style="font-size:.6rem;color:${col};margin-top:2px">近${histNets.length}日均 ${avgFmt} 張 · ${dir}</div>`;
       }
     }
 
