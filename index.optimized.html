@@ -2531,7 +2531,7 @@ function renderBacktest(records,scoreFilter) {
 async function loadAI() {
   qs('aiContent').innerHTML = '<div class="state"><div class="spinner"></div><div>載入AI分析資料...</div></div>';
   try {
-    const rows = await fetchSheet('AI分析');
+    const rows = await fetchSheet('AI分析', true);
     if (!rows.length) { qs('aiContent').innerHTML = '<div class="state">尚無AI分析資料</div>'; return; }
     window._aiRows = rows;
     const dates = [...new Set(rows.map(r=>parseDateVal(cell(r.c,0,''))).filter(d=>d.length===10))].sort().reverse();
@@ -2981,6 +2981,7 @@ async function loadAll(force = false) {
 
 initCollapsibleSections();
 applyTheme();
+localStorage.removeItem('sc_AI分析');
 showPage('signal');
 loadAll();
 setInterval(loadMarket, 5 * 60 * 1000);
