@@ -295,6 +295,14 @@ button,select,input { font-family:inherit; }
       <div id="pricePositionCard" class="plain-card"></div>
     </div>
 
+    <div id="riskFactorSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">風險因子雷達</div>
+        <button class="ghost-btn" onclick="setRiskFilter('')">清除風險篩選</button>
+      </div>
+      <div id="riskFactorCard" class="plain-card"></div>
+    </div>
+
     <div id="sectorChipsSection" style="display:none;margin-bottom:1rem">
       <div id="sectorChipsCard" class="sector-chip-row"></div>
     </div>
@@ -489,7 +497,7 @@ const SHEET_ID = '17JrdvcOghYVQpMNjJdd7Jkwu0RxNhkC5eqtIF7NAuIg';
 const SHEET_NAME = '訊號看板';
 const HISTORY_SHEET_NAME = '訊號日誌';
 const FINMIND_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoieXVhbnc1MjRAZ21haWwuY29tIiwiZW1haWwiOiJ5dWFudzUyNEBnbWFpbC5jb20iLCJ0b2tlbl92ZXJzaW9uIjowfQ.3rEhSqwuZR3OdB5MBWThDfU30HlTDbUv4yzmZVpH_Lc';
-let allStocks = [], currentFilter = 'all', actionFilter = '', entryFilter = '', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null;
+let allStocks = [], currentFilter = 'all', actionFilter = '', entryFilter = '', riskFilter = '', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null;
 
 const COL = {
   date:0, code:1, name:2, op:3, score:4, instNet:5, streak:6, conc5:7, abnormal:8,
@@ -778,6 +786,27 @@ function setEntryFilter(value) {
   renderPricePositionRadar();
   renderCards();
 }
+function getRiskFactors(s) {
+  const factors = [];
+  const rr = parseFloat(s.rr) || 0;
+  const dayTradePct = num(s.dayTradeRatio);
+  const conc = num(s.conc5);
+  const rsi = num(s.rsi);
+  const entryStatus = getEntryStatus(s);
+  const heat = getOverheatState(s);
+  if (dayTradePct >= 30) factors.push({key:'daytrade', label:'當沖偏高', color:'var(--yellow)'});
+  if (conc >= 12) factors.push({key:'concentration', label:'集中偏熱', color:'var(--red)'});
+  if (rsi >= 75) factors.push({key:'rsi', label:'RSI偏熱', color:'var(--yellow)'});
+  if (rr > 0 && rr < 1.2) factors.push({key:'rr', label:'風報比不足', color:'var(--brown)'});
+  if (entryStatus === 'above') factors.push({key:'chase', label:'追高風險', color:'var(--red)'});
+  if (heat?.kind === 'danger') factors.push({key:'dangerHeat', label:'危險過熱', color:'var(--red)'});
+  return factors;
+}
+function setRiskFilter(value) {
+  riskFilter = value || '';
+  renderRiskFactorRadar();
+  renderCards();
+}
 function getActionMeta(s) {
   const reasons = parseReasons(s.reasons);
   const divs = getDivergenceSignals(s, reasons);
@@ -824,6 +853,7 @@ function focusStock(code) {
   currentFilter = 'all';
   actionFilter = '';
   entryFilter = '';
+  riskFilter = '';
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   const allBtn = [...document.querySelectorAll('.filter-btn')].find(b => b.textContent.trim() === '全部');
   if (allBtn) allBtn.classList.add('active');
@@ -1027,6 +1057,52 @@ function renderPricePositionRadar() {
           <div class="action-meta">${meta.hint}${top ? ` · 代表 ${top.name} ${top.score}分` : ''}</div>
         </div>
         <div style="text-align:right;color:${meta.color};font-size:.72rem;font-weight:800">${entryFilter === b.key ? '篩選中' : '查看'}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+  section.style.display = '';
+}
+function renderRiskFactorRadar() {
+  const section = qs('riskFactorSection'), card = qs('riskFactorCard');
+  if (!section || !card || !allStocks.length) return;
+
+  const map = {};
+  allStocks.forEach(s => {
+    getRiskFactors(s).forEach(f => {
+      if (!map[f.key]) map[f.key] = {key:f.key, label:f.label, color:f.color, rows:[]};
+      map[f.key].rows.push(s);
+    });
+  });
+  const items = Object.values(map)
+    .map(x => {
+      x.rows.sort((a,b) => b.score - a.score || b.instNet - a.instNet);
+      return x;
+    })
+    .sort((a,b) => b.rows.length - a.rows.length)
+    .slice(0, 6);
+
+  if (!items.length) {
+    section.style.display = 'none';
+    card.innerHTML = '';
+    return;
+  }
+
+  card.innerHTML = `<div class="breadth-grid" style="margin-bottom:8px">
+    ${items.map(item => `<button onclick="setRiskFilter('${item.key}')" style="text-align:left;background:${riskFilter === item.key ? 'var(--bg2)' : 'var(--card2)'};border:1px solid var(--border);border-radius:10px;padding:.55rem .65rem;cursor:pointer">
+      <div class="breadth-label">${item.label}</div>
+      <div class="breadth-val" style="color:${item.color}">${item.rows.length}</div>
+      <div style="font-size:.6rem;color:var(--text3);margin-top:2px">${item.rows[0]?.name || ''}</div>
+    </button>`).join('')}
+  </div>
+  <div style="display:flex;flex-direction:column;gap:5px">
+    ${items.slice(0, 3).map(item => {
+      const top = item.rows[0];
+      return `<div class="action-row" onclick="${top ? `focusStock('${top.code}')` : ''}">
+        <div>
+          <div class="action-name">${item.label} <span style="font-size:.6rem;color:var(--text3)">${item.rows.length}檔</span></div>
+          <div class="action-meta">${top ? `代表 ${top.name} ${top.score}分 · ${getDisplayOp(top)}` : '目前無代表股'}</div>
+        </div>
+        <div style="text-align:right;color:${item.color};font-size:.72rem;font-weight:800">${riskFilter === item.key ? '篩選中' : '查看'}</div>
       </div>`;
     }).join('')}
   </div>`;
@@ -1355,6 +1431,7 @@ function setFilter(f,el) {
   currentFilter = f;
   actionFilter = '';
   entryFilter = '';
+  riskFilter = '';
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   renderActionFilterButtons();
@@ -1441,6 +1518,7 @@ async function loadData() {
     renderMarketBreadth();
     renderRiskPlan();
     renderPricePositionRadar();
+    renderRiskFactorRadar();
     renderSectorChips();
     renderRotationRadar();
     renderChangeRadar();
@@ -1511,6 +1589,7 @@ function renderCards() {
       if (volFilter === 'shrimp' && s.vol >= 3000) return false;
       if (actionFilter && getActionCategory(s) !== actionFilter) return false;
       if (entryFilter && getEntryStatus(s) !== entryFilter) return false;
+      if (riskFilter && !getRiskFactors(s).some(f => f.key === riskFilter)) return false;
       if (currentFilter === 'buy') return getDisplayOpClass(s) === 'buy';
       if (currentFilter === 'watch') return ['watch','hot'].includes(getDisplayOpClass(s));
       if (currentFilter === 'avoid') return getDisplayOpClass(s) === 'avoid';
