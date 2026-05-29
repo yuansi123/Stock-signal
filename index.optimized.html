@@ -186,6 +186,13 @@ button,select,input { font-family:inherit; }
 .compare-table td:last-child { border-right:1px solid var(--border); border-radius:0 9px 9px 0; }
 .compare-stock { font-weight:700; color:var(--text); cursor:pointer; }
 .compare-code { font-size:.58rem; color:var(--text3); margin-top:1px; }
+.bt-matrix { overflow-x:auto; scrollbar-width:none; margin-bottom:12px; }
+.bt-matrix::-webkit-scrollbar { display:none; }
+.bt-matrix table { width:100%; min-width:520px; border-collapse:separate; border-spacing:0 6px; }
+.bt-matrix th { font-size:.58rem; color:var(--text3); text-align:left; padding:0 6px; font-weight:500; }
+.bt-matrix td { background:var(--card2); border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:7px 6px; font-size:.7rem; }
+.bt-matrix td:first-child { border-left:1px solid var(--border); border-radius:9px 0 0 9px; font-weight:700; color:var(--brown); }
+.bt-matrix td:last-child { border-right:1px solid var(--border); border-radius:0 9px 9px 0; }
 .state { padding:3rem 1rem; line-height:1.7; }
 .spinner {
   width:28px; height:28px; border-radius:50%; border:2.5px solid var(--border); border-top-color:var(--brown);
@@ -1413,6 +1420,42 @@ function renderBacktest(records,scoreFilter) {
   const avg1 = avg(done1.map(r=>r.return1)), avg3 = avg(done3.map(r=>r.return3));
   const retCol = v => v===null?'var(--text3)':v>=0?'var(--red)':'var(--blue)';
   const retTxt = v => v===null?'—':`${v>=0?'+':''}${v.toFixed(2)}%`;
+  const matrixRows = [
+    {label:'全部', min:0},
+    {label:'8分↑', min:8},
+    {label:'10分↑', min:10}
+  ].map(m => {
+    const rows = m.min ? records.filter(r => r.score >= m.min) : records;
+    const r1 = rows.filter(r => r.return1 !== null);
+    const r3 = rows.filter(r => r.return3 !== null);
+    const avg3m = avg(r3.map(r => r.return3));
+    const best = r3.length ? r3.reduce((a,b) => b.return3 > a.return3 ? b : a) : null;
+    const worst = r3.length ? r3.reduce((a,b) => b.return3 < a.return3 ? b : a) : null;
+    return {
+      label:m.label,
+      total:rows.length,
+      win1:r1.length ? Math.round(r1.filter(r => r.return1 > 0).length / r1.length * 100) + '%' : '—',
+      win3:r3.length ? Math.round(r3.filter(r => r.return3 > 0).length / r3.length * 100) + '%' : '—',
+      avg3:avg3m,
+      best,
+      worst
+    };
+  });
+  const matrixHtml = `<div class="plain-card" style="margin-bottom:12px">
+    <div class="section-title">📐 分數門檻績效矩陣</div>
+    <div class="bt-matrix"><table>
+      <thead><tr><th>門檻</th><th>樣本</th><th>1日勝率</th><th>3日勝率</th><th>3日平均</th><th>最佳</th><th>最差</th></tr></thead>
+      <tbody>${matrixRows.map(r => `<tr>
+        <td>${r.label}</td>
+        <td>${r.total}</td>
+        <td>${r.win1}</td>
+        <td>${r.win3}</td>
+        <td style="color:${retCol(r.avg3)};font-weight:700">${retTxt(r.avg3)}</td>
+        <td style="color:${retCol(r.best?.return3 ?? null)}">${r.best ? `${r.best.name} ${retTxt(r.best.return3)}` : '—'}</td>
+        <td style="color:${retCol(r.worst?.return3 ?? null)}">${r.worst ? `${r.worst.name} ${retTxt(r.worst.return3)}` : '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
   const byDate = {};
   filtered.sort((a,b)=>b.date.localeCompare(a.date)||b.score-a.score).forEach(r => { (byDate[r.date] ||= []).push(r); });
   qs('btContent').innerHTML = `<div class="summary">
@@ -1421,6 +1464,7 @@ function renderBacktest(records,scoreFilter) {
     <div class="sum-card"><div class="sum-label">1日平均</div><div class="sum-val" style="color:${retCol(avg1)}">${retTxt(avg1)}</div></div>
     <div class="sum-card"><div class="sum-label">3日平均</div><div class="sum-val" style="color:${retCol(avg3)}">${retTxt(avg3)}</div><div class="sum-sub">勝率 ${done3.length?Math.round(win3/done3.length*100)+'%':'—'}</div></div>
   </div>
+  ${matrixHtml}
   <div class="control-row">${[{l:'全部',s:0},{l:'8分↑',s:8},{l:'10分↑',s:10}].map(b=>`<button class="filter-btn ${scoreFilter===b.s?'active':''}" onclick="renderBacktest(window._btRecords,${b.s})">${b.l}</button>`).join('')}</div>
   ${Object.keys(byDate).sort().reverse().map(date => {
     const day = byDate[date], done = day.filter(r=>r.return3!==null), avgDay = avg(done.map(r=>r.return3));
