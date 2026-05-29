@@ -176,6 +176,15 @@ button,select,input { font-family:inherit; }
 .breadth-seg.buy { background:var(--green); }
 .breadth-seg.watch { background:var(--yellow); }
 .breadth-seg.avoid { background:var(--red); }
+.sector-chip-row { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }
+.sector-chip-row::-webkit-scrollbar { display:none; }
+.sector-chip {
+  flex-shrink:0; border:1px solid var(--border); background:var(--card);
+  border-radius:20px; padding:.32rem .75rem; font-size:.68rem; color:var(--text2);
+  cursor:pointer; box-shadow:0 1px 4px var(--shadow);
+}
+.sector-chip.active { background:var(--brown); color:#fff; border-color:var(--brown); }
+.sector-chip strong { color:inherit; }
 .state { padding:3rem 1rem; line-height:1.7; }
 .spinner {
   width:28px; height:28px; border-radius:50%; border:2.5px solid var(--border); border-top-color:var(--brown);
@@ -262,6 +271,10 @@ button,select,input { font-family:inherit; }
       <div id="breadthCard" class="plain-card"></div>
     </div>
 
+    <div id="sectorChipsSection" style="display:none;margin-bottom:1rem">
+      <div id="sectorChipsCard" class="sector-chip-row"></div>
+    </div>
+
     <div id="dailySummarySection" style="display:none;margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
         <div class="section-title" style="margin:0">📝 每日總結</div>
@@ -303,7 +316,7 @@ button,select,input { font-family:inherit; }
     </div>
 
     <div class="sector-filter">
-      <select class="sector-select" id="sectorFilter" onchange="renderCards()">
+      <select class="sector-select" id="sectorFilter" onchange="renderSectorChips();renderCards()">
         <option value="">🏭 所有板塊</option>
         <option value="半導體/IC設計">半導體/IC設計</option><option value="封測">封測</option>
         <option value="AI伺服器/ODM">AI伺服器/ODM</option><option value="電源/散熱">電源/散熱</option>
@@ -807,6 +820,36 @@ function renderMarketBreadth() {
   </div>`;
   section.style.display = '';
 }
+function renderSectorChips() {
+  const section = qs('sectorChipsSection'), card = qs('sectorChipsCard');
+  if (!section || !card || !allStocks.length) return;
+
+  const selected = qs('sectorFilter')?.value || '';
+  const sectorMap = {};
+  allStocks.forEach(s => {
+    const sec = s.sector || '其他電子';
+    if (!sectorMap[sec]) sectorMap[sec] = {net:0,count:0,buy:0};
+    sectorMap[sec].net += s.instNet || 0;
+    sectorMap[sec].count++;
+    if (s.op.includes('🟢')) sectorMap[sec].buy++;
+  });
+  const sectors = Object.entries(sectorMap)
+    .map(([name,d]) => ({name, avg:Math.round(d.net/d.count), buy:d.buy, count:d.count}))
+    .sort((a,b) => b.avg - a.avg || b.buy - a.buy)
+    .slice(0, 8);
+
+  card.innerHTML = `<button class="sector-chip ${selected ? '' : 'active'}" onclick="setSectorFilter('')">全部</button>` +
+    sectors.map(s => `<button class="sector-chip ${selected === s.name ? 'active' : ''}" onclick="setSectorFilter('${s.name.replace(/'/g, "\\'")}')">
+      <strong>${s.name.split('/')[0]}</strong> ${s.avg >= 0 ? '+' : ''}${s.avg}
+    </button>`).join('');
+  section.style.display = '';
+}
+function setSectorFilter(sector) {
+  const sel = qs('sectorFilter');
+  if (sel) sel.value = sector;
+  renderSectorChips();
+  renderCards();
+}
 function buildActionBuckets() {
   const enriched = allStocks.map(s => {
     const reasons = parseReasons(s.reasons);
@@ -978,6 +1021,7 @@ async function loadData() {
     qs('dateTag').textContent = filterDate || allStocks[0]?.date || '—';
     qs('dateMeta').textContent = filterDate ? `目前顯示 ${filterDate}，共 ${allStocks.length} 檔；日期來源含訊號看板與訊號日誌` : '';
     renderMarketBreadth();
+    renderSectorChips();
     renderWatchRadar();
     renderFocusRadar();
     renderActionList();
