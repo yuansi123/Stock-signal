@@ -1971,53 +1971,39 @@ async function triggerFetchAll() {
 async function loadLarge() {
   const el = document.getElementById('largeContent');
   if (!el) return;
-
   el.innerHTML = '<div class="state"><div class="spinner"></div><div>載入中...</div></div>';
-
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('大型股監控')}`;
-
   try {
     const res = await fetch(url);
     const text = await res.text();
     const start = text.indexOf('{');
     const end = text.lastIndexOf('}');
     if (start === -1) throw new Error('格式錯誤');
-
     const json = JSON.parse(text.slice(start, end + 1));
     const rows = json.table?.rows || [];
-
     if (!rows.length) {
-      el.innerHTML = '<div class="state">尚無大型股資料<br><span style="font-size:0.75rem;color:var(--text3)">請先執行 fetchLargeCapMonitor</span></div>';
+      el.innerHTML = '<div class="state">尚無大型股資料</div>';
       return;
     }
-
     const g = (c, i, fb = '') => c[i] ? (c[i].v ?? c[i].f ?? fb) : fb;
     const parseDateVal = v => {
       const s = String(v || '');
       const dm = s.match(/Date\((\d+),(\d+),(\d+)\)/);
       return dm ? dm[1] + '-' + String(parseInt(dm[2], 10) + 1).padStart(2, '0') + '-' + String(dm[3]).padStart(2, '0') : s.substring(0, 10);
     };
-
     const dates = [...new Set(rows.map(r => parseDateVal(g(r.c, 0))).filter(d => d.length === 10))].sort().reverse();
     const latest = dates[0];
-
     const data = rows
       .filter(r => parseDateVal(g(r.c, 0)) === latest)
       .map(r => {
         const c = r.c;
         return {
-          code: String(g(c, 1)),
-          name: String(g(c, 2)),
-          foreign: Number(g(c, 3)) || 0,
-          trust: Number(g(c, 4)) || 0,
-          dealer: Number(g(c, 5)) || 0,
-          total: Number(g(c, 6)) || 0,
-          streak: Number(g(c, 7)) || 0,
-          fStreak: Number(g(c, 8)) || 0,
-          close: Number(g(c, 9)) || 0,
-          change: Number(g(c, 10)) || 0,
-          vol: Number(g(c, 11)) || 0,
-          score: Number(g(c, 12)) || 0,
+          code: String(g(c, 1)), name: String(g(c, 2)),
+          foreign: Number(g(c, 3)) || 0, trust: Number(g(c, 4)) || 0,
+          dealer: Number(g(c, 5)) || 0, total: Number(g(c, 6)) || 0,
+          streak: Number(g(c, 7)) || 0, fStreak: Number(g(c, 8)) || 0,
+          close: Number(g(c, 9)) || 0, change: Number(g(c, 10)) || 0,
+          vol: Number(g(c, 11)) || 0, score: Number(g(c, 12)) || 0,
           alert: String(g(c, 13) || '-')
         };
       })
@@ -2025,39 +2011,14 @@ async function loadLarge() {
 
     const isBull = s => s.score >= 4 || s.alert.includes('偏多');
     const isBear = s => s.score <= 1 || s.alert.includes('偏空') || s.total < -5000;
-
-    const byCode = {};
-    data.forEach(s => byCode[s.code] = s);
-
-    const semiBull = ['2330','2454','2303','3034','2379'].filter(code => byCode[code] && isBull(byCode[code]));
-    const aiBull = ['2317','2382','2308','2376','2357'].filter(code => byCode[code] && isBull(byCode[code]));
-    const defensiveBull = ['2412'].filter(code => byCode[code] && isBull(byCode[code]));
-
     const bullCount = data.filter(isBull).length;
     const bearCount = data.filter(isBear).length;
+    const topBull = data.filter(d => d.total > 0).sort((a,b) => b.total - a.total).slice(0,3).map(d => `${d.name}買超${d.total}張`).join('、');
+    const topBear = data.filter(d => d.total < 0).sort((a,b) => a.total - b.total).slice(0,2).map(d => `${d.name}賣超${Math.abs(d.total)}張`).join('、');
+    const longStreak = data.filter(d => d.streak >= 3).map(d => `${d.name}連買${d.streak}天`).join('、');
+    const largeConclusion = `大型股偏多${bullCount}檔，偏空${bearCount}檔。${topBull ? '買超：' + topBull + '。' : ''}${topBear ? '賣超：' + topBear + '。' : ''}${longStreak ? '連續布局：' + longStreak + '。' : ''}`;
 
-    const totalNet = data.reduce((s, d) => s + d.total, 0);
-const avgNet = data.length ? Math.round(totalNet / data.length) : 0;
-const topBull = data.filter(d => d.total > 0).sort((a,b) => b.total - a.total).slice(0,3).map(d => `${d.name}買超${d.total}張`).join('、');
-const topBear = data.filter(d => d.total < 0).sort((a,b) => a.total - b.total).slice(0,2).map(d => `${d.name}賣超${Math.abs(d.total)}張`).join('、');
-const longStreak = data.filter(d => d.streak >= 3).map(d => `${d.name}連買${d.streak}天`).join('、');
-
-let largeConclusion = '';
-if (semiBull.length >= 2) {
-  largeConclusion = `半導體大型股偏多，${topBull ? topBull + '，' : ''}法人資金有回流跡象。`;
-} else if (aiBull.length >= 2) {
-  largeConclusion = `AI伺服器/電源大型股偏多，資金主軸偏向AI供應鏈。${topBull ? '其中' + topBull + '。' : ''}`;
-} else if (defensiveBull.length && bullCount <= 2) {
-  largeConclusion = `防守型權值股偏多，電子大型股動能較弱，資金偏保守。${topBear ? '注意' + topBear + '持續流出。' : ''}`;
-} else if (bullCount >= 5 && bearCount <= 2) {
-  largeConclusion = `大型股整體偏多（${bullCount}檔偏多），大盤底氣較強。${longStreak ? '法人連續布局：' + longStreak + '。' : ''}`;
-} else if (bearCount >= 5 && bullCount <= 2) {
-  largeConclusion = `大型股整體偏空（${bearCount}檔偏空），中小型股訊號需保守看待。${topBear ? '主要賣壓來自' + topBear + '。' : ''}`;
-} else {
-  largeConclusion = `大型股多空混雜（偏多${bullCount}檔，偏空${bearCount}檔），資金輪動明顯。${topBull ? '買超標的：' + topBull + '。' : ''}${topBear ? '賣超標的：' + topBear + '。' : ''}${longStreak ? '連續布局：' + longStreak + '。' : ''}`;
-}
-
-   el.innerHTML = `
+    el.innerHTML = `
       <div style="font-size:0.7rem;color:var(--text3);margin-bottom:10px">${latest} 更新</div>
       <div style="background:var(--card);border-left:4px solid var(--brown-light);border-radius:14px;padding:0.85rem 1rem;margin-bottom:10px;box-shadow:0 2px 8px var(--shadow)">
         <div style="font-size:0.72rem;color:var(--text3);margin-bottom:4px">大型股結論</div>
@@ -2066,12 +2027,33 @@ if (semiBull.length >= 2) {
       </div>
       <div class="cards">
         ${data.map(s => {
+          const totalColor = s.total > 0 ? 'var(--red)' : s.total < 0 ? 'var(--blue)' : 'var(--text2)';
+          const chgColor = s.change > 0 ? 'var(--red)' : s.change < 0 ? 'var(--blue)' : 'var(--text2)';
+          return `<div class="card">
+            <div class="card-header">
+              <div>
+                <div class="stock-name">${s.name}</div>
+                <div class="stock-code">${s.code} · 收盤 $${s.close}</div>
+              </div>
+              <div class="price" style="color:${chgColor}">${s.change > 0 ? '+' : ''}${s.change.toFixed(2)}%</div>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-box"><div class="stat-label">法人合計</div><div class="stat-val" style="color:${totalColor}">${s.total > 0 ? '+' : ''}${s.total}</div></div>
+              <div class="stat-box"><div class="stat-label">連續買超</div><div class="stat-val neu">${s.streak} 天</div></div>
+              <div class="stat-box"><div class="stat-label">外資連買</div><div class="stat-val neu">${s.fStreak} 天</div></div>
+              <div class="stat-box"><div class="stat-label">外資</div><div class="stat-val">${s.foreign > 0 ? '+' : ''}${s.foreign}</div></div>
+              <div class="stat-box"><div class="stat-label">投信</div><div class="stat-val">${s.trust > 0 ? '+' : ''}${s.trust}</div></div>
+              <div class="stat-box"><div class="stat-label">風向分數</div><div class="stat-val neu">${s.score}/5</div></div>
+            </div>
+            <div class="reasons">
+              <span class="rtag info">${s.alert}</span>
+              <span class="rtag info">成交量 ${s.vol} 張</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
 
-大型股資料：
-${data.map(s => `${s.name}(${s.code})：法人${s.total > 0 ? '買超' : '賣超'}${Math.abs(s.total)}張，連買${s.streak}天，外資連買${s.fStreak}天，漲跌${s.change > 0 ? '+' : ''}${s.change}%`).join('\n')}
-
-偏多${bullCount}檔，偏空${bearCount}檔。重點說明資金流向、哪些大型股值得關注、對大盤意義。`;
-
+    const largePrompt = `你是台灣股票分析師，根據今日（${latest}）大型權值股法人籌碼資料，給出簡短專業結論（100字內，繁體中文，不要標題）。\n\n大型股資料：\n${data.map(s => `${s.name}(${s.code})：法人${s.total > 0 ? '買超' : '賣超'}${Math.abs(s.total)}張，連買${s.streak}天，外資連買${s.fStreak}天，漲跌${s.change > 0 ? '+' : ''}${s.change}%`).join('\n')}\n\n偏多${bullCount}檔，偏空${bearCount}檔。重點說明資金流向、哪些大型股值得關注、對大盤意義。`;
     fetch('/api/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -2083,37 +2065,7 @@ ${data.map(s => `${s.name}(${s.code})：法人${s.total > 0 ? '買超' : '賣超
       const el2 = document.getElementById('largeAIConclusion');
       if (el2) el2.textContent = largeConclusion;
     });
-      <div class="cards">
-        ${data.map(s => {
-          const totalColor = s.total > 0 ? 'var(--red)' : s.total < 0 ? 'var(--blue)' : 'var(--text2)';
-          const chgColor = s.change > 0 ? 'var(--red)' : s.change < 0 ? 'var(--blue)' : 'var(--text2)';
 
-          return `<div class="card">
-            <div class="card-header">
-              <div>
-                <div class="stock-name">${s.name}</div>
-                <div class="stock-code">${s.code} · 收盤 $${s.close}</div>
-              </div>
-              <div class="price" style="color:${chgColor}">${s.change > 0 ? '+' : ''}${s.change.toFixed(2)}%</div>
-            </div>
-
-            <div class="stats-grid">
-              <div class="stat-box"><div class="stat-label">法人合計</div><div class="stat-val" style="color:${totalColor}">${s.total > 0 ? '+' : ''}${s.total}</div></div>
-              <div class="stat-box"><div class="stat-label">連續買超</div><div class="stat-val neu">${s.streak} 天</div></div>
-              <div class="stat-box"><div class="stat-label">外資連買</div><div class="stat-val neu">${s.fStreak} 天</div></div>
-              <div class="stat-box"><div class="stat-label">外資</div><div class="stat-val">${s.foreign > 0 ? '+' : ''}${s.foreign}</div></div>
-              <div class="stat-box"><div class="stat-label">投信</div><div class="stat-val">${s.trust > 0 ? '+' : ''}${s.trust}</div></div>
-              <div class="stat-box"><div class="stat-label">風向分數</div><div class="stat-val neu">${s.score}/5</div></div>
-            </div>
-
-            <div class="reasons">
-              <span class="rtag info">${s.alert}</span>
-              <span class="rtag info">成交量 ${s.vol} 張</span>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    `;
   } catch (e) {
     el.innerHTML = '<div class="state">載入失敗：' + e.message + '</div>';
   }
