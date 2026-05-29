@@ -287,6 +287,14 @@ button,select,input { font-family:inherit; }
       <div id="riskPlanCard" class="plain-card"></div>
     </div>
 
+    <div id="pricePositionSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">價格位置雷達</div>
+        <button class="ghost-btn" onclick="setEntryFilter('')">清除位置篩選</button>
+      </div>
+      <div id="pricePositionCard" class="plain-card"></div>
+    </div>
+
     <div id="sectorChipsSection" style="display:none;margin-bottom:1rem">
       <div id="sectorChipsCard" class="sector-chip-row"></div>
     </div>
@@ -481,7 +489,7 @@ const SHEET_ID = '17JrdvcOghYVQpMNjJdd7Jkwu0RxNhkC5eqtIF7NAuIg';
 const SHEET_NAME = '訊號看板';
 const HISTORY_SHEET_NAME = '訊號日誌';
 const FINMIND_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoieXVhbnc1MjRAZ21haWwuY29tIiwiZW1haWwiOiJ5dWFudzUyNEBnbWFpbC5jb20iLCJ0b2tlbl92ZXJzaW9uIjowfQ.3rEhSqwuZR3OdB5MBWThDfU30HlTDbUv4yzmZVpH_Lc';
-let allStocks = [], currentFilter = 'all', actionFilter = '', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null;
+let allStocks = [], currentFilter = 'all', actionFilter = '', entryFilter = '', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null;
 
 const COL = {
   date:0, code:1, name:2, op:3, score:4, instNet:5, streak:6, conc5:7, abnormal:8,
@@ -759,6 +767,17 @@ function getEntryStatus(s) {
   if (price > range.high) return 'above';
   return 'below';
 }
+function getEntryStatusMeta(status) {
+  if (status === 'inside') return {label:'進場區間內', color:'var(--green)', hint:'可優先檢查風報比與倉位'};
+  if (status === 'above') return {label:'高於區間', color:'var(--red)', hint:'追高風險，等拉回'};
+  if (status === 'below') return {label:'低於區間', color:'var(--yellow)', hint:'尚未轉強，等確認'};
+  return {label:'資料不足', color:'var(--text3)', hint:'缺少價格或區間'};
+}
+function setEntryFilter(value) {
+  entryFilter = value || '';
+  renderPricePositionRadar();
+  renderCards();
+}
 function getActionMeta(s) {
   const reasons = parseReasons(s.reasons);
   const divs = getDivergenceSignals(s, reasons);
@@ -804,6 +823,7 @@ function focusStock(code) {
   showPage('signal');
   currentFilter = 'all';
   actionFilter = '';
+  entryFilter = '';
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   const allBtn = [...document.querySelectorAll('.filter-btn')].find(b => b.textContent.trim() === '全部');
   if (allBtn) allBtn.classList.add('active');
@@ -971,6 +991,45 @@ function renderRiskPlan() {
       </div>`).join('')}
     </div>` : ''}
   `;
+  section.style.display = '';
+}
+function renderPricePositionRadar() {
+  const section = qs('pricePositionSection'), card = qs('pricePositionCard');
+  if (!section || !card || !allStocks.length) return;
+
+  const groups = {inside:[], above:[], below:[], unknown:[]};
+  allStocks.forEach(s => (groups[getEntryStatus(s)] ||= []).push(s));
+  Object.keys(groups).forEach(k => groups[k].sort((a,b) => b.score - a.score || b.instNet - a.instNet));
+
+  const blocks = [
+    {key:'inside', title:'進場區間內', rows:groups.inside, icon:'可操作'},
+    {key:'above', title:'高於區間', rows:groups.above, icon:'等拉回'},
+    {key:'below', title:'低於區間', rows:groups.below, icon:'等轉強'}
+  ];
+
+  card.innerHTML = `<div class="breadth-grid" style="margin-bottom:8px">
+    ${blocks.map(b => {
+      const meta = getEntryStatusMeta(b.key);
+      return `<button onclick="setEntryFilter('${b.key}')" style="text-align:left;background:${entryFilter === b.key ? 'var(--bg2)' : 'var(--card2)'};border:1px solid var(--border);border-radius:10px;padding:.55rem .65rem;cursor:pointer">
+        <div class="breadth-label">${b.title}</div>
+        <div class="breadth-val" style="color:${meta.color}">${b.rows.length}</div>
+        <div style="font-size:.6rem;color:var(--text3);margin-top:2px">${b.icon}</div>
+      </button>`;
+    }).join('')}
+  </div>
+  <div style="display:flex;flex-direction:column;gap:5px">
+    ${blocks.map(b => {
+      const meta = getEntryStatusMeta(b.key);
+      const top = b.rows[0];
+      return `<div class="action-row" onclick="${top ? `focusStock('${top.code}')` : ''}">
+        <div>
+          <div class="action-name">${meta.label} <span style="font-size:.6rem;color:var(--text3)">${b.rows.length}檔</span></div>
+          <div class="action-meta">${meta.hint}${top ? ` · 代表 ${top.name} ${top.score}分` : ''}</div>
+        </div>
+        <div style="text-align:right;color:${meta.color};font-size:.72rem;font-weight:800">${entryFilter === b.key ? '篩選中' : '查看'}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
   section.style.display = '';
 }
 function setSortMode(mode) {
@@ -1295,6 +1354,7 @@ function showError(msg) {
 function setFilter(f,el) {
   currentFilter = f;
   actionFilter = '';
+  entryFilter = '';
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   renderActionFilterButtons();
@@ -1380,6 +1440,7 @@ async function loadData() {
     qs('dateMeta').textContent = filterDate ? `目前顯示 ${filterDate}，共 ${allStocks.length} 檔；日期來源含訊號看板與訊號日誌` : '';
     renderMarketBreadth();
     renderRiskPlan();
+    renderPricePositionRadar();
     renderSectorChips();
     renderRotationRadar();
     renderChangeRadar();
@@ -1449,6 +1510,7 @@ function renderCards() {
       if (volFilter === 'fish' && (s.vol < 3000 || s.vol >= 10000)) return false;
       if (volFilter === 'shrimp' && s.vol >= 3000) return false;
       if (actionFilter && getActionCategory(s) !== actionFilter) return false;
+      if (entryFilter && getEntryStatus(s) !== entryFilter) return false;
       if (currentFilter === 'buy') return getDisplayOpClass(s) === 'buy';
       if (currentFilter === 'watch') return ['watch','hot'].includes(getDisplayOpClass(s));
       if (currentFilter === 'avoid') return getDisplayOpClass(s) === 'avoid';
