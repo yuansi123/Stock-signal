@@ -291,6 +291,14 @@ button,select,input { font-family:inherit; }
       <div id="sectorChipsCard" class="sector-chip-row"></div>
     </div>
 
+    <div id="rotationRadarSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">板塊輪動雷達</div>
+        <button class="ghost-btn" onclick="showPage('sector')">看板塊頁</button>
+      </div>
+      <div id="rotationRadarCard" class="plain-card"></div>
+    </div>
+
     <div id="changeRadarSection" style="display:none;margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
         <div class="section-title" style="margin:0">訊號變化雷達</div>
@@ -1105,6 +1113,60 @@ function renderSectorChips() {
     </button>`).join('');
   section.style.display = '';
 }
+function renderRotationRadar() {
+  const section = qs('rotationRadarSection'), card = qs('rotationRadarCard');
+  if (!section || !card || !allStocks.length) return;
+
+  const sectorMap = {};
+  allStocks.forEach(s => {
+    const sec = s.sector || '其他電子';
+    if (!sectorMap[sec]) sectorMap[sec] = {rows:[], net:0, score:0, warming:0, buy:0, hot:0};
+    const d = sectorMap[sec];
+    d.rows.push(s);
+    d.net += Number(s.instNet) || 0;
+    d.score += Number(s.score) || 0;
+    if ((s.scoreDelta || 0) > 0) d.warming++;
+    if (getDisplayOpClass(s) === 'buy') d.buy++;
+    if (getOverheatState(s)?.kind === 'strong') d.hot++;
+  });
+
+  const sectors = Object.entries(sectorMap)
+    .map(([name, d]) => {
+      const count = d.rows.length || 1;
+      const avgNet = Math.round(d.net / count);
+      const avgScore = d.score / count;
+      const heat = Math.round(avgNet / 20 + avgScore * 6 + d.warming * 8 + d.buy * 10 + d.hot * 8);
+      const leader = d.rows.slice().sort((a,b) => b.score - a.score || b.instNet - a.instNet)[0];
+      return {name, count, avgNet, avgScore, warming:d.warming, buy:d.buy, hot:d.hot, heat, leader};
+    })
+    .sort((a,b) => b.heat - a.heat)
+    .slice(0, 5);
+
+  if (!sectors.length) {
+    section.style.display = 'none';
+    return;
+  }
+
+  const maxHeat = Math.max(...sectors.map(s => Math.abs(s.heat)), 1);
+  card.innerHTML = sectors.map((s, idx) => {
+    const pct = Math.max(8, Math.min(100, Math.abs(s.heat) / maxHeat * 100));
+    const color = s.heat >= 80 ? 'var(--green)' : s.heat >= 45 ? 'var(--yellow)' : s.avgNet < 0 ? 'var(--blue)' : 'var(--brown)';
+    return `<div class="action-row" onclick="setSectorFilter('${s.name.replace(/'/g, "\\'")}')">
+      <div style="min-width:0;flex:1">
+        <div class="action-name">#${idx + 1} ${s.name} <span style="font-size:.6rem;color:var(--text3)">${s.count}檔</span></div>
+        <div class="action-meta">均買 ${s.avgNet >= 0 ? '+' : ''}${s.avgNet}張 · 均分 ${s.avgScore.toFixed(1)} · 升溫 ${s.warming} · 買入 ${s.buy}</div>
+        <div style="height:5px;background:var(--bg2);border-radius:4px;margin-top:5px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:4px"></div>
+        </div>
+      </div>
+      <div style="text-align:right;min-width:86px">
+        <div style="font-size:.88rem;font-weight:800;color:${color}">${s.heat}</div>
+        <div style="font-size:.62rem;color:var(--text3)">領頭 ${s.leader ? s.leader.name : '—'}</div>
+      </div>
+    </div>`;
+  }).join('');
+  section.style.display = '';
+}
 function setSectorFilter(sector) {
   const sel = qs('sectorFilter');
   if (sel) sel.value = sector;
@@ -1319,6 +1381,7 @@ async function loadData() {
     renderMarketBreadth();
     renderRiskPlan();
     renderSectorChips();
+    renderRotationRadar();
     renderChangeRadar();
     renderContinuationRadar();
     renderCompareTable();
