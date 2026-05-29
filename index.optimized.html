@@ -159,6 +159,15 @@ button,select,input { font-family:inherit; }
 .watch-radar-code { font-size:.62rem; color:var(--text3); margin-top:1px; }
 .watch-radar-stat { text-align:right; font-size:.7rem; font-weight:700; white-space:nowrap; }
 .watch-radar-sub { font-size:.58rem; color:var(--text3); margin-top:2px; font-weight:400; }
+.action-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.action-col { border:1px solid var(--border); border-radius:12px; padding:.7rem .75rem; background:var(--card2); }
+.action-title { font-size:.68rem; font-weight:700; margin-bottom:6px; }
+.action-row {
+  background:var(--card); border:1px solid var(--border); border-radius:9px;
+  padding:6px 8px; margin-bottom:5px; cursor:pointer;
+}
+.action-name { font-size:.74rem; font-weight:700; color:var(--text); }
+.action-meta { font-size:.58rem; color:var(--text3); margin-top:2px; line-height:1.4; }
 .state { padding:3rem 1rem; line-height:1.7; }
 .spinner {
   width:28px; height:28px; border-radius:50%; border:2.5px solid var(--border); border-top-color:var(--brown);
@@ -210,6 +219,7 @@ button,select,input { font-family:inherit; }
   .market-grid,.stats-grid { grid-template-columns:repeat(2,1fr); }
   .detail-grid,.sector-stats { grid-template-columns:1fr; }
   .focus-grid { grid-template-columns:1fr; }
+  .action-grid { grid-template-columns:1fr; }
   .stock-actions { flex-direction:column; }
 }
 </style>
@@ -255,6 +265,11 @@ button,select,input { font-family:inherit; }
     <div id="focusRadarSection" style="display:none;margin-bottom:1rem">
       <div class="section-title">🎯 今日焦點雷達</div>
       <div id="focusRadarCard" class="plain-card"></div>
+    </div>
+
+    <div id="actionListSection" style="display:none;margin-bottom:1rem">
+      <div class="section-title">✅ 今日操作清單</div>
+      <div id="actionListCard" class="plain-card"></div>
     </div>
 
     <div id="dailyNewsSection" style="margin-bottom:1rem">
@@ -656,6 +671,48 @@ function renderWatchRadar() {
   card.innerHTML += missingHtml;
   section.style.display = '';
 }
+function renderActionList() {
+  const section = qs('actionListSection'), card = qs('actionListCard');
+  if (!section || !card || !allStocks.length) return;
+
+  const enriched = allStocks.map(s => {
+    const reasons = parseReasons(s.reasons);
+    const divs = getDivergenceSignals(s, reasons);
+    const entry = getEntryPosition(s);
+    const warnCount = divs.filter(d => d.level === 'warn').length;
+    const dayTradePct = num(s.dayTradeRatio);
+    return {stock:s, divs, entry, warnCount, dayTradePct};
+  });
+
+  const actionable = enriched
+    .filter(x => x.stock.op.includes('🟢') && x.entry.label === '進場區間內' && x.warnCount === 0 && x.dayTradePct < 30)
+    .sort((a,b) => b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet)
+    .slice(0, 5);
+  const waitPullback = enriched
+    .filter(x => x.stock.op.includes('🟢') && (x.entry.label === '高於進場區間' || x.warnCount > 0 || x.dayTradePct >= 30))
+    .sort((a,b) => b.stock.score - a.stock.score)
+    .slice(0, 5);
+  const avoid = enriched
+    .filter(x => x.stock.op.includes('🔴') || x.stock.op.includes('⬇️') || x.warnCount >= 2)
+    .sort((a,b) => b.warnCount - a.warnCount || b.stock.score - a.stock.score)
+    .slice(0, 5);
+
+  const row = (x, meta, color) => `<div class="action-row" onclick="focusStock('${x.stock.code}')">
+    <div class="action-name">${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span></div>
+    <div class="action-meta"><span style="color:${color};font-weight:700">${meta}</span> · ${x.stock.score}分 · 法人 ${x.stock.instNet > 0 ? '+' : ''}${x.stock.instNet}張</div>
+  </div>`;
+  const col = (title, rows, empty, color, renderMeta) => `<div class="action-col">
+    <div class="action-title" style="color:${color}">${title}</div>
+    ${rows.length ? rows.map(x => row(x, renderMeta(x), color)).join('') : `<div class="focus-empty">${empty}</div>`}
+  </div>`;
+
+  card.innerHTML = `<div class="action-grid">
+    ${col('可操作', actionable, '目前沒有完全落在條件內的標的', 'var(--green)', x => x.entry.label)}
+    ${col('等拉回', waitPullback, '目前沒有需要等拉回的買入股', 'var(--yellow)', x => x.entry.label === '高於進場區間' ? '避免追高' : (x.divs[0]?.label || '風險確認'))}
+    ${col('先避開', avoid, '目前沒有明顯避開名單', 'var(--red)', x => x.divs[0]?.label || x.stock.op)}
+  </div>`;
+  section.style.display = '';
+}
 function toggleDetail(code) {
   const el = qs('detail-' + code);
   if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
@@ -750,6 +807,7 @@ async function loadData() {
     qs('dateMeta').textContent = filterDate ? `目前顯示 ${filterDate}，共 ${allStocks.length} 檔；日期來源含訊號看板與訊號日誌` : '';
     renderWatchRadar();
     renderFocusRadar();
+    renderActionList();
     renderCards();
     generateDailySummary();
   } catch(e) {
