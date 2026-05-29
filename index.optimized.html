@@ -587,6 +587,32 @@ function getTradePlanLabels(s) {
   if (heat.kind === 'danger') return {title:'風險控管規劃', entry:'暫不進場', stop:'失守警戒', tp1:'反彈目標', position:'風險判斷', note:heat.note};
   return {title:'強勢股拉回規劃', entry:'拉回觀察區', stop:'防守價', tp1:'續漲目標', position:'追價判斷', note:heat.note};
 }
+function getPositionSizing(s) {
+  const heat = getOverheatState(s);
+  const opClass = getDisplayOpClass(s);
+  const rr = parseFloat(s.rr) || 0;
+  const dayTradePct = num(s.dayTradeRatio);
+  const entryStatus = getEntryStatus(s);
+  const reasons = [];
+
+  if (opClass === 'avoid' || opClass === 'bear' || heat?.kind === 'danger') {
+    return {label:'不開倉', pct:'0%', color:'var(--red)', level:0, reason:heat?.note || '訊號偏空或風險過高'};
+  }
+
+  let level = 1;
+  if (opClass === 'buy' && Number(s.score) >= 10 && rr >= 1.5 && dayTradePct < 30 && entryStatus === 'inside') level = 3;
+  else if ((opClass === 'buy' || heat?.kind === 'strong') && Number(s.score) >= 8 && dayTradePct < 40) level = 2;
+
+  if (entryStatus === 'above') { level = Math.min(level, 1); reasons.push('高於進場區間'); }
+  if (dayTradePct >= 30) { level = Math.min(level, 1); reasons.push('當沖偏高'); }
+  if (rr > 0 && rr < 1.2) { level = Math.min(level, 1); reasons.push('風報比不足'); }
+  if (heat?.kind === 'strong') reasons.push('強勢過熱等拉回');
+  if (!reasons.length) reasons.push(level >= 3 ? '條件完整' : level === 2 ? '可分批' : '先觀察');
+
+  if (level >= 3) return {label:'標準倉', pct:'70-100%', color:'var(--green)', level, reason:reasons.join('、')};
+  if (level === 2) return {label:'半倉分批', pct:'30-50%', color:'var(--yellow)', level, reason:reasons.join('、')};
+  return {label:'觀察倉', pct:'10-20%', color:'var(--brown)', level, reason:reasons.join('、')};
+}
 function getBarColor(s,m) { const p=s/m; return p>=.75?'#5a9460':p>=.5?'#c08830':p>=.25?'#a07850':'#d0c8bc'; }
 function parseReasons(str) { return String(str || '').split('|').map(s => s.trim()).filter(Boolean); }
 function rClass(r) {
@@ -1278,6 +1304,7 @@ function renderCards() {
   qs('content').innerHTML = '<div class="cards">' + list.map((s,i) => {
     const opClass = getDisplayOpClass(s), barPct = Math.min(s.score / MAX * 100, 100), barColor = getBarColor(s.score, MAX);
     const displayOp = getDisplayOp(s), planLabels = getTradePlanLabels(s);
+    const sizing = getPositionSizing(s);
     const pos = s.instNet > 0, reasons = parseReasons(s.reasons);
     const pips = pipDefs.map(p => `<span class="pip ${s[p.key] > 0 ? 'on' : ''}">${p.label} ${s[p.key]}/${p.max}</span>`).join('');
     const dayTradePct = num(s.dayTradeRatio), dayTradeWarn = dayTradePct >= 30;
@@ -1322,6 +1349,8 @@ function renderCards() {
           <div class="detail-cell"><div class="detail-label">${planLabels.stop}</div><div class="detail-val red">$${fmtPrice(s.stop)}</div></div>
           <div class="detail-cell"><div class="detail-label">${planLabels.tp1}</div><div class="detail-val green">$${fmtPrice(s.tp1)}</div></div>
           <div class="detail-cell"><div class="detail-label">風報比 / 當沖</div><div class="detail-val">${s.rr || '—'} · <span style="color:${dayTradeWarn?'var(--yellow)':'var(--text)'}">${s.dayTradeRatio || '—'}</span></div></div>
+          <div class="detail-cell"><div class="detail-label">倉位建議</div><div class="detail-val" style="color:${sizing.color}">${sizing.label} <span style="font-size:.68rem;color:var(--text3)">(${sizing.pct})</span></div></div>
+          <div class="detail-cell"><div class="detail-label">倉位原因</div><div class="detail-val" style="font-size:.75rem;color:var(--text2)">${sizing.reason}</div></div>
           <div class="detail-cell" style="grid-column:1/-1"><div class="detail-label">${planLabels.position}</div><div class="detail-val" style="color:${entryPosition.color}">${planLabels.note || entryPosition.label}</div></div>
         </div>
       </div>
@@ -1340,6 +1369,7 @@ function renderCards() {
           <div class="detail-cell"><div class="detail-label">法人變化</div><div class="detail-val" style="color:${(s.instNetDelta||0)>0?'var(--red)':(s.instNetDelta||0)<0?'var(--blue)':'var(--text)'}">${s.prevInstNet === null || s.prevInstNet === undefined ? '—' : `${s.prevInstNet} → ${s.instNet} 張`}</div></div>
           <div class="detail-cell"><div class="detail-label">距停損</div><div class="detail-val red">${rrDistance.stopPct}</div></div>
           <div class="detail-cell"><div class="detail-label">距停利1</div><div class="detail-val green">${rrDistance.tp1Pct}</div></div>
+          <div class="detail-cell"><div class="detail-label">建議倉位</div><div class="detail-val" style="color:${sizing.color}">${sizing.label} ${sizing.pct}</div></div>
           <div class="detail-cell" style="grid-column:1/-1"><div class="detail-label">${planLabels.position}說明</div><div class="detail-val" style="font-size:.75rem;line-height:1.55;color:${entryPosition.color}">${planLabels.note || entryPosition.detail}</div></div>
           ${renderDivergenceDetail(divergences)}
           <div class="detail-cell"><div class="detail-label">融資</div><div class="detail-val">${s.marginBal}張 <span style="${mChgColor}">(${s.marginChg>0?'+':''}${s.marginChg})</span></div></div>
@@ -1732,7 +1762,10 @@ async function sendAIChat() {
   }
 }
 function buildAIPrompt(q,target) {
-  if (target) return `你是台灣資深股票分析師，請針對以下股票給出完整分析，回覆用繁體中文。\n\n用戶問題：「${q}」\n股票：${target.name}(${target.code}) 板塊：${target.sector}\n收盤價：${target.price} 總分：${target.score} 操作：${target.op}\n法人淨買超：${target.instNet}張 連買：${target.streak}天\nRSI：${target.rsi} K/D：${target.kVal}/${target.dVal} 五日集中：${target.conc5}\n外資：${target.foreign} 投信：${target.trust} 自營：${target.dealer}\n融資餘額：${target.marginBal} 融資增減：${target.marginChg} 融券：${target.shortBal} 券資比：${target.shortRatio}%\n進場：${target.entry} 停損：${target.stop} 停利1：${target.tp1} 停利2：${target.tp2} 風報比：${target.rr}\n當沖比：${target.dayTradeRatio} 當沖扣分：${target.dayTradePenalty}\n訊號說明：${target.reasons}\n\n請分成：籌碼分析、技術面判斷、操作建議、停損停利、主要風險。`;
+  if (target) {
+    const sizing = getPositionSizing(target);
+    return `你是台灣資深股票分析師，請針對以下股票給出完整分析，回覆用繁體中文。\n\n用戶問題：「${q}」\n股票：${target.name}(${target.code}) 板塊：${target.sector}\n收盤價：${target.price} 總分：${target.score} 操作：${getDisplayOp(target)}\n建議倉位：${sizing.label} ${sizing.pct}，原因：${sizing.reason}\n法人淨買超：${target.instNet}張 連買：${target.streak}天\nRSI：${target.rsi} K/D：${target.kVal}/${target.dVal} 五日集中：${target.conc5}\n外資：${target.foreign} 投信：${target.trust} 自營：${target.dealer}\n融資餘額：${target.marginBal} 融資增減：${target.marginChg} 融券：${target.shortBal} 券資比：${target.shortRatio}%\n進場：${target.entry} 停損：${target.stop} 停利1：${target.tp1} 停利2：${target.tp2} 風報比：${target.rr}\n當沖比：${target.dayTradeRatio} 當沖扣分：${target.dayTradePenalty}\n訊號說明：${target.reasons}\n\n請分成：籌碼分析、技術面判斷、操作建議、停損停利、主要風險。`;
+  }
   return `你是台灣資深股票分析師，請針對以下問題給出專業建議，繁體中文，簡潔有力。\n\n用戶問題：「${q}」\n今日資料日期：${qs('dateTag').textContent}\n買入訊號：${allStocks.filter(s=>s.op.includes('🟢')).length}檔\n前5強：${allStocks.filter(s=>s.op.includes('🟢')).slice(0,5).map(s=>`${s.name}(${s.code})${s.score}分`).join('、')}\n連買3天以上：${allStocks.filter(s=>s.streak>=3).slice(0,5).map(s=>`${s.name}連買${s.streak}天`).join('、')}\n\n請直接給明確立場。`;
 }
 function formatMarkdown(text) {
