@@ -1067,14 +1067,11 @@ ${target ? `
   const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby-KbeEe-LDpu2Fdg_PlQjSOy6cqNQpYQ_eTZC86pZMz_yXVurPLysXd7kBQ6W-2KgKWA/exec';
   
   try {
-    const res = await fetch(WEB_APP_URL, {
-      method: 'POST',
-      redirect: 'follow',
-      body: JSON.stringify({prompt}),
-      headers: {'Content-Type': 'text/plain'}
-    });
-    const data = await res.json();
-    const text = data.text || data.error || '無法取得回答';
+    const res = await fetch(WEB_APP_URL + '?action=chat&prompt=' + encodeURIComponent(prompt), {
+  redirect: 'follow'
+});
+const data = await res.json();
+const text = data.text || '無法取得回答';
     // Markdown 轉 HTML
     const formatted = text
       .replace(/^### (.+)$/gm, '<div style="font-size:0.8rem;font-weight:700;color:var(--brown);margin:10px 0 4px">$1</div>')
