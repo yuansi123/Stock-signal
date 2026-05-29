@@ -500,7 +500,7 @@ const SHEET_NAME = '訊號看板';
 const HISTORY_SHEET_NAME = '訊號日誌';
 const FINMIND_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoieXVhbnc1MjRAZ21haWwuY29tIiwiZW1haWwiOiJ5dWFudzUyNEBnbWFpbC5jb20iLCJ0b2tlbl92ZXJzaW9uIjowfQ.3rEhSqwuZR3OdB5MBWThDfU30HlTDbUv4yzmZVpH_Lc';
 const CACHE_TTL = 30 * 60 * 1000;
-let allStocks = [], currentFilter = 'all', actionFilter = '', entryFilter = '', riskFilter = '', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null;
+let allStocks = [], currentFilter = 'all', actionFilter = '', entryFilter = '', riskFilter = '', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null, newsRowsCache = null;
 
 const COL = {
   date:0, code:1, name:2, op:3, score:4, instNet:5, streak:6, conc5:7, abnormal:8,
@@ -690,7 +690,7 @@ function getInstitutionalWhy(s) {
     const hit = parseReasons(s.reasons).filter(r => /異常買超|法人買|連買|集中甜蜜|量能放大|多頭排列|站上/.test(r)).slice(0,2);
     if (hit.length) parts.push(hit.join('、'));
   }
-  return parts.length ? `法人可能買的理由：${parts.slice(0,4).join('，')}。` : '法人買盤理由不夠明確，先把它當觀察名單。';
+  return parts.length ? `籌碼面看法：${parts.slice(0,4).join('，')}。消息面原因可按「AI消息面」另外判讀。` : '籌碼買盤理由不夠明確，消息面原因可按「AI消息面」另外判讀。';
 }
 function getTradeNarrator(s) {
   const price = Number(s.price);
@@ -1866,7 +1866,9 @@ function renderCards() {
         <button class="mini-btn ${isWatched(s.code)?'active':''}" onclick="toggleWatch('${s.code}')">${isWatched(s.code)?'⭐ 已追蹤':'☆ 加入追蹤'}</button>
         <button class="mini-btn" onclick="toggleDetail('${s.code}')">單檔詳情</button>
         <button class="mini-btn" onclick="askStock('${s.code}')">問 AI</button>
+        <button class="mini-btn" onclick="askCatalyst('${s.code}', event)">AI消息面</button>
       </div>
+      <div id="catalyst-${s.code}" style="display:none;margin-top:8px"></div>
       <div id="detail-${s.code}" class="detail-panel" style="display:none">
         <div class="detail-title">單檔完整訊號</div>
         <div class="detail-grid">
@@ -1972,6 +1974,7 @@ async function loadNews() {
   try {
     const rows = await fetchSheet('每日新聞');
     if (!rows.length) { el.innerHTML = '<div style="text-align:center;color:var(--text3)">尚無新聞資料</div>'; return; }
+    newsRowsCache = rows;
     const latest = rows.map(r => parseDateVal(cell(r.c,0,''))).filter(Boolean).sort().reverse()[0];
     const todayRows = rows.filter(r => parseDateVal(cell(r.c,0,'')) === latest);
     const colors = {'記憶體':'#4878a0','AI供應鏈':'#c05848','半導體':'#a07850','AI晶片':'#c05848','機器人':'#5a9460','台股籌碼':'#7a5830'};
@@ -2254,6 +2257,63 @@ function loadAIByDate(date) {
 }
 function quickAsk(text){ qs('aiChatInput').value = text; sendAIChat(); }
 function askStock(code){ showPage('ai'); setTimeout(()=>{ qs('aiChatInput').value = code; sendAIChat(); }, 250); }
+async function getLatestNewsContext() {
+  try {
+    if (!newsRowsCache) newsRowsCache = await fetchSheet('每日新聞');
+    const rows = newsRowsCache || [];
+    const latest = rows.map(r => parseDateVal(cell(r.c,0,''))).filter(Boolean).sort().reverse()[0] || '';
+    const dayRows = latest ? rows.filter(r => parseDateVal(cell(r.c,0,'')) === latest) : rows.slice(-12);
+    return {
+      date: latest,
+      text: dayRows.slice(0, 12).map(r => {
+        const cat = String(cell(r.c,3,''));
+        const title = String(cell(r.c,1,''));
+        const summary = String(cell(r.c,2,''));
+        return `[${cat}] ${title}${summary ? ' - ' + summary : ''}`;
+      }).join('\n')
+    };
+  } catch(e) {
+    return {date:'', text:'目前沒有可用新聞摘要'};
+  }
+}
+async function askCatalyst(code, event) {
+  if (event) event.stopPropagation();
+  const s = allStocks.find(x => x.code === String(code));
+  const box = qs('catalyst-' + code);
+  if (!s || !box) return;
+  box.style.display = '';
+  box.innerHTML = '<div class="detail-panel" style="font-size:.74rem;color:var(--text3)">AI 正在判讀消息面...</div>';
+  const news = await getLatestNewsContext();
+  const prompt = `你是台股題材分析師。請根據「我提供的新聞摘要」和股票資料，推論這檔股票今日法人買盤可能聯想到的消息面題材。
+
+重要規則：
+1. 不要假裝你有即時網路搜尋；只能根據下方新聞摘要與股票資料判斷。
+2. 如果新聞摘要沒有明確對應，請直接說「消息面沒有明確線索」，不要編故事。
+3. 每次語氣自然一點，不要套固定模板。
+4. 80字內，繁體中文，給投資人能聽懂的版本。
+
+股票：${s.name}(${s.code})
+板塊：${s.sector}
+收盤：${s.price}
+系統訊號：${getDisplayOp(s)}，分數${s.score}
+法人合計：${s.instNet}張，外資${s.foreign}、投信${s.trust}、自營${s.dealer}，連買${s.streak}天
+訊號說明：${s.reasons}
+
+新聞日期：${news.date || '未知'}
+新聞摘要：
+${news.text}`;
+  try {
+    const res = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt})});
+    const data = await res.json();
+    const text = String(data.text || '').trim() || 'AI 沒有產生明確消息面判斷。';
+    box.innerHTML = `<div class="detail-panel" style="border-left:4px solid var(--brown-light);margin-top:8px">
+      <div class="detail-title">AI消息面判讀</div>
+      <div style="font-size:.76rem;line-height:1.65;color:var(--text2)">${formatMarkdown(text)}</div>
+    </div>`;
+  } catch(e) {
+    box.innerHTML = `<div class="detail-panel" style="font-size:.74rem;color:var(--red)">AI消息面判讀失敗：${e.message}</div>`;
+  }
+}
 async function sendAIChat() {
   const input = qs('aiChatInput'), result = qs('aiChatResult'), q = input.value.trim();
   if (!q) return;
