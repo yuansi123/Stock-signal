@@ -1456,6 +1456,37 @@ function renderBacktest(records,scoreFilter) {
       </tr>`).join('')}</tbody>
     </table></div>
   </div>`;
+  const holdingRows = [
+    {label:'1日', key:'return1'},
+    {label:'2日', key:'return2'},
+    {label:'3日', key:'return3'}
+  ].map(h => {
+    const rows = filtered.filter(r => r[h.key] !== null);
+    const values = rows.map(r => r[h.key]);
+    const avgRet = avg(values);
+    const winRate = rows.length ? Math.round(rows.filter(r => r[h.key] > 0).length / rows.length * 100) : null;
+    const best = rows.length ? rows.reduce((a,b) => b[h.key] > a[h.key] ? b : a) : null;
+    return {label:h.label, key:h.key, rows, avgRet, winRate, best};
+  });
+  const bestHolding = holdingRows
+    .filter(h => h.avgRet !== null)
+    .sort((a,b) => b.avgRet - a.avgRet)[0];
+  const holdingHtml = `<div class="plain-card" style="margin-bottom:12px">
+    <div class="row-between" style="margin-bottom:8px">
+      <div class="section-title" style="margin:0">⏱️ 持有天數比較</div>
+      <div style="font-size:.68rem;font-weight:700;color:${retCol(bestHolding?.avgRet ?? null)}">${bestHolding ? `最佳：${bestHolding.label}` : '資料不足'}</div>
+    </div>
+    <div class="bt-matrix"><table>
+      <thead><tr><th>持有</th><th>樣本</th><th>勝率</th><th>平均報酬</th><th>最佳個股</th></tr></thead>
+      <tbody>${holdingRows.map(h => `<tr>
+        <td>${h.label}</td>
+        <td>${h.rows.length}</td>
+        <td>${h.winRate === null ? '—' : h.winRate + '%'}</td>
+        <td style="color:${retCol(h.avgRet)};font-weight:700">${retTxt(h.avgRet)}</td>
+        <td style="color:${retCol(h.best ? h.best[h.key] : null)}">${h.best ? `${h.best.name} ${retTxt(h.best[h.key])}` : '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
   const byDate = {};
   filtered.sort((a,b)=>b.date.localeCompare(a.date)||b.score-a.score).forEach(r => { (byDate[r.date] ||= []).push(r); });
   qs('btContent').innerHTML = `<div class="summary">
@@ -1465,6 +1496,7 @@ function renderBacktest(records,scoreFilter) {
     <div class="sum-card"><div class="sum-label">3日平均</div><div class="sum-val" style="color:${retCol(avg3)}">${retTxt(avg3)}</div><div class="sum-sub">勝率 ${done3.length?Math.round(win3/done3.length*100)+'%':'—'}</div></div>
   </div>
   ${matrixHtml}
+  ${holdingHtml}
   <div class="control-row">${[{l:'全部',s:0},{l:'8分↑',s:8},{l:'10分↑',s:10}].map(b=>`<button class="filter-btn ${scoreFilter===b.s?'active':''}" onclick="renderBacktest(window._btRecords,${b.s})">${b.l}</button>`).join('')}</div>
   ${Object.keys(byDate).sort().reverse().map(date => {
     const day = byDate[date], done = day.filter(r=>r.return3!==null), avgDay = avg(done.map(r=>r.return3));
