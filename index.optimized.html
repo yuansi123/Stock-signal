@@ -291,6 +291,14 @@ button,select,input { font-family:inherit; }
       <div id="sectorChipsCard" class="sector-chip-row"></div>
     </div>
 
+    <div id="changeRadarSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">訊號變化雷達</div>
+        <button class="ghost-btn" onclick="setSortMode('streak')">看連買</button>
+      </div>
+      <div id="changeRadarCard" class="plain-card"></div>
+    </div>
+
     <div id="continuationSection" style="display:none;margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
         <div class="section-title" style="margin:0">強勢續航雷達</div>
@@ -957,6 +965,55 @@ function renderRiskPlan() {
   `;
   section.style.display = '';
 }
+function setSortMode(mode) {
+  const sel = qs('sortSelect');
+  if (sel) sel.value = mode;
+  renderCards();
+  window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
+}
+function renderChangeRadar() {
+  const section = qs('changeRadarSection'), card = qs('changeRadarCard');
+  if (!section || !card || !allStocks.length) return;
+
+  const tracked = allStocks.filter(s => s.scoreDelta !== null && s.scoreDelta !== undefined);
+  if (!tracked.length) {
+    section.style.display = 'none';
+    card.innerHTML = '';
+    return;
+  }
+
+  const warming = tracked
+    .filter(s => (s.scoreDelta || 0) > 0)
+    .sort((a,b) => (b.scoreDelta || 0) - (a.scoreDelta || 0) || b.score - a.score)
+    .slice(0, 4);
+  const flowUp = tracked
+    .filter(s => (s.instNetDelta || 0) > 0)
+    .sort((a,b) => (b.instNetDelta || 0) - (a.instNetDelta || 0))
+    .slice(0, 4);
+  const cooling = tracked
+    .filter(s => (s.scoreDelta || 0) < 0 || (s.instNetDelta || 0) < 0)
+    .sort((a,b) => (a.scoreDelta || 0) - (b.scoreDelta || 0) || (a.instNetDelta || 0) - (b.instNetDelta || 0))
+    .slice(0, 4);
+
+  const row = (s, meta, color) => `<div class="action-row" onclick="focusStock('${s.code}')">
+    <div>
+      <div class="action-name">${s.name} <span style="font-size:.6rem;color:var(--text3)">${s.code}</span></div>
+      <div class="action-meta">${getDisplayOp(s)} · ${meta}</div>
+    </div>
+    <div style="text-align:right;color:${color};font-size:.74rem;font-weight:800">${s.score}分<br><span style="font-size:.62rem;color:var(--text3)">法人 ${s.instNet > 0 ? '+' : ''}${s.instNet}</span></div>
+  </div>`;
+  const col = (title, rows, empty, color, renderMeta) => `<div class="action-col">
+    <div class="action-title" style="color:${color}">${title}</div>
+    ${rows.length ? rows.map(s => row(s, renderMeta(s), color)).join('') : `<div class="focus-empty">${empty}</div>`}
+  </div>`;
+
+  card.innerHTML = `<div class="action-grid">
+    ${col('升溫', warming, '沒有明顯升溫股', 'var(--green)', s => `分數 ${s.prevScore} → ${s.score}（+${s.scoreDelta}）`)}
+    ${col('籌碼轉強', flowUp, '沒有明顯加碼股', 'var(--red)', s => `法人變化 ${s.instNetDelta > 0 ? '+' : ''}${s.instNetDelta}張`)}
+    ${col('降溫警示', cooling, '沒有明顯轉弱警示', 'var(--yellow)', s => `分數 ${s.scoreDelta >= 0 ? '+' : ''}${s.scoreDelta || 0} / 法人 ${s.instNetDelta >= 0 ? '+' : ''}${s.instNetDelta || 0}`)}
+  </div>`;
+  section.style.display = '';
+}
 function getContinuationProfile(s) {
   const heat = getOverheatState(s);
   const displayClass = getDisplayOpClass(s);
@@ -1262,6 +1319,7 @@ async function loadData() {
     renderMarketBreadth();
     renderRiskPlan();
     renderSectorChips();
+    renderChangeRadar();
     renderContinuationRadar();
     renderCompareTable();
     renderWatchRadar();
