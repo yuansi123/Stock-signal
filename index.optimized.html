@@ -314,6 +314,7 @@ button,select,input { font-family:inherit; }
         <div class="section-title" style="margin:0">✅ 今日操作清單</div>
         <button class="ghost-btn" onclick="copyDailyBrief()">複製簡報</button>
       </div>
+      <div id="actionFilterRow" class="filters" style="margin-bottom:8px"></div>
       <div id="actionListCard" class="plain-card"></div>
     </div>
 
@@ -447,7 +448,7 @@ const SHEET_ID = '17JrdvcOghYVQpMNjJdd7Jkwu0RxNhkC5eqtIF7NAuIg';
 const SHEET_NAME = '訊號看板';
 const HISTORY_SHEET_NAME = '訊號日誌';
 const FINMIND_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoieXVhbnc1MjRAZ21haWwuY29tIiwiZW1haWwiOiJ5dWFudzUyNEBnbWFpbC5jb20iLCJ0b2tlbl92ZXJzaW9uIjowfQ.3rEhSqwuZR3OdB5MBWThDfU30HlTDbUv4yzmZVpH_Lc';
-let allStocks = [], currentFilter = 'all', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null;
+let allStocks = [], currentFilter = 'all', actionFilter = '', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null;
 
 const COL = {
   date:0, code:1, name:2, op:3, score:4, instNet:5, streak:6, conc5:7, abnormal:8,
@@ -658,12 +659,60 @@ function renderDivergenceDetail(signals) {
   if (!signals.length) return '<div class="detail-cell"><div class="detail-label">背離偵測</div><div class="detail-val">無明顯背離</div></div>';
   return `<div class="detail-cell" style="grid-column:1/-1"><div class="detail-label">背離偵測</div><div class="detail-val" style="font-size:.75rem;line-height:1.55">${signals.map(x => `${x.label}：${x.detail}`).join('<br>')}</div></div>`;
 }
+function getEntryStatus(s) {
+  const price = Number(s.price);
+  const range = parseEntryRange(s.entry);
+  if (!price || !range) return 'unknown';
+  if (price >= range.low && price <= range.high) return 'inside';
+  if (price > range.high) return 'above';
+  return 'below';
+}
+function getActionMeta(s) {
+  const reasons = parseReasons(s.reasons);
+  const divs = getDivergenceSignals(s, reasons);
+  const entry = getEntryPosition(s);
+  const warnCount = divs.filter(d => d.level === 'warn').length;
+  const dayTradePct = num(s.dayTradeRatio);
+  return {stock:s, divs, entry, entryStatus:getEntryStatus(s), warnCount, dayTradePct};
+}
+function getActionCategory(s) {
+  const x = getActionMeta(s);
+  const opClass = getOpClass(x.stock.op);
+  if (opClass === 'buy' && x.entryStatus === 'inside' && x.warnCount === 0 && x.dayTradePct < 30) return 'actionable';
+  if (opClass === 'buy' && (x.entryStatus === 'above' || x.warnCount > 0 || x.dayTradePct >= 30)) return 'wait';
+  if (opClass === 'avoid' || opClass === 'bear' || x.warnCount >= 2) return 'avoid';
+  return '';
+}
+function setActionFilter(value) {
+  actionFilter = actionFilter === value ? '' : value;
+  renderActionFilterButtons();
+  renderCards();
+}
+function renderActionFilterButtons() {
+  const row = qs('actionFilterRow');
+  if (!row) return;
+  const counts = allStocks.reduce((acc, s) => {
+    const key = getActionCategory(s);
+    if (key) acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const items = [
+    {key:'actionable', label:'只看可操作', count:counts.actionable || 0},
+    {key:'wait', label:'只看等拉回', count:counts.wait || 0},
+    {key:'avoid', label:'只看先避開', count:counts.avoid || 0}
+  ];
+  row.innerHTML = items.map(item =>
+    `<button class="filter-btn ${actionFilter === item.key ? 'active' : ''}" onclick="setActionFilter('${item.key}')">${item.label} ${item.count}</button>`
+  ).join('') + (actionFilter ? '<button class="filter-btn" onclick="setActionFilter(actionFilter)">清除</button>' : '');
+}
 function focusStock(code) {
   showPage('signal');
   currentFilter = 'all';
+  actionFilter = '';
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   const allBtn = [...document.querySelectorAll('.filter-btn')].find(b => b.textContent.trim() === '全部');
   if (allBtn) allBtn.classList.add('active');
+  renderActionFilterButtons();
   qs('searchInput').value = code;
   renderCards();
   window.scrollTo({top: 0, behavior: 'smooth'});
@@ -711,14 +760,7 @@ function renderActionList() {
   const section = qs('actionListSection'), card = qs('actionListCard');
   if (!section || !card || !allStocks.length) return;
 
-  const enriched = allStocks.map(s => {
-    const reasons = parseReasons(s.reasons);
-    const divs = getDivergenceSignals(s, reasons);
-    const entry = getEntryPosition(s);
-    const warnCount = divs.filter(d => d.level === 'warn').length;
-    const dayTradePct = num(s.dayTradeRatio);
-    return {stock:s, divs, entry, warnCount, dayTradePct};
-  });
+  const enriched = allStocks.map(getActionMeta);
 
   const actionable = enriched
     .filter(x => x.stock.op.includes('🟢') && x.entry.label === '進場區間內' && x.warnCount === 0 && x.dayTradePct < 30)
@@ -747,6 +789,7 @@ function renderActionList() {
     ${col('等拉回', waitPullback, '目前沒有需要等拉回的買入股', 'var(--yellow)', x => x.entry.label === '高於進場區間' ? '避免追高' : (x.divs[0]?.label || '風險確認'))}
     ${col('先避開', avoid, '目前沒有明顯避開名單', 'var(--red)', x => x.divs[0]?.label || x.stock.op)}
   </div>`;
+  renderActionFilterButtons();
   section.style.display = '';
 }
 function renderMarketBreadth() {
@@ -951,8 +994,11 @@ function showError(msg) {
 }
 function setFilter(f,el) {
   currentFilter = f;
+  actionFilter = '';
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  el.classList.add('active'); renderCards();
+  el.classList.add('active');
+  renderActionFilterButtons();
+  renderCards();
 }
 function showPage(page) {
   ['Signal','Sector','Backtest','AI','Large'].forEach(name => {
@@ -1098,6 +1144,7 @@ function renderCards() {
       if (volFilter === 'whale' && s.vol < 10000) return false;
       if (volFilter === 'fish' && (s.vol < 3000 || s.vol >= 10000)) return false;
       if (volFilter === 'shrimp' && s.vol >= 3000) return false;
+      if (actionFilter && getActionCategory(s) !== actionFilter) return false;
       if (currentFilter === 'buy') return s.op.includes('🟢');
       if (currentFilter === 'watch') return s.op.includes('🟡');
       if (currentFilter === 'avoid') return s.op.includes('🔴');
