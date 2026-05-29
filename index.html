@@ -1067,8 +1067,11 @@ ${target ? `
   const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby-KbeEe-LDpu2Fdg_PlQjSOy6cqNQpYQ_eTZC86pZMz_yXVurPLysXd7kBQ6W-2KgKWA/exec';
   
   try {
-    const res = await fetch(WEB_APP_URL + '?action=chat&prompt=' + encodeURIComponent(prompt), {
-  redirect: 'follow'
+    const res = await fetch(WEB_APP_URL, {
+  method: 'POST',
+  redirect: 'follow',
+  body: JSON.stringify({prompt}),
+  headers: {'Content-Type': 'text/plain'}
 });
 const data = await res.json();
 const text = data.text || '無法取得回答';
@@ -1423,8 +1426,11 @@ const dateStr = dm ? dm[1]+'-'+String(parseInt(dm[2])+1).padStart(2,'0')+'-'+Str
 請直接輸出評論文字，不要加任何標題或Markdown格式。重點是點出法人資金集中流向哪個板塊、值得關注的個股，口吻像投顧分析師每日收盤短評，語氣專業簡潔。`;
 
   try {
-    const res = await fetch(WEB_APP_URL + '?action=chat&prompt=' + encodeURIComponent(prompt), {
-  redirect: 'follow'
+    const res = await fetch(WEB_APP_URL, {
+  method: 'POST',
+  redirect: 'follow',
+  body: JSON.stringify({prompt}),
+  headers: {'Content-Type': 'text/plain'}
 });
 const data = await res.json();
 const text = data.text || '無法取得回答';
