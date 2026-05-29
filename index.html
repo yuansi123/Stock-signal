@@ -536,12 +536,13 @@ async function loadSector() {
   if (!allStocks.length) await loadData();
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('板塊熱度')}`;
   try {
-    const res = await fetch(url);
-    const text = await res.text();
-    const start = text.indexOf('{'); const end = text.lastIndexOf('}');
-    if(start===-1) throw new Error('格式錯誤');
-    const json = JSON.parse(text.slice(start, end+1));
-    const rows = json.table?.rows || [];
+    const res = await fetch('/api/chat', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({prompt})
+});
+const data = await res.json();
+const text = data.text || '無法取得回答';
     if (!rows||rows.length<1) {
       document.getElementById('sectorContent').innerHTML = '<div class="state"><div style="font-size:2.5rem;margin-bottom:10px">🌾</div><div>還沒有板塊資料</div></div>';
       return;
