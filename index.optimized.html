@@ -102,6 +102,9 @@ button,select,input { font-family:inherit; }
 .op-badge.avoid,.signal-tag.hot { background:#fef0ee; color:var(--red); }
 .op-badge.bear,.op-badge.neutral { background:var(--bg2); color:var(--text2); }
 .signal-tag { font-size:.62rem; padding:1px 6px; margin:0 0 0 5px; vertical-align:middle; }
+.signal-tag.trend-up { background:#eaf5ea; color:var(--green); }
+.signal-tag.trend-down { background:#fef0ee; color:var(--red); }
+.signal-tag.trend-flat { background:var(--bg2); color:var(--text2); }
 .score-section { margin-bottom:10px; }
 .score-top { display:flex; justify-content:space-between; margin-bottom:5px; }
 .score-text { font-size:.68rem; color:var(--text2); }
@@ -346,7 +349,7 @@ const SHEET_ID = '17JrdvcOghYVQpMNjJdd7Jkwu0RxNhkC5eqtIF7NAuIg';
 const SHEET_NAME = '訊號看板';
 const HISTORY_SHEET_NAME = '訊號日誌';
 const FINMIND_TOKEN = 'PASTE_YOUR_EXISTING_FINMIND_TOKEN_HERE';
-let allStocks = [], currentFilter = 'all', watchOnly = false, allRowsCache = [], newsExpanded = false;
+let allStocks = [], currentFilter = 'all', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null;
 
 const COL = {
   date:0, code:1, name:2, op:3, score:4, instNet:5, streak:6, conc5:7, abnormal:8,
@@ -441,6 +444,14 @@ function getSignalTag(s) {
   if (s.streak >= 5) return '<span class="signal-tag hot">連買' + s.streak + '天</span>';
   return '<span class="signal-tag cont">延續' + s.streak + '天</span>';
 }
+function getTrendTag(s) {
+  if (s.scoreDelta === null || s.scoreDelta === undefined) return '';
+  if (s.scoreDelta >= 2) return `<span class="signal-tag trend-up">+${s.scoreDelta} 轉強</span>`;
+  if (s.scoreDelta === 1) return '<span class="signal-tag trend-up">+1 升溫</span>';
+  if (s.scoreDelta <= -2) return `<span class="signal-tag trend-down">${s.scoreDelta} 降溫</span>`;
+  if (s.scoreDelta === -1) return '<span class="signal-tag trend-down">-1 轉弱</span>';
+  return '<span class="signal-tag trend-flat">持平</span>';
+}
 function toggleDetail(code) {
   const el = qs('detail-' + code);
   if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
@@ -505,11 +516,52 @@ async function loadData() {
     sel.innerHTML = dates.map((d,i) => `<option value="${d}" ${(current===d || (!current && i===0))?'selected':''}>${i===0?'📅 最新 ': '📅 '}${d}</option>`).join('');
     const filterDate = sel.value || dates[0] || '';
     allStocks = rows.map(mapSignalRow).filter(s => s.code && (!filterDate || s.date === filterDate));
+    await applyTrendChanges(filterDate);
     qs('dateTag').textContent = filterDate || allStocks[0]?.date || '—';
     renderCards();
     generateDailySummary();
   } catch(e) {
     showError('載入失敗：' + e.message + '（請確認 Google Sheet 已設為公開）');
+  }
+}
+
+async function applyTrendChanges(currentDate) {
+  if (!currentDate || !allStocks.length) return;
+  try {
+    if (!trendRowsCache) trendRowsCache = await fetchSheet('趨勢追蹤');
+    const byCode = {};
+    trendRowsCache.forEach(r => {
+      const c = r.c || [];
+      const date = parseDateVal(cell(c,0,''));
+      const code = String(cell(c,1,''));
+      const score = Number(cell(c,3,0)) || 0;
+      const instNet = Number(cell(c,4,0)) || 0;
+      const op = String(cell(c,7,''));
+      if (!date || !code) return;
+      (byCode[code] ||= []).push({date, score, instNet, op});
+    });
+    Object.keys(byCode).forEach(code => byCode[code].sort((a,b) => a.date.localeCompare(b.date)));
+    allStocks.forEach(s => {
+      const history = (byCode[s.code] || []).filter(r => r.date < currentDate);
+      if (!history.length) {
+        s.scoreDelta = null;
+        s.prevScore = null;
+        s.prevInstNet = null;
+        return;
+      }
+      const prev = history[history.length - 1];
+      s.prevScore = prev.score;
+      s.prevInstNet = prev.instNet;
+      s.prevOp = prev.op;
+      s.scoreDelta = s.score - prev.score;
+      s.instNetDelta = s.instNet - prev.instNet;
+    });
+  } catch(e) {
+    allStocks.forEach(s => {
+      s.scoreDelta = null;
+      s.prevScore = null;
+      s.prevInstNet = null;
+    });
   }
 }
 
@@ -564,7 +616,7 @@ function renderCards() {
     return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*.035,.5)}s">
       <div class="card-header">
         <div>
-          <div class="stock-name">${s.name}${getSignalTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}</div>
+          <div class="stock-name">${s.name}${getSignalTag(s)}${getTrendTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}</div>
           <div class="stock-code">${s.code}${s.sector ? ' · ' + s.sector : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
@@ -606,6 +658,8 @@ function renderCards() {
       <div id="detail-${s.code}" class="detail-panel" style="display:none">
         <div class="detail-title">單檔完整訊號</div>
         <div class="detail-grid">
+          <div class="detail-cell"><div class="detail-label">分數變化</div><div class="detail-val" style="color:${(s.scoreDelta||0)>0?'var(--green)':(s.scoreDelta||0)<0?'var(--red)':'var(--text)'}">${s.prevScore === null || s.prevScore === undefined ? '首次追蹤' : `${s.prevScore} → ${s.score} (${s.scoreDelta>=0?'+':''}${s.scoreDelta})`}</div></div>
+          <div class="detail-cell"><div class="detail-label">法人變化</div><div class="detail-val" style="color:${(s.instNetDelta||0)>0?'var(--red)':(s.instNetDelta||0)<0?'var(--blue)':'var(--text)'}">${s.prevInstNet === null || s.prevInstNet === undefined ? '—' : `${s.prevInstNet} → ${s.instNet} 張`}</div></div>
           <div class="detail-cell"><div class="detail-label">融資</div><div class="detail-val">${s.marginBal}張 <span style="${mChgColor}">(${s.marginChg>0?'+':''}${s.marginChg})</span></div></div>
           <div class="detail-cell"><div class="detail-label">融券 / 券資比</div><div class="detail-val">${s.shortBal}張 / ${s.shortRatio}%</div></div>
           <div class="detail-cell"><div class="detail-label">停利2</div><div class="detail-val green">$${fmtPrice(s.tp2)}</div></div>
