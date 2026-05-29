@@ -423,7 +423,7 @@ button,select,input { font-family:inherit; }
   <div class="wrap">
     <div class="bt-header">
       <div class="logo"><div class="logo-icon">🏭</div><div><div class="logo-title">板塊熱度</div><div class="logo-sub">SECTOR HEAT MAP</div></div></div>
-      <button class="refresh-btn" onclick="loadSector()">↻ 重新載入</button>
+      <button class="refresh-btn" onclick="clearCache();loadSector()">↻ 重新載入</button>
     </div>
     <div id="rotationRadarSection" style="display:none;margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
@@ -439,7 +439,7 @@ button,select,input { font-family:inherit; }
   <div class="wrap">
     <div class="bt-header">
       <div class="logo"><div class="logo-icon">📊</div><div><div class="logo-title">回測分析</div><div class="logo-sub">BACKTEST ANALYSIS</div></div></div>
-      <button class="refresh-btn" onclick="loadBacktest()">↻ 重新載入</button>
+      <button class="refresh-btn" onclick="clearCache();loadBacktest()">↻ 重新載入</button>
     </div>
     <div id="btContent"><div class="state"><div class="spinner"></div><div>載入回測資料...</div></div></div>
   </div>
@@ -449,7 +449,7 @@ button,select,input { font-family:inherit; }
   <div class="wrap">
     <div class="bt-header">
       <div class="logo"><div class="logo-icon">🤖</div><div><div class="logo-title">AI 分析</div><div class="logo-sub">AI STOCK ANALYSIS</div></div></div>
-      <button class="refresh-btn" onclick="loadAI()">↻ 重新載入</button>
+      <button class="refresh-btn" onclick="clearCache();loadAI()">↻ 重新載入</button>
     </div>
     <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span style="font-size:.8rem;color:var(--text2)">選擇日期：</span>
@@ -478,7 +478,7 @@ button,select,input { font-family:inherit; }
   <div class="wrap">
     <div class="bt-header">
       <div class="logo"><div class="logo-icon">🐋</div><div><div class="logo-title">權值股監控</div><div class="logo-sub">LARGE CAP MONITOR</div></div></div>
-      <button class="refresh-btn" onclick="loadLarge()">↻ 重新載入</button>
+      <button class="refresh-btn" onclick="clearCache();loadLarge()">↻ 重新載入</button>
     </div>
     <div id="reviewSection" style="display:none;margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
