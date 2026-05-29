@@ -787,8 +787,54 @@ async function loadSector() {
       buyCount:Number(cell(r.c,6,0))||0, heat:String(cell(r.c,7,''))
     })).filter(s=>s.name);
     const latest = [...new Set(sectors.map(s=>s.date).filter(Boolean))].sort().reverse()[0];
+    const recentDates = [...new Set(sectors.map(s=>s.date).filter(Boolean))].sort().reverse().slice(0, 5).reverse();
     const data = sectors.filter(s=>s.date===latest).sort((a,b)=>b.avgNet-a.avgNet);
     const max = Math.max(...data.map(s=>Math.abs(s.avgNet)),1);
+    const trendBySector = {};
+    sectors.filter(s => recentDates.includes(s.date)).forEach(s => {
+      (trendBySector[s.name] ||= {})[s.date] = s;
+    });
+    const trendList = Object.keys(trendBySector).map(name => {
+      const points = recentDates.map(date => trendBySector[name][date] || null);
+      const valid = points.filter(Boolean);
+      const first = valid[0];
+      const last = valid[valid.length - 1];
+      const delta = first && last ? last.avgNet - first.avgNet : 0;
+      const latestPoint = last || {avgNet:0, avgScore:0, buyCount:0, count:0};
+      return {name, points, delta, latest:latestPoint};
+    }).sort((a,b) => b.delta - a.delta || b.latest.avgNet - a.latest.avgNet);
+    const trendMax = Math.max(...trendList.flatMap(s => s.points.filter(Boolean).map(p => Math.abs(p.avgNet))), 1);
+    const sectorTrendHtml = `<div class="plain-card" style="margin-bottom:14px">
+      <div class="row-between" style="margin-bottom:10px">
+        <div class="section-title" style="margin:0">📈 板塊 5 日趨勢</div>
+        <div style="font-size:.62rem;color:var(--text3)">${recentDates[0] || ''} ~ ${recentDates[recentDates.length - 1] || ''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${trendList.slice(0, 8).map(s => {
+          const status = s.delta >= 50 ? '升溫' : s.delta <= -50 ? '降溫' : '持平';
+          const statusColor = s.delta >= 50 ? 'var(--green)' : s.delta <= -50 ? 'var(--red)' : 'var(--text3)';
+          const bars = s.points.map(p => {
+            const val = p ? p.avgNet : 0;
+            const h = Math.max(4, Math.abs(val) / trendMax * 34);
+            const col = val >= 0 ? 'var(--red)' : 'var(--blue)';
+            return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;flex:1;height:46px">
+              <div style="font-size:.52rem;color:${col};font-weight:700">${p ? (val > 0 ? '+' : '') + val : '—'}</div>
+              <div style="width:100%;height:${h}px;background:${col};border-radius:4px;opacity:${p ? .82 : .15}"></div>
+            </div>`;
+          }).join('');
+          return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:8px 10px">
+            <div class="row-between" style="margin-bottom:6px">
+              <div style="font-size:.78rem;font-weight:700;color:var(--text)">${s.name}</div>
+              <div style="font-size:.68rem;font-weight:700;color:${statusColor}">${status} ${s.delta >= 0 ? '+' : ''}${s.delta}</div>
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:4px">${bars}</div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:.55rem;color:var(--text3)">
+              ${recentDates.map(d => `<span>${d.slice(5).replace('-','/')}</span>`).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
     const heatmap = `<div class="plain-card" style="margin-bottom:14px"><div class="section-title">🌡️ 板塊熱力圖 ${latest}</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">${data.map(s => {
         const intensity = Math.abs(s.avgNet)/max, isPos = s.avgNet>=0, alpha = .15 + intensity*.75;
@@ -815,7 +861,7 @@ async function loadSector() {
         ${stocks.length ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">${stocks.map(st => `<div class="row-between" style="background:var(--bg2);border-radius:8px;padding:5px 8px;margin-bottom:4px"><div style="font-size:.72rem;font-weight:600">${st.name} <span style="font-size:.6rem;color:var(--text3)">${st.code}</span></div><div style="font-size:.7rem;font-weight:700;color:${st.instNet>=0?'var(--red)':'var(--blue)'}">${st.instNet>=0?'+':''}${st.instNet}張</div></div>`).join('')}</div>` : ''}
       </div>`;
     }).join('');
-    qs('sectorContent').innerHTML = heatmap + html;
+    qs('sectorContent').innerHTML = sectorTrendHtml + heatmap + html;
   } catch(e) {
     qs('sectorContent').innerHTML = '<div class="state">載入失敗：' + e.message + '</div>';
   }
