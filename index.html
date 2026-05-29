@@ -1372,7 +1372,12 @@ async function generateDailySummary() {
   card.innerHTML = '<div class="spinner" style="width:20px;height:20px;margin:0.5rem auto"></div>';
 
   // ★ 板塊統計：過濾掉無效板塊名稱，用每檔平均排序
-  const VALID_SECTORS = ['半導體/IC設計','封測','AI伺服器/ODM','電源/散熱','PCB/載板','網通/連接','光電/面板','被動元件/機構','記憶體','其他電子'];
+  const VALID_SECTORS = [
+  '半導體/IC設計','封測','AI伺服器/ODM','電源/散熱','PCB/載板',
+  '網通/連接','光電/面板','被動元件/機構','記憶體','測試設備',
+  '工業電腦/自動化','電子通路','軟體/雲端','電動車/綠能',
+  '功率元件','其他電子'
+];
   const sectorMap = {};
   allStocks.forEach(s => {
     const sec = VALID_SECTORS.includes(s.sector) ? s.sector : '其他電子';
@@ -1604,44 +1609,13 @@ async function loadMarket() {
         color:${riskScore>=6?'var(--red)':riskScore>=3?'var(--yellow)':'var(--green)'};
         border-left:3px solid ${riskScore>=6?'var(--red)':riskScore>=3?'var(--yellow)':'var(--green)'}">${crashRisk}</div>` : ''}
     `;
-  } catch(e) {
-    // ★ 風險警示
-if (riskScore >= 5) {
-  const existing = document.getElementById('riskAlert');
-  if (!existing) {
-    const alert = document.createElement('div');
-    alert.id = 'riskAlert';
-    alert.style.cssText = `
-      position:fixed;top:20px;left:50%;transform:translateX(-50%);
-      background:${riskScore>=6?'#c05848':'#c08830'};color:white;
-      border-radius:14px;padding:12px 16px;font-size:0.78rem;
-      max-width:320px;width:90%;z-index:9999;
-      box-shadow:0 8px 24px rgba(0,0,0,0.25);
-      display:flex;align-items:flex-start;gap:10px;
-      animation:fadeUp 0.4s ease;
-    `;
-    alert.innerHTML = `
-      <div style="font-size:1.2rem;flex-shrink:0">${riskScore>=6?'🚨':'⚠️'}</div>
-      <div style="flex:1">
-        <div style="font-weight:700;margin-bottom:4px">${status}</div>
-        <div style="font-size:0.7rem;opacity:0.9;line-height:1.5">${riskReasons}</div>
-        ${crashRisk ? `<div style="font-size:0.68rem;opacity:0.85;margin-top:4px;line-height:1.5">${crashRisk.substring(0,80)}...</div>` : ''}
-      </div>
-      <button onclick="this.parentElement.remove()" style="background:transparent;border:none;color:rgba(255,255,255,0.7);font-size:1.1rem;cursor:pointer;flex-shrink:0;padding:0">✕</button>
-    `;
-    document.body.appendChild(alert);
-    // 10秒後自動消失
-    setTimeout(() => { if(alert.parentElement) alert.remove(); }, 10000);
-  }
-} else {
-  // 風險降低時移除警示
-  const existing = document.getElementById('riskAlert');
-  if (existing) existing.remove();
-}
+   } catch(e) {
+    const existing = document.getElementById('riskAlert');
+    if (existing) existing.remove();
+
     radar.innerHTML = '<div class="market-loading">大盤資料載入失敗</div>';
   }
 }
-
 
 async function loadData() {
   document.getElementById('content').innerHTML = '<div class="state"><div class="spinner"></div><div>載入資料中...</div></div>';
@@ -1847,7 +1821,7 @@ const dayTradeColor = dayTradeWarn ? 'var(--yellow)' : 'var(--text2)';
       <div class="stats-grid">
         <div class="stat-box"><div class="stat-label">法人淨買(張)</div><div class="stat-val ${pos?'pos':'neg'}">${pos?'+':''}${s.instNet}</div></div>
         <div class="stat-box"><div class="stat-label">連續買超</div><div class="stat-val neu">${s.streak} 天</div></div>
-        <div class="stat-box"><div class="stat-label">五日集中%</div><div class="stat-val neu">${typeof s.conc5raw === 'number' ? (s.conc5raw*100).toFixed(2)+'%' : s.conc5}</div></div>
+        <div class="stat-box"><div class="stat-label">五日集中%</div><div class="stat-val neu">${String(s.conc5 || '').includes('%') ? s.conc5 : Number(s.conc5raw || 0).toFixed(2) + '%'}</div></div>
         <div class="stat-box"><div class="stat-label">RSI(14)</div><div class="stat-val neu">${s.rsi}</div></div>
         <div class="stat-box"><div class="stat-label">K / D</div><div class="stat-val neu">${s.kVal}/${s.dVal}</div></div>
         <div class="stat-box"><div class="stat-label">異常倍數</div><div class="stat-val neu">${s.abnormal}</div></div>
