@@ -258,7 +258,13 @@ button,select,input { font-family:inherit; }
     </div>
 
     <div id="watchRadarSection" style="display:none;margin-bottom:1rem">
-      <div class="section-title">⭐ 自選股雷達</div>
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">⭐ 自選股雷達</div>
+        <div style="display:flex;gap:8px">
+          <button class="ghost-btn" onclick="copyWatchList()">複製清單</button>
+          <button class="ghost-btn" onclick="importWatchList()">匯入</button>
+        </div>
+      </div>
       <div id="watchRadarCard" class="plain-card"></div>
     </div>
 
@@ -512,6 +518,34 @@ function rClass(r) {
 function watchList(){ try { return JSON.parse(localStorage.getItem('watchList') || '[]'); } catch(e){ return []; } }
 function saveWatchList(list){ localStorage.setItem('watchList', JSON.stringify(list)); }
 function isWatched(code){ return watchList().includes(String(code)); }
+async function copyWatchList() {
+  const text = watchList().join(',');
+  if (!text) {
+    window.alert('目前沒有自選股');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    const old = qs('dateMeta').textContent;
+    qs('dateMeta').textContent = '已複製自選股清單：' + text;
+    setTimeout(() => { qs('dateMeta').textContent = old; }, 1800);
+  } catch(e) {
+    window.prompt('請手動複製自選股清單：', text);
+  }
+}
+function importWatchList() {
+  const raw = window.prompt('貼上自選股代號，可用逗號、空格或換行分隔：', watchList().join(','));
+  if (raw === null) return;
+  const codes = [...new Set(String(raw).split(/[\s,，、]+/).map(s => s.trim()).filter(s => /^\d{4}$/.test(s)))];
+  saveWatchList(codes);
+  watchOnly = false;
+  updateWatchButton();
+  renderWatchRadar();
+  renderCards();
+  const old = qs('dateMeta').textContent;
+  qs('dateMeta').textContent = '已匯入自選股 ' + codes.length + ' 檔';
+  setTimeout(() => { qs('dateMeta').textContent = old; }, 1800);
+}
 function updateWatchButton() {
   const btn = qs('watchOnlyBtn');
   if (!btn) return;
