@@ -501,6 +501,7 @@ const HISTORY_SHEET_NAME = '訊號日誌';
 const FINMIND_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoieXVhbnc1MjRAZ21haWwuY29tIiwiZW1haWwiOiJ5dWFudzUyNEBnbWFpbC5jb20iLCJ0b2tlbl92ZXJzaW9uIjowfQ.3rEhSqwuZR3OdB5MBWThDfU30HlTDbUv4yzmZVpH_Lc';
 const CACHE_TTL = 30 * 60 * 1000;
 let allStocks = [], currentFilter = 'all', actionFilter = '', entryFilter = '', riskFilter = '', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null, newsRowsCache = null;
+let stockInfoCache = null, stockLookupCache = {}, stockLookupPending = {};
 
 const COL = {
   date:0, code:1, name:2, op:3, score:4, instNet:5, streak:6, conc5:7, abnormal:8,
@@ -527,6 +528,65 @@ async function fetchSheet(sheet, bypassCache = false) {
   const rows = JSON.parse(text.slice(start, end + 1)).table?.rows || [];
   try { localStorage.setItem(key, JSON.stringify({ts: Date.now(), data: rows})); } catch(e) {}
   return rows;
+}
+async function fetchStockInfoList() {
+  if (stockInfoCache) return stockInfoCache;
+  const key = 'stock_info_cache_v1';
+  try {
+    const c = JSON.parse(localStorage.getItem(key) || 'null');
+    if (c && Date.now() - c.ts < 7 * 86400000 && Array.isArray(c.data)) {
+      stockInfoCache = c.data;
+      return stockInfoCache;
+    }
+  } catch(e) {}
+  const url = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInfo&token=${FINMIND_TOKEN}`;
+  const res = await fetch(url);
+  const json = await res.json();
+  stockInfoCache = (json.data || []).filter(r => /^\d{4}$/.test(String(r.stock_id || '')));
+  try { localStorage.setItem(key, JSON.stringify({ts: Date.now(), data: stockInfoCache})); } catch(e) {}
+  return stockInfoCache;
+}
+async function lookupAnyStock(q) {
+  q = String(q || '').trim();
+  if (!q) return {items:[]};
+  if (stockLookupCache[q]) return stockLookupCache[q];
+  if (stockLookupPending[q]) return stockLookupPending[q];
+  stockLookupPending[q] = (async () => {
+    const list = await fetchStockInfoList();
+    const lower = q.toLowerCase();
+    const items = list
+      .filter(r => String(r.stock_id || '').includes(q) || String(r.stock_name || '').toLowerCase().includes(lower))
+      .slice(0, 10)
+      .map(r => ({
+        code:String(r.stock_id || ''),
+        name:String(r.stock_name || ''),
+        industry:String(r.industry_category || r.type || '未分類')
+      }));
+    const exact = items.find(x => x.code === q);
+    if (exact) {
+      try {
+        const end = new Date();
+        const start = new Date(end);
+        start.setDate(start.getDate() - 45);
+        const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        const url = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${exact.code}&start_date=${fmt(start)}&end_date=${fmt(end)}&token=${FINMIND_TOKEN}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        const prices = json.data || [];
+        const last = prices[prices.length - 1];
+        if (last) {
+          exact.lastDate = last.date;
+          exact.close = Number(last.close) || 0;
+          exact.volume = Math.round((Number(last.Trading_Volume) || 0) / 1000);
+        }
+      } catch(e) {}
+    }
+    const result = {items};
+    stockLookupCache[q] = result;
+    delete stockLookupPending[q];
+    return result;
+  })();
+  return stockLookupPending[q];
 }
 function cell(c,i,fb='') {
   if (!c || i >= c.length || !c[i]) return fb;
@@ -1630,6 +1690,59 @@ function showPage(page) {
   if (page === 'ai') loadAI();
   if (page === 'large') loadLarge();
 }
+function askAnyStock(code, name) {
+  showPage('ai');
+  setTimeout(() => {
+    qs('aiChatInput').value = `${name || ''} ${code}`.trim();
+    sendAIChat();
+  }, 250);
+}
+function renderUniversalSearch(q) {
+  const cached = stockLookupCache[q];
+  if (!cached && !stockLookupPending[q]) {
+    lookupAnyStock(q).then(() => {
+      if (qs('searchInput')?.value.trim() === q) renderCards();
+    }).catch(() => {
+      stockLookupCache[q] = {items:[], error:true};
+      if (qs('searchInput')?.value.trim() === q) renderCards();
+    });
+  }
+  if (!cached) {
+    qs('content').innerHTML = '<div class="state"><div class="spinner"></div><div>訊號看板找不到，正在查全市場...</div></div>';
+    return;
+  }
+  if (!cached.items.length) {
+    qs('content').innerHTML = '<div class="state"><div style="font-size:2.2rem;margin-bottom:10px">∅</div><div>訊號看板與全市場都沒有找到這個關鍵字</div></div>';
+    return;
+  }
+  qs('content').innerHTML = `<div class="cards">
+    <div class="plain-card" style="border-left:4px solid var(--brown-light)">
+      <div style="font-size:.78rem;font-weight:800;color:var(--text);margin-bottom:4px">全市場查詢結果</div>
+      <div style="font-size:.68rem;color:var(--text3);line-height:1.5">這些股票目前不一定有訊號，只是讓你可以搜尋、查看資料或問 AI。</div>
+    </div>
+    ${cached.items.map(item => `<div class="card">
+      <div class="card-header">
+        <div>
+          <div class="stock-name">${item.name || item.code}</div>
+          <div class="stock-code">${item.code} · ${item.industry || '未分類'}${item.lastDate ? ' · 最新 ' + item.lastDate : ''}</div>
+        </div>
+        <div class="price">${item.close ? '$' + fmtPrice(item.close) : '—'}</div>
+      </div>
+      <div class="op-badge neutral">全市場查詢</div>
+      <div class="stats-grid">
+        <div class="stat-box"><div class="stat-label">訊號狀態</div><div class="stat-val">目前未入榜</div></div>
+        <div class="stat-box"><div class="stat-label">成交量</div><div class="stat-val">${item.volume ? item.volume + ' 張' : '—'}</div></div>
+        <div class="stat-box"><div class="stat-label">產業</div><div class="stat-val">${item.industry || '—'}</div></div>
+      </div>
+      <div style="font-size:.74rem;line-height:1.55;color:var(--text2);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:.58rem .7rem;margin-top:8px">
+        旁白：這檔目前沒有出現在今日訊號名單，所以不要把它當成系統買入訊號。你可以先問 AI 做基本面/消息面判讀，或等它之後進入訊號看板再操作。
+      </div>
+      <div class="stock-actions">
+        <button class="mini-btn" onclick="askAnyStock('${item.code}','${String(item.name || '').replace(/'/g, "\\'")}')">問 AI</button>
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
 
 function mapSignalRow(row) {
   const c = row.c || [];
@@ -1791,6 +1904,10 @@ function renderCards() {
     : `顯示 ${list.length} / ${allStocks.length} 檔`;
   renderFilterStatus(list.length, allStocks.length);
   if (!list.length) {
+    if (q) {
+      renderUniversalSearch(q);
+      return;
+    }
     qs('content').innerHTML = '<div class="state"><div style="font-size:2.2rem;margin-bottom:10px">🌾</div><div>沒有符合條件的股票</div></div>';
     return;
   }
