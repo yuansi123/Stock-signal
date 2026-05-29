@@ -47,6 +47,25 @@
   transition:opacity .2s;
 }
 .sec-chev { font-size:.65rem; color:var(--text3); margin-left:5px; display:inline-block; transition:transform .2s; }
+#toastBar {
+  position:fixed; bottom:84px; left:50%; transform:translateX(-50%); z-index:3000;
+  background:var(--brown-dark); color:#fff; border-radius:20px; padding:.45rem 1.1rem;
+  font-size:.75rem; opacity:0; pointer-events:none; white-space:nowrap;
+  transition:opacity .22s; box-shadow:0 2px 12px rgba(0,0,0,.25);
+}
+#toastBar.show { opacity:1; }
+.nav-badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  background:var(--red); color:#fff; border-radius:10px; font-size:.52rem;
+  font-weight:700; min-width:16px; height:16px; padding:0 4px;
+  margin-left:3px; line-height:1; vertical-align:middle;
+}
+.preset-btn {
+  background:var(--card); border:1.5px solid var(--border); border-radius:20px;
+  padding:.3rem .75rem; font-size:.68rem; color:var(--text2); cursor:pointer;
+  white-space:nowrap; box-shadow:0 1px 4px var(--shadow); flex-shrink:0;
+}
+.preset-btn.active { background:var(--brown-dark); border-color:var(--brown-dark); color:#fff; }
 * { box-sizing:border-box; margin:0; padding:0; }
 body {
   background:var(--bg); color:var(--text);
@@ -420,6 +439,12 @@ button,select,input { font-family:inherit; }
       <button class="filter-btn" onclick="setFilter('avoid',this)">🔴 避開</button>
       <button class="filter-btn" onclick="setFilter('bear',this)">⬇️ 空頭</button>
     </div>
+    <div class="control-row" id="presetRow" style="margin-bottom:.5rem">
+      <button class="preset-btn" onclick="applyPreset('gold')">🏆 黃金標的</button>
+      <button class="preset-btn" onclick="applyPreset('new')">⚡ 今日新訊號</button>
+      <button class="preset-btn" onclick="applyPreset('streak')">💎 連買最久</button>
+      <button class="preset-btn" onclick="applyPreset('zone')">🎯 可進場</button>
+    </div>
 
     <div class="sort-row">
       <select id="sortSelect" class="sort-select" onchange="saveFilters();renderCards()">
@@ -527,10 +552,11 @@ button,select,input { font-family:inherit; }
   </div>
 </div>
 
+<div id="toastBar"></div>
 <button id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到頂部">↑</button>
 
 <div class="bottom-nav">
-  <button class="nav-btn active" id="navSignal" onclick="showPage('signal')"><span>📈</span><span>訊號</span></button>
+  <button class="nav-btn active" id="navSignal" onclick="showPage('signal')"><span>📈</span><span>訊號<span id="navBuyBadge" class="nav-badge" style="display:none"></span></span></button>
   <button class="nav-btn" id="navSector" onclick="showPage('sector')"><span>🏭</span><span>板塊</span></button>
   <button class="nav-btn" id="navBacktest" onclick="showPage('backtest')"><span>📊</span><span>回測</span></button>
   <button class="nav-btn" id="navAI" onclick="showPage('ai')"><span>🤖</span><span>AI</span></button>
@@ -838,15 +864,10 @@ function saveWatchList(list){ localStorage.setItem('watchList', JSON.stringify(l
 function isWatched(code){ return watchList().includes(String(code)); }
 async function copyWatchList() {
   const text = watchList().join(',');
-  if (!text) {
-    window.alert('目前沒有自選股');
-    return;
-  }
+  if (!text) { toast('目前沒有自選股'); return; }
   try {
     await navigator.clipboard.writeText(text);
-    const old = qs('dateMeta').textContent;
-    qs('dateMeta').textContent = '已複製自選股清單：' + text;
-    setTimeout(() => { qs('dateMeta').textContent = old; }, 1800);
+    toast('已複製自選股清單 ' + text);
   } catch(e) {
     window.prompt('請手動複製自選股清單：', text);
   }
@@ -2013,7 +2034,8 @@ async function loadData() {
     allStocks = rows.map(mapSignalRow).filter(s => s.code && (!filterDate || s.date === filterDate));
     await applyTrendChanges(filterDate);
     qs('dateTag').textContent = filterDate || allStocks[0]?.date || '—';
-    qs('dateMeta').textContent = filterDate ? `目前顯示 ${filterDate}，共 ${allStocks.length} 檔；日期來源含訊號看板與訊號日誌` : '';
+    const now = new Date(); const hm = now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
+    qs('dateMeta').textContent = filterDate ? `${filterDate} · ${allStocks.length} 檔 · 更新 ${hm}` : '';
     loadFilters();
     renderMarketBreadth();
     renderSectorChips();
@@ -2030,6 +2052,10 @@ async function loadData() {
 
 async function applyTrendChanges(currentDate) {
   if (!currentDate || !allStocks.length) return;
+  if (!dsEnabled('trend')) {
+    allStocks.forEach(s => { s.scoreDelta=null; s.prevScore=null; s.prevInstNet=null; s.prevTrendDate=null; s.trendCompareDate=currentDate; });
+    return;
+  }
   try {
     if (!trendRowsCache) trendRowsCache = await fetchSheet('趨勢追蹤');
     const byCode = {};
@@ -2076,6 +2102,7 @@ async function applyTrendChanges(currentDate) {
 
 function renderCards() {
   updateWatchButton();
+  updateNavBadge();
   const q = qs('searchInput').value.trim().toLowerCase();
   const selectedSector = qs('sectorFilter')?.value || '';
   const volFilter = qs('volFilter')?.value || '';
@@ -2940,6 +2967,54 @@ function renderLargeCards(filter) {
 
 function clearCache() {
   Object.keys(localStorage).filter(k => k.startsWith('sc_')).forEach(k => localStorage.removeItem(k));
+}
+
+// ── Toast ─────────────────────────────────────────────────
+let _toastT;
+function toast(msg, ms=1800) {
+  const el = qs('toastBar'); if (!el) return;
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => el.classList.remove('show'), ms);
+}
+
+// ── Nav buy badge ──────────────────────────────────────────
+function updateNavBadge() {
+  const el = qs('navBuyBadge'); if (!el) return;
+  const n = allStocks.filter(s => getDisplayOpClass(s) === 'buy').length;
+  el.textContent = n || ''; el.style.display = n ? '' : 'none';
+}
+
+// ── Preset filters ─────────────────────────────────────────
+let activePreset = '';
+const PRESETS = {
+  gold:   {label:'黃金標的', filter:'buy', sort:'score',  entry:'inside', action:'actionable'},
+  new:    {label:'今日新訊號',filter:'buy', sort:'score',  streakMax:1},
+  streak: {label:'連買最久', filter:'buy', sort:'streak'},
+  zone:   {label:'可進場',   filter:'buy', sort:'score',  entry:'inside'},
+};
+function applyPreset(key) {
+  if (activePreset === key) { clearPreset(); return; }
+  activePreset = key;
+  const p = PRESETS[key];
+  currentFilter = p.filter || 'all';
+  entryFilter   = p.entry  || '';
+  actionFilter  = p.action || '';
+  riskFilter    = '';
+  if (p.sort && qs('sortSelect')) qs('sortSelect').value = p.sort;
+  document.querySelectorAll('.filters .filter-btn').forEach(b => {
+    const m = (b.getAttribute('onclick')||'').match(/setFilter\('(\w+)'/);
+    b.classList.toggle('active', !!m && m[1] === currentFilter);
+  });
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  const btn = [...document.querySelectorAll('.preset-btn')].find(b => b.getAttribute('onclick')?.includes(`'${key}'`));
+  if (btn) btn.classList.add('active');
+  renderActionFilterButtons(); renderCards(); saveFilters();
+  toast(`已套用：${p.label}`);
+}
+function clearPreset() {
+  activePreset = '';
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
 }
 
 // ── Settings panel ────────────────────────────────────────
