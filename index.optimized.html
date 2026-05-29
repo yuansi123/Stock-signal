@@ -1603,11 +1603,13 @@ function renderReviewSection() {
   }).join('');
 
   card.innerHTML = `
-    <div class="breadth-grid" style="margin-bottom:8px">
-      <div class="breadth-cell" style="padding:.3rem .4rem"><div class="breadth-label">比較區間</div><div class="breadth-val" style="font-size:.65rem">${prevDate.slice(5)} → ${currentDate.slice(5)}</div></div>
-      <div class="breadth-cell" style="padding:.3rem .4rem"><div class="breadth-label">✅ 有買入</div><div class="breadth-val green" style="font-size:.8rem">${cntBuy} / 10</div></div>
-      <div class="breadth-cell" style="padding:.3rem .4rem"><div class="breadth-label">⚠️ 觀察中</div><div class="breadth-val yellow" style="font-size:.8rem">${cntWatch} / 10</div></div>
-      <div class="breadth-cell" style="padding:.3rem .4rem"><div class="breadth-label">❌ 未抓到</div><div class="breadth-val red" style="font-size:.8rem">${cntMiss} / 10</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;font-size:.65rem">
+      <span style="color:var(--text3)">${prevDate.slice(5)} → ${currentDate.slice(5)}</span>
+      <span style="display:flex;gap:8px">
+        <span class="green">✅ ${cntBuy}</span>
+        <span class="yellow">⚠️ ${cntWatch}</span>
+        <span class="red">❌ ${cntMiss}</span>
+      </span>
     </div>
     <div style="display:flex;flex-direction:column;gap:0">${rows}</div>
     <div style="display:flex;justify-content:flex-end;margin-top:8px">
