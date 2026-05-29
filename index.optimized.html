@@ -437,6 +437,44 @@ function fmtPrice(v) {
   const n = Number(v);
   return isNaN(n) ? String(v) : n.toFixed(2);
 }
+function parseEntryRange(entry) {
+  const s = String(entry || '').replace(/\s/g, '');
+  if (!s) return null;
+  const parts = s.split('~').map(v => Number(v)).filter(v => !isNaN(v) && v > 0);
+  if (parts.length >= 2) return {low: Math.min(parts[0], parts[1]), high: Math.max(parts[0], parts[1])};
+  if (parts.length === 1) return {low: parts[0], high: parts[0]};
+  return null;
+}
+function pctDiff(from, to) {
+  from = Number(from); to = Number(to);
+  if (!from || !to || isNaN(from) || isNaN(to)) return null;
+  return (to - from) / from * 100;
+}
+function getEntryPosition(s) {
+  const price = Number(s.price);
+  const range = parseEntryRange(s.entry);
+  if (!price || !range) return {label:'位置未判斷', color:'var(--text3)', detail:'缺少價格或進場區間資料'};
+  if (price >= range.low && price <= range.high) {
+    return {label:'進場區間內', color:'var(--green)', detail:'收盤價落在建議進場區間，可依風險控管分批處理'};
+  }
+  if (price > range.high) {
+    const over = pctDiff(range.high, price);
+    return {label:'高於進場區間', color:'var(--red)', detail:`已高於區間上緣約 ${over.toFixed(1)}%，避免追高，等拉回或重新評估`};
+  }
+  const under = pctDiff(price, range.low);
+  return {label:'低於進場區間', color:'var(--yellow)', detail:`距離區間下緣約 ${under.toFixed(1)}%，等待轉強或放量確認`};
+}
+function getRiskRewardDistance(s) {
+  const price = Number(s.price);
+  const stop = Number(s.stop);
+  const tp1 = Number(s.tp1);
+  const down = pctDiff(price, stop);
+  const up = pctDiff(price, tp1);
+  return {
+    stopPct: down === null ? '—' : down.toFixed(1) + '%',
+    tp1Pct: up === null ? '—' : (up >= 0 ? '+' : '') + up.toFixed(1) + '%'
+  };
+}
 function num(v){ const n = Number(String(v ?? '').replace('%','').trim()); return isNaN(n) ? 0 : n; }
 function getOpClass(op) {
   op = String(op || '');
@@ -803,6 +841,8 @@ function renderCards() {
     const pips = pipDefs.map(p => `<span class="pip ${s[p.key] > 0 ? 'on' : ''}">${p.label} ${s[p.key]}/${p.max}</span>`).join('');
     const dayTradePct = num(s.dayTradeRatio), dayTradeWarn = dayTradePct >= 30;
     const divergences = getDivergenceSignals(s, reasons);
+    const entryPosition = getEntryPosition(s);
+    const rrDistance = getRiskRewardDistance(s);
     const fourCond = reasons.some(r => r.includes('四大條件'));
     const fColor = s.foreign > 0 ? 'color:var(--red)' : s.foreign < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
     const tColor = s.trust > 0 ? 'color:var(--red)' : s.trust < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
@@ -841,6 +881,7 @@ function renderCards() {
           <div class="detail-cell"><div class="detail-label">停損</div><div class="detail-val red">$${fmtPrice(s.stop)}</div></div>
           <div class="detail-cell"><div class="detail-label">停利1</div><div class="detail-val green">$${fmtPrice(s.tp1)}</div></div>
           <div class="detail-cell"><div class="detail-label">風報比 / 當沖</div><div class="detail-val">${s.rr || '—'} · <span style="color:${dayTradeWarn?'var(--yellow)':'var(--text)'}">${s.dayTradeRatio || '—'}</span></div></div>
+          <div class="detail-cell" style="grid-column:1/-1"><div class="detail-label">位置判斷</div><div class="detail-val" style="color:${entryPosition.color}">${entryPosition.label}</div></div>
         </div>
       </div>
       <div class="breakdown">${pips}</div>
@@ -856,6 +897,9 @@ function renderCards() {
         <div class="detail-grid">
           <div class="detail-cell"><div class="detail-label">分數變化</div><div class="detail-val" style="color:${(s.scoreDelta||0)>0?'var(--green)':(s.scoreDelta||0)<0?'var(--red)':'var(--text)'}">${s.prevScore === null || s.prevScore === undefined ? '首次追蹤' : `${s.prevScore} → ${s.score} (${s.scoreDelta>=0?'+':''}${s.scoreDelta})`}</div></div>
           <div class="detail-cell"><div class="detail-label">法人變化</div><div class="detail-val" style="color:${(s.instNetDelta||0)>0?'var(--red)':(s.instNetDelta||0)<0?'var(--blue)':'var(--text)'}">${s.prevInstNet === null || s.prevInstNet === undefined ? '—' : `${s.prevInstNet} → ${s.instNet} 張`}</div></div>
+          <div class="detail-cell"><div class="detail-label">距停損</div><div class="detail-val red">${rrDistance.stopPct}</div></div>
+          <div class="detail-cell"><div class="detail-label">距停利1</div><div class="detail-val green">${rrDistance.tp1Pct}</div></div>
+          <div class="detail-cell" style="grid-column:1/-1"><div class="detail-label">進場位置說明</div><div class="detail-val" style="font-size:.75rem;line-height:1.55;color:${entryPosition.color}">${entryPosition.detail}</div></div>
           ${renderDivergenceDetail(divergences)}
           <div class="detail-cell"><div class="detail-label">融資</div><div class="detail-val">${s.marginBal}張 <span style="${mChgColor}">(${s.marginChg>0?'+':''}${s.marginChg})</span></div></div>
           <div class="detail-cell"><div class="detail-label">融券 / 券資比</div><div class="detail-val">${s.shortBal}張 / ${s.shortRatio}%</div></div>
