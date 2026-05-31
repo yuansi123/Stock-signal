@@ -350,7 +350,10 @@ button,select,input { font-family:inherit; }
     <select id="dateSelect" class="date-select" onchange="loadData()">
       <option value="">📅 載入中...</option>
     </select>
-    <div id="dateMeta" style="font-size:.66rem;color:var(--text3);margin:-.7rem 0 1rem;padding-left:.2rem"></div>
+    <select id="compareDateSelect" class="date-select" style="margin-top:-.6rem;margin-bottom:.8rem;opacity:.85" onchange="setCompareDate(this.value)">
+      <option value="">📊 比較基準日（選填）</option>
+    </select>
+    <div id="dateMeta" style="font-size:.66rem;color:var(--text3);margin:-.4rem 0 1rem;padding-left:.2rem"></div>
 
     <div id="breadthSection" style="display:none;margin-bottom:1rem">
       <div id="breadthCard" class="plain-card"></div>
@@ -402,6 +405,20 @@ button,select,input { font-family:inherit; }
         <button class="ghost-btn" onclick="setSortMode('streak')">看連買</button>
       </div>
       <div id="changeRadarCard" class="plain-card"></div>
+    </div>
+
+    <div id="streakSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">🔥 法人連買排行</div>
+      </div>
+      <div id="streakCard" class="plain-card"></div>
+    </div>
+
+    <div id="sentimentSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">📉 市場情緒走勢</div>
+      </div>
+      <div id="sentimentCard" class="plain-card"></div>
     </div>
 
     <div id="compareSection" style="display:none;margin-bottom:1rem">
@@ -456,6 +473,7 @@ button,select,input { font-family:inherit; }
         <option value="dayTradeLow">當沖比最低</option>
       </select>
       <button class="filter-btn" id="watchOnlyBtn" onclick="toggleWatchOnly(this)">⭐ 自選股</button>
+      <button class="filter-btn" onclick="exportCSV()" title="匯出目前篩選結果">⬇️ CSV</button>
     </div>
 
     <div class="search-wrap">
@@ -2044,14 +2062,19 @@ async function loadData() {
     qs('dateTag').textContent = filterDate || allStocks[0]?.date || '—';
     const now = new Date(); const hm = now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
     qs('dateMeta').textContent = filterDate ? `${filterDate} · ${allStocks.length} 檔 · 更新 ${hm}` : '';
+    const cmpSel = qs('compareDateSelect');
+    if (cmpSel) cmpSel.innerHTML = '<option value="">📊 比較基準日（選填）</option>' + dates.slice(1).map(d=>`<option value="${d}">${d}</option>`).join('');
     loadFilters();
     renderMarketBreadth();
     renderSectorChips();
     renderChangeRadar();
+    renderStreakLeader();
+    renderSentimentChart();
     renderCompareTable();
     renderWatchRadar();
     renderActionList();
     renderCards();
+    checkWatchlistAlerts();
     generateDailySummary();
   } catch(e) {
     showError('載入失敗：' + e.message + '（請確認 Google Sheet 已設為公開）');
@@ -2228,11 +2251,16 @@ function renderCards() {
       <div class="breakdown">${pips}</div>
       <div class="reasons">${reasons.map(r => `<span class="rtag ${rClass(r)}">${r}</span>`).join('')}</div>
       ${renderDivergenceBox(divergences)}
+      ${(()=>{ const cs = compareStocks[s.code]; if (!cs||!compareDate) return ''; const sd=s.score-cs.score, nd=s.instNet-cs.instNet; const sc=sd>0?'var(--green)':sd<0?'var(--red)':'var(--text3)'; const nc=nd>0?'var(--red)':nd<0?'var(--blue)':'var(--text3)'; return `<div style="font-size:.62rem;color:var(--text3);padding:3px 7px;background:var(--bg2);border-radius:6px;margin-top:4px">vs ${compareDate}：分數 <span style="color:${sc}">${sd>=0?'+':''}${sd}</span> · 法人 <span style="color:${nc}">${nd>=0?'+':''}${nd}張</span> · 前收 $${cs.price}</div>`; })()}
       <div class="stock-actions">
         <button class="mini-btn ${isWatched(s.code)?'active':''}" onclick="toggleWatch('${s.code}')">${isWatched(s.code)?'⭐ 已追蹤':'☆ 加入追蹤'}</button>
         <button class="mini-btn" onclick="toggleDetail('${s.code}')">單檔詳情</button>
+        <button class="mini-btn" onclick="toggleKBar('${s.code}','${s.date}')">📈 K棒</button>
         <button class="mini-btn" onclick="askStock('${s.code}')">問 AI</button>
         <button class="mini-btn" onclick="askCatalyst('${s.code}', event)">AI消息面</button>
+      </div>
+      <div id="kbar-wrap-${s.code}" style="display:none;margin-top:6px">
+        <div id="kbar-inner-${s.code}" style="background:var(--bg2);border-radius:8px;height:80px;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--text3)">載入中...</div>
       </div>
       <div id="catalyst-${s.code}" style="display:none;margin-top:8px"></div>
       <div id="detail-${s.code}" class="detail-panel" style="display:none">
@@ -2982,6 +3010,126 @@ function clearCache() {
   Object.keys(localStorage).filter(k => k.startsWith('sc_')).forEach(k => localStorage.removeItem(k));
 }
 
+// ── CSV Export ─────────────────────────────────────────────
+function exportCSV() {
+  const q = qs('searchInput')?.value.trim().toLowerCase()||'';
+  const selectedSector = qs('sectorFilter')?.value||'';
+  const vf = qs('volFilter')?.value||'';
+  let list = allStocks.filter(s => {
+    if (watchOnly && !isWatched(s.code)) return false;
+    if (q && !s.name.toLowerCase().includes(q) && !s.code.includes(q)) return false;
+    if (!q) {
+      if (selectedSector && s.sector !== selectedSector) return false;
+      if (vf==='whale' && s.vol<10000) return false;
+      if (vf==='fish' && (s.vol<3000||s.vol>=10000)) return false;
+      if (vf==='shrimp' && s.vol>=3000) return false;
+      if (actionFilter && getActionCategory(s) !== actionFilter) return false;
+      if (entryFilter && getEntryStatus(s) !== entryFilter) return false;
+      if (riskFilter && !getRiskFactors(s).some(f=>f.key===riskFilter)) return false;
+      if (currentFilter==='buy') return getDisplayOpClass(s)==='buy';
+      if (currentFilter==='watch') return ['watch','hot'].includes(getDisplayOpClass(s));
+      if (currentFilter==='avoid') return getDisplayOpClass(s)==='avoid';
+      if (currentFilter==='bear') return getDisplayOpClass(s)==='bear';
+    }
+    return true;
+  });
+  const headers = ['代號','名稱','板塊','操作','分數','法人淨買(張)','連買天數','收盤價','RSI','進場區間','停損','停利1','風報比','當沖比'];
+  const rows = [headers,...list.map(s=>[s.code,s.name,s.sector,getDisplayOp(s),s.score,s.instNet,s.streak,s.price,s.rsi,s.entry,s.stop,s.tp1,s.rr,s.dayTradeRatio])];
+  const csv = rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const a = Object.assign(document.createElement('a'),{href:URL.createObjectURL(blob),download:`訊號_${qs('dateTag').textContent||'data'}.csv`});
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  toast(`已匯出 ${list.length} 檔 CSV`);
+}
+
+// ── Watchlist alert ─────────────────────────────────────────
+function checkWatchlistAlerts() {
+  const wl = watchList();
+  if (!wl.length || !allStocks.length) return;
+  const hits = allStocks.filter(s => wl.includes(s.code) && getDisplayOpClass(s) === 'buy');
+  if (!hits.length) return;
+  toast(`🔔 自選股買入訊號：${hits.map(s=>s.name).join('、')}（${hits.length}檔）`, 5000);
+}
+
+// ── Streak leaderboard ─────────────────────────────────────
+function renderStreakLeader() {
+  const section = qs('streakSection'), card = qs('streakCard');
+  if (!section || !card || !allStocks.length) return;
+  const list = allStocks.filter(s=>s.streak>=3).sort((a,b)=>b.streak-a.streak).slice(0,8);
+  if (!list.length) { section.style.display='none'; return; }
+  const maxS = list[0].streak;
+  card.innerHTML = list.map((s,i) => {
+    const pct = Math.round(s.streak/maxS*100);
+    const col = getDisplayOpClass(s)==='buy'?'var(--green)':getDisplayOpClass(s)==='watch'?'var(--yellow)':'var(--text3)';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)" onclick="focusStock('${s.code}')">
+      <div style="min-width:20px;text-align:center;font-size:.72rem;font-weight:800;color:var(--text3)">${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.76rem;font-weight:700;color:var(--text)">${s.name} <span style="font-size:.58rem;color:var(--text3)">${s.code} · ${s.sector||''}</span></div>
+        <div style="height:4px;background:var(--bg2);border-radius:3px;margin-top:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${col};border-radius:3px"></div></div>
+      </div>
+      <div style="text-align:right;flex-shrink:0"><div style="font-size:.88rem;font-weight:800;color:${col}">${s.streak}天</div><div style="font-size:.58rem;color:var(--text3)">${s.instNet>0?'+':''}${s.instNet}張</div></div>
+    </div>`;
+  }).join('');
+  section.style.display='';
+}
+
+// ── Sentiment trend ─────────────────────────────────────────
+function renderSentimentChart() {
+  const section = qs('sentimentSection'), card = qs('sentimentCard');
+  if (!section || !card || !allRowsCache.length) return;
+  const dayMap = {};
+  allRowsCache.forEach(r => {
+    const c = r.c||[]; const date = parseDateVal(cell(c,0,'')); const op = String(cell(c,3,''));
+    if (!date||date.length!==10) return;
+    if (!dayMap[date]) dayMap[date]={buy:0,watch:0,avoid:0};
+    if (op.includes('🟢')) dayMap[date].buy++;
+    else if (op.includes('🟡')) dayMap[date].watch++;
+    else if (op.includes('🔴')||op.includes('⬇️')) dayMap[date].avoid++;
+  });
+  const days = Object.entries(dayMap).sort(([a],[b])=>a.localeCompare(b)).slice(-10);
+  if (days.length < 2) { section.style.display='none'; return; }
+  const maxT = Math.max(...days.map(([,d])=>d.buy+d.watch+d.avoid),1);
+  const bars = days.map(([date,d]) => {
+    const total = d.buy+d.watch+d.avoid||1;
+    const buyPct = Math.round(d.buy/total*100);
+    const col = buyPct>=30?'var(--green)':buyPct<15?'var(--red)':'var(--yellow)';
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:default">
+      <div style="font-size:.52rem;color:${col};font-weight:700">${buyPct}%</div>
+      <div style="width:100%;height:56px;display:flex;flex-direction:column;justify-content:flex-end;background:var(--bg2);border-radius:5px;overflow:hidden">
+        <div style="width:100%;height:${Math.round(d.buy/maxT*56)}px;background:var(--green);opacity:.7"></div>
+        <div style="width:100%;height:${Math.round(d.watch/maxT*56)}px;background:var(--yellow);opacity:.5"></div>
+        <div style="width:100%;height:${Math.round(d.avoid/maxT*56)}px;background:var(--red);opacity:.35"></div>
+      </div>
+      <div style="font-size:.52rem;color:var(--text3)">${date.slice(5).replace('-','/')}</div>
+    </div>`;
+  }).join('');
+  card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div style="font-size:.68rem;color:var(--text2)">每日買入訊號佔比</div>
+    <div style="display:flex;gap:8px;font-size:.58rem"><span style="color:var(--green)">■ 買入</span><span style="color:var(--yellow)">■ 觀察</span><span style="color:var(--red)">■ 避開</span></div>
+  </div><div style="display:flex;gap:3px;align-items:flex-end">${bars}</div>`;
+  section.style.display='';
+}
+
+// ── K-bar toggle ────────────────────────────────────────────
+function toggleKBar(code, date) {
+  const el = qs('kbar-wrap-' + code); if (!el) return;
+  if (el.style.display !== 'none') { el.style.display='none'; return; }
+  el.style.display='';
+  const inner = qs('kbar-inner-' + code);
+  if (inner && !inner.dataset.loaded) { inner.dataset.loaded='1'; loadKBar(code, date); }
+}
+
+// ── Compare date ────────────────────────────────────────────
+let compareDate = '', compareStocks = {};
+function setCompareDate(date) {
+  compareDate = date;
+  if (date) {
+    compareStocks = {};
+    allRowsCache.map(mapSignalRow).filter(s=>s.date===date&&s.code).forEach(s=>{compareStocks[s.code]=s;});
+  } else { compareStocks = {}; }
+  renderCards();
+}
+
 // ── Toast ─────────────────────────────────────────────────
 let _toastT;
 function toast(msg, ms=1800) {
@@ -3094,6 +3242,8 @@ const COLLAPSIBLE = [
   {id:'actionList',   sec:'actionListSection'},
   {id:'dailyNews',    sec:'dailyNewsSection'},
   {id:'changeRadar',  sec:'changeRadarSection'},
+  {id:'streak',       sec:'streakSection'},
+  {id:'sentiment',    sec:'sentimentSection'},
   {id:'compare',      sec:'compareSection'}
 ];
 function initCollapsibleSections() {
