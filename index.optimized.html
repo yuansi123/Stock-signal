@@ -1521,7 +1521,7 @@ function renderRotationRadar() {
     name, count:d.count, buy:d.buy,
     avgNet: Math.round(d.net / d.count),
     totalNet: d.net,
-    trend: d.warming > d.cooling ? '升溫' : d.cooling > d.warming ? '降溫' : '持平'
+    warming: d.warming, cooling: d.cooling
   })).sort((a,b) => b.avgNet - a.avgNet);
 
   if (!sectors.length) { section.style.display = 'none'; return; }
@@ -1534,24 +1534,32 @@ function renderRotationRadar() {
     const isPos = s.avgNet >= 0;
     const col = isPos ? 'var(--red)' : 'var(--blue)';
     const barW = Math.max(3, Math.abs(s.avgNet) / maxAbs * 100);
-    const trendIcon = s.trend === '升溫' ? '↑' : s.trend === '降溫' ? '↓' : '→';
-    const trendCol = s.trend === '升溫' ? 'var(--green)' : s.trend === '降溫' ? 'var(--red)' : 'var(--text3)';
+    // 訊號動能（基於個股 scoreDelta）
+    const sigMom = s.warming > s.cooling ? {icon:'訊號↑', col:'var(--green)'} :
+                   s.cooling > s.warming ? {icon:'訊號↓', col:'var(--text3)'} :
+                   {icon:'訊號→', col:'var(--text3)'};
     const leader = allStocks.filter(st => st.sector === s.name).sort((a,b) => b.instNet - a.instNet)[0];
     const fmt = (isPos?'+':'') + s.avgNet.toLocaleString('zh-TW');
-    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--border);cursor:pointer" onclick="setSectorFilter('${s.name.replace(/'/g,"\\'")}')">
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
-          <span style="font-size:.74rem;font-weight:700;color:var(--text)">${s.name.split('/')[0]}</span>
-          <span style="font-size:.6rem;font-weight:700;color:${trendCol}">${trendIcon}${s.trend}</span>
-          <span style="font-size:.56rem;color:var(--text3)">${s.buy}/${s.count}買</span>
+    const isOther = s.name === '其他電子';
+    return `<div style="padding:5px 2px;border-bottom:1px solid var(--border);cursor:pointer" onclick="setSectorFilter('${s.name.replace(/'/g,"\\'")}')">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+            <span style="font-size:.74rem;font-weight:700;color:var(--text)">${s.name.split('/')[0]}${isOther?'<span style="font-size:.52rem;color:var(--text3);font-weight:400"> (分類較雜)</span>':''}</span>
+            <span style="font-size:.56rem;color:var(--text3)">${s.buy}/${s.count}買</span>
+          </div>
+          <div style="height:7px;background:var(--bg2);border-radius:4px;overflow:hidden">
+            <div style="width:${barW}%;height:100%;background:${col};border-radius:4px;opacity:.85"></div>
+          </div>
         </div>
-        <div style="height:7px;background:var(--bg2);border-radius:4px;overflow:hidden">
-          <div style="width:${barW}%;height:100%;background:${col};border-radius:4px;opacity:.85"></div>
+        <div style="text-align:right;flex-shrink:0;min-width:76px">
+          <div style="font-size:.82rem;font-weight:800;color:${col}">${fmt}</div>
+          <div style="font-size:.56rem;color:var(--text3)">張/檔</div>
         </div>
       </div>
-      <div style="text-align:right;flex-shrink:0;min-width:76px">
-        <div style="font-size:.82rem;font-weight:800;color:${col}">${fmt}</div>
-        <div style="font-size:.56rem;color:var(--text3)">張/檔${leader?' · '+leader.name:''}</div>
+      <div style="margin-top:3px;display:flex;align-items:center;gap:6px">
+        <span style="font-size:.56rem;color:${sigMom.col}">${sigMom.icon}（${s.warming}升/${s.cooling}降）</span>
+        ${leader?`<span style="font-size:.56rem;color:var(--text3)">領頭 ${leader.name}</span>`:''}
       </div>
     </div>`;
   };
