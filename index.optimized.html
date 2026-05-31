@@ -367,7 +367,10 @@ button,select,input { font-family:inherit; }
           <div id="scanTitle" class="scan-title">掃描狀態</div>
           <div id="scanMessage" class="scan-msg">正在確認 Apps Script 狀態...</div>
         </div>
-        <button id="fetchAllBtn" class="primary-btn dark" onclick="triggerFetchAll()">觸發掃描</button>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+          <button id="cleanTriggerBtn" class="ghost-btn" style="display:none;border:1px solid var(--border);border-radius:14px;padding:.32rem .65rem" onclick="cleanFetchAllTriggers()">清理排程</button>
+          <button id="fetchAllBtn" class="primary-btn dark" onclick="triggerFetchAll()">觸發掃描</button>
+        </div>
       </div>
       <div class="scan-progress-bg"><div id="scanProgressFill" class="scan-progress-fill"></div></div>
       <div id="scanMeta" class="scan-meta">—</div>
@@ -377,7 +380,7 @@ button,select,input { font-family:inherit; }
       <option value="">📅 載入中...</option>
     </select>
     <select id="compareDateSelect" class="date-select" style="margin-top:-.6rem;margin-bottom:.8rem;opacity:.85" onchange="setCompareDate(this.value)">
-      <option value="">📊 比較基準日（選填）</option>
+      <option value="">📊 載入比較日期...</option>
     </select>
     <div id="dateMeta" style="font-size:.66rem;color:var(--text3);margin:-.4rem 0 1rem;padding-left:.2rem"></div>
 
@@ -1411,7 +1414,7 @@ function renderChangeRadar() {
     ${rows.length ? rows.map(s => row(s, renderMeta(s), color)).join('') : `<div class="focus-empty">${empty}</div>`}
   </div>`;
 
-  card.innerHTML = `<div style="font-size:.68rem;color:var(--text3);margin-bottom:8px">比較區間：${compareText}。每檔以目前選取日期，對照該股票在「趨勢追蹤」中的前一筆日期。</div>
+  card.innerHTML = `<div style="font-size:.68rem;color:var(--text3);margin-bottom:8px">比較區間：${compareText}。分數變化與法人變化會跟上方「比較基準日」同步。</div>
   <div class="action-grid">
     ${col('升溫', warming, '沒有明顯升溫股', 'var(--green)', s => `分數 ${s.prevScore} → ${s.score}（+${s.scoreDelta}）`)}
     ${col('籌碼轉強', flowUp, '沒有明顯加碼股', 'var(--red)', s => `法人變化 ${s.instNetDelta > 0 ? '+' : ''}${s.instNetDelta}張`)}
@@ -2125,13 +2128,24 @@ async function loadData() {
     const current = sel.value;
     sel.innerHTML = dates.map((d,i) => `<option value="${d}" ${(current===d || (!current && i===0))?'selected':''}>${i===0?'📅 最新 ': '📅 '}${d}</option>`).join('');
     const filterDate = sel.value || dates[0] || '';
+    const cmpSel = qs('compareDateSelect');
+    const prevCompare = compareDate || cmpSel?.value || '';
+    const compareDates = dates.filter(d => d < filterDate);
+    const nextCompare = compareDates.includes(prevCompare) ? prevCompare : (compareDates[0] || '');
+    compareDate = nextCompare;
+    if (cmpSel) {
+      cmpSel.innerHTML = compareDates.length
+        ? compareDates.map((d,i)=>`<option value="${d}">${i===0?'📊 前一交易日 ': '📊 '}${d}</option>`).join('')
+        : '<option value="">📊 無可比較日期</option>';
+      cmpSel.value = nextCompare;
+    }
+    buildCompareStocks();
+
     allStocks = rows.map(mapSignalRow).filter(s => s.code && (!filterDate || s.date === filterDate));
-    await applyTrendChanges(filterDate);
+    await applyTrendChanges(filterDate, compareDate);
     qs('dateTag').textContent = filterDate || allStocks[0]?.date || '—';
     const now = new Date(); const hm = now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
     qs('dateMeta').textContent = filterDate ? `${filterDate} · ${allStocks.length} 檔 · 更新 ${hm}` : '';
-    const cmpSel = qs('compareDateSelect');
-    if (cmpSel) cmpSel.innerHTML = '<option value="">📊 比較基準日（選填）</option>' + dates.slice(1).map(d=>`<option value="${d}">${d}</option>`).join('');
     loadFilters();
     renderMarketBreadth();
     renderSectorChips();
@@ -2149,8 +2163,35 @@ async function loadData() {
   }
 }
 
-async function applyTrendChanges(currentDate) {
+async function applyTrendChanges(currentDate, baselineDate) {
   if (!currentDate || !allStocks.length) return;
+  if (baselineDate) {
+    const baseline = {};
+    allRowsCache.map(mapSignalRow)
+      .filter(s => s.date === baselineDate && s.code)
+      .forEach(s => { baseline[s.code] = s; });
+
+    allStocks.forEach(s => {
+      const prev = baseline[s.code];
+      if (!prev) {
+        s.scoreDelta = null;
+        s.prevScore = null;
+        s.prevInstNet = null;
+        s.instNetDelta = null;
+        s.prevTrendDate = null;
+        s.trendCompareDate = currentDate;
+        return;
+      }
+      s.prevScore = Number(prev.score) || 0;
+      s.prevInstNet = Number(prev.instNet) || 0;
+      s.prevOp = prev.op;
+      s.prevTrendDate = baselineDate;
+      s.trendCompareDate = currentDate;
+      s.scoreDelta = Number(s.score || 0) - s.prevScore;
+      s.instNetDelta = Number(s.instNet || 0) - s.prevInstNet;
+    });
+    return;
+  }
   if (!dsEnabled('trend')) {
     allStocks.forEach(s => { s.scoreDelta=null; s.prevScore=null; s.prevInstNet=null; s.prevTrendDate=null; s.trendCompareDate=currentDate; });
     return;
@@ -3198,13 +3239,21 @@ function toggleKBar(code, date) {
 
 // ── Compare date ────────────────────────────────────────────
 let compareDate = '', compareStocks = {};
-function setCompareDate(date) {
-  compareDate = date;
-  if (date) {
-    compareStocks = {};
-    allRowsCache.map(mapSignalRow).filter(s=>s.date===date&&s.code).forEach(s=>{compareStocks[s.code]=s;});
-  } else { compareStocks = {}; }
+function buildCompareStocks() {
+  compareStocks = {};
+  if (!compareDate) return;
+  allRowsCache.map(mapSignalRow)
+    .filter(s => s.date === compareDate && s.code)
+    .forEach(s => { compareStocks[s.code] = s; });
+}
+async function setCompareDate(date) {
+  compareDate = date || '';
+  buildCompareStocks();
+  const currentDate = qs('dateSelect')?.value || qs('dateTag')?.textContent || '';
+  await applyTrendChanges(currentDate, compareDate);
+  renderChangeRadar();
   renderCards();
+  toast(compareDate ? `已改用 ${compareDate} 做比較` : '已清除比較基準');
 }
 
 // ── Toast ─────────────────────────────────────────────────
@@ -3237,6 +3286,7 @@ function isScanBusy(s) {
 function renderScanStatus(s, fromError) {
   const title = qs('scanTitle'), msg = qs('scanMessage'), meta = qs('scanMeta'), fill = qs('scanProgressFill'), btn = qs('fetchAllBtn');
   if (!title || !msg || !meta || !fill || !btn) return;
+  const cleanBtn = qs('cleanTriggerBtn');
 
   if (fromError) {
     title.textContent = '掃描狀態';
@@ -3246,6 +3296,7 @@ function renderScanStatus(s, fromError) {
     fill.style.background = 'var(--text3)';
     btn.disabled = false;
     btn.textContent = '重試掃描';
+    if (cleanBtn) cleanBtn.style.display = 'none';
     return;
   }
 
@@ -3254,13 +3305,14 @@ function renderScanStatus(s, fromError) {
   const statusLabel = scanStatusText(s.status);
   const pct = Number(s.progressPct || 0);
   const hasTargets = Number(s.targetCount || 0) > 0;
+  const staleTriggers = !busy && Number(s.triggerCount || 0) > 0;
   const dateText = s.date || s.lastDate || '尚無日期';
   const batchText = hasTargets ? `進度 ${Math.min(100, pct)}%（${s.batchStart || 0}/${s.targetCount} 檔）` : '尚未建立批次清單';
   const updated = s.updatedAt ? `更新 ${s.updatedAt}` : '尚無更新時間';
 
   title.textContent = `掃描狀態：${statusLabel}`;
-  msg.textContent = s.message || (busy ? '系統正在處理掃描流程，請稍等。' : '可以手動觸發盤後掃描。');
-  meta.textContent = `${dateText} · ${batchText} · ${updated}`;
+  msg.textContent = s.message || (staleTriggers ? '偵測到殘留排程，可先清理後再掃描。' : busy ? '系統正在處理掃描流程，請稍等。' : '可以手動觸發盤後掃描。');
+  meta.textContent = `${dateText} · ${batchText} · ${updated}${staleTriggers ? ` · 殘留排程 ${s.triggerCount} 個` : ''}`;
   fill.style.width = busy && !hasTargets ? '18%' : `${Math.min(100, Math.max(0, pct))}%`;
   fill.style.background =
     s.status === 'waiting_data' ? 'var(--yellow)' :
@@ -3273,6 +3325,7 @@ function renderScanStatus(s, fromError) {
     s.status === 'waiting_data' ? '資料到齊後重跑' :
     s.status === 'completed' || s.status === 'skipped' ? '重新掃描' :
     '觸發掃描';
+  if (cleanBtn) cleanBtn.style.display = staleTriggers ? '' : 'none';
 }
 async function fetchScanStatus() {
   const res = await fetch(`${WEB_APP_URL}?action=status&ts=${Date.now()}`, {cache:'no-store'});
@@ -3309,6 +3362,22 @@ async function triggerFetchAll() {
   } catch(e) {
     toast('掃描觸發失敗：' + e.message, 2600);
     await updateScanStatus();
+  }
+}
+async function cleanFetchAllTriggers() {
+  const btn = qs('cleanTriggerBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '清理中...'; }
+  try {
+    const res = await fetch(`${WEB_APP_URL}?action=cleanFetchAllTriggers&ts=${Date.now()}`, {cache:'no-store'});
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.msg || data.error || '清理失敗');
+    toast(`${data.msg}（${data.deleted || 0}個）`);
+    renderScanStatus(data.status || await fetchScanStatus());
+  } catch(e) {
+    toast('清理排程失敗：' + e.message, 2600);
+    await updateScanStatus();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '清理排程'; }
   }
 }
 
