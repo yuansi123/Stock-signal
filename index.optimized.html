@@ -396,6 +396,7 @@ button,select,input { font-family:inherit; }
     </div>
 
     <div id="sectorChipsSection" style="display:none;margin-bottom:1rem">
+      <div id="sectorNarrative" style="font-size:.72rem;color:var(--text2);line-height:1.6;margin-bottom:7px;padding:7px 10px;background:var(--card);border-radius:12px;box-shadow:0 1px 6px var(--shadow)"></div>
       <div id="sectorChipsCard" class="sector-chip-row"></div>
     </div>
 
@@ -414,11 +415,11 @@ button,select,input { font-family:inherit; }
       <div id="streakCard" class="plain-card"></div>
     </div>
 
-    <div id="sentimentSection" style="display:none;margin-bottom:1rem">
+    <div id="dailyFlowSection" style="display:none;margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">📉 市場情緒走勢</div>
+        <div class="section-title" style="margin:0">💹 法人資金日流向</div>
       </div>
-      <div id="sentimentCard" class="plain-card"></div>
+      <div id="dailyFlowCard" class="plain-card"></div>
     </div>
 
     <div id="compareSection" style="display:none;margin-bottom:1rem">
@@ -1476,10 +1477,29 @@ function renderSectorChips() {
     .slice(0, 8);
 
   const totalBuy = allStocks.filter(s => s.op.includes('🟢')).length;
+
+  // Narrative
+  const inflow = sectors.filter(s=>s.avg>0).sort((a,b)=>b.avg-a.avg).slice(0,3);
+  const outflow = sectors.filter(s=>s.avg<0).sort((a,b)=>a.avg-b.avg).slice(0,2);
+  const totalNet = allStocks.reduce((s,x)=>s+(x.instNet||0),0);
+  const flowDir = totalNet>0?'流入':'流出';
+  const flowCol = totalNet>0?'var(--red)':'var(--blue)';
+  let narrative = '';
+  if (inflow.length) narrative += `💰 法人資金流入【<span style="color:var(--red);font-weight:700">${inflow.map(s=>s.name.split('/')[0]).join('】【')}</span>】`;
+  if (inflow[0]?.avg > 300) narrative += '，積極布局中';
+  if (outflow.length) narrative += `；撤出【<span style="color:var(--blue);font-weight:700">${outflow.map(s=>s.name.split('/')[0]).join('】【')}</span>】`;
+  narrative += `。整體掃描池法人合計 <span style="color:${flowCol};font-weight:700">${totalNet>=0?'+':''}${totalNet.toLocaleString('zh-TW')} 張</span>（${flowDir}）。`;
+  const narEl = qs('sectorNarrative');
+  if (narEl) narEl.innerHTML = narrative;
+
   card.innerHTML = `<button class="sector-chip ${selected ? '' : 'active'}" onclick="setSectorFilter('')">全部 <span style="opacity:.7">${totalBuy}買</span></button>` +
-    sectors.map(s => `<button class="sector-chip ${selected === s.name ? 'active' : ''}" onclick="setSectorFilter('${s.name.replace(/'/g, "\\'")}')">
-      <strong>${s.name.split('/')[0]}</strong>${s.buy ? ` <span style="opacity:.75">${s.buy}買</span>` : ''}
-    </button>`).join('');
+    sectors.map(s => {
+      const arrow = s.avg > 200 ? ' ↑' : s.avg < -200 ? ' ↓' : '';
+      const arrowCol = s.avg > 0 ? ';color:#c05848' : s.avg < 0 ? ';color:#4878a0' : '';
+      return `<button class="sector-chip ${selected === s.name ? 'active' : ''}" onclick="setSectorFilter('${s.name.replace(/'/g, "\\'")}')">
+        <strong>${s.name.split('/')[0]}</strong>${s.buy ? ` <span style="opacity:.75">${s.buy}買</span>` : ''}<span style="opacity:.8${arrowCol}">${arrow}</span>
+      </button>`;
+    }).join('');
   section.style.display = '';
 }
 function renderRotationRadar() {
@@ -2069,7 +2089,7 @@ async function loadData() {
     renderSectorChips();
     renderChangeRadar();
     renderStreakLeader();
-    renderSentimentChart();
+    renderDailyFlow();
     renderCompareTable();
     renderWatchRadar();
     renderActionList();
@@ -3073,40 +3093,48 @@ function renderStreakLeader() {
   section.style.display='';
 }
 
-// ── Sentiment trend ─────────────────────────────────────────
-function renderSentimentChart() {
-  const section = qs('sentimentSection'), card = qs('sentimentCard');
+// ── Daily fund flow ─────────────────────────────────────────
+function renderDailyFlow() {
+  const section = qs('dailyFlowSection'), card = qs('dailyFlowCard');
   if (!section || !card || !allRowsCache.length) return;
-  const dayMap = {};
+  const dayNet = {};
   allRowsCache.forEach(r => {
-    const c = r.c||[]; const date = parseDateVal(cell(c,0,'')); const op = String(cell(c,3,''));
-    if (!date||date.length!==10) return;
-    if (!dayMap[date]) dayMap[date]={buy:0,watch:0,avoid:0};
-    if (op.includes('🟢')) dayMap[date].buy++;
-    else if (op.includes('🟡')) dayMap[date].watch++;
-    else if (op.includes('🔴')||op.includes('⬇️')) dayMap[date].avoid++;
+    const c = r.c||[];
+    const date = parseDateVal(cell(c,0,'')); if (!date||date.length!==10) return;
+    dayNet[date] = (dayNet[date]||0) + (Number(cell(c,COL.instNet,0))||0);
   });
-  const days = Object.entries(dayMap).sort(([a],[b])=>a.localeCompare(b)).slice(-10);
-  if (days.length < 2) { section.style.display='none'; return; }
-  const maxT = Math.max(...days.map(([,d])=>d.buy+d.watch+d.avoid),1);
-  const bars = days.map(([date,d]) => {
-    const total = d.buy+d.watch+d.avoid||1;
-    const buyPct = Math.round(d.buy/total*100);
-    const col = buyPct>=30?'var(--green)':buyPct<15?'var(--red)':'var(--yellow)';
-    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:default">
-      <div style="font-size:.52rem;color:${col};font-weight:700">${buyPct}%</div>
-      <div style="width:100%;height:56px;display:flex;flex-direction:column;justify-content:flex-end;background:var(--bg2);border-radius:5px;overflow:hidden">
-        <div style="width:100%;height:${Math.round(d.buy/maxT*56)}px;background:var(--green);opacity:.7"></div>
-        <div style="width:100%;height:${Math.round(d.watch/maxT*56)}px;background:var(--yellow);opacity:.5"></div>
-        <div style="width:100%;height:${Math.round(d.avoid/maxT*56)}px;background:var(--red);opacity:.35"></div>
+  const days = Object.entries(dayNet).sort(([a],[b])=>a.localeCompare(b)).slice(-10);
+  if (!days.length) { section.style.display='none'; return; }
+  const maxAbs = Math.max(...days.map(([,n])=>Math.abs(n)),1);
+  const today = days[days.length-1], prev = days[days.length-2];
+  const todayNet = today?.[1]??0, prevNet = prev?.[1]??0;
+  const delta = todayNet - prevNet;
+  const todayFmt = (todayNet>=0?'+':'')+Math.round(todayNet).toLocaleString('zh-TW');
+  const todayCol = todayNet>=0?'var(--red)':'var(--blue)';
+  const trendTxt = delta>20000?'↑ 持續流入加速':delta>0?'↑ 流入增加':delta<-20000?'↓ 流出加速':delta<0?'↓ 流入減緩':'→ 動能持平';
+  const trendCol = delta>0?'var(--green)':delta<0?'var(--blue)':'var(--text3)';
+  const bars = days.map(([date,net]) => {
+    const isPos = net>=0; const col = isPos?'var(--red)':'var(--blue)';
+    const h = Math.max(4, Math.abs(net)/maxAbs*56);
+    const fmt = (isPos?'+':'')+Math.round(net/1000).toLocaleString('zh-TW')+'K';
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
+      <div style="font-size:.5rem;color:${col};font-weight:700;text-align:center;line-height:1.2">${fmt}</div>
+      <div style="width:100%;height:58px;display:flex;align-items:${isPos?'flex-end':'flex-start'};justify-content:center;background:var(--bg2);border-radius:5px;overflow:hidden">
+        <div style="width:80%;height:${h}px;background:${col};opacity:.75;border-radius:3px;margin:0 auto"></div>
       </div>
-      <div style="font-size:.52rem;color:var(--text3)">${date.slice(5).replace('-','/')}</div>
+      <div style="font-size:.5rem;color:var(--text3);text-align:center">${date.slice(5).replace('-','/')}</div>
     </div>`;
   }).join('');
-  card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-    <div style="font-size:.68rem;color:var(--text2)">每日買入訊號佔比</div>
-    <div style="display:flex;gap:8px;font-size:.58rem"><span style="color:var(--green)">■ 買入</span><span style="color:var(--yellow)">■ 觀察</span><span style="color:var(--red)">■ 避開</span></div>
-  </div><div style="display:flex;gap:3px;align-items:flex-end">${bars}</div>`;
+  card.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px">
+      <div>
+        <div style="font-size:.65rem;color:var(--text3);margin-bottom:2px">今日掃描池法人合計</div>
+        <div style="font-size:1.5rem;font-weight:800;color:${todayCol}">${todayFmt} 張</div>
+        <div style="font-size:.63rem;color:${trendCol};margin-top:2px">${trendTxt}（vs 前日 ${delta>=0?'+':''}${Math.round(delta).toLocaleString('zh-TW')} 張）</div>
+      </div>
+      <div style="text-align:right;font-size:.6rem;color:var(--text3)">正值=法人流入<br>負值=法人流出</div>
+    </div>
+    <div style="display:flex;gap:3px;align-items:center">${bars}</div>`;
   section.style.display='';
 }
 
@@ -3243,7 +3271,7 @@ const COLLAPSIBLE = [
   {id:'dailyNews',    sec:'dailyNewsSection'},
   {id:'changeRadar',  sec:'changeRadarSection'},
   {id:'streak',       sec:'streakSection'},
-  {id:'sentiment',    sec:'sentimentSection'},
+  {id:'dailyFlow',    sec:'dailyFlowSection'},
   {id:'compare',      sec:'compareSection'}
 ];
 function initCollapsibleSections() {
