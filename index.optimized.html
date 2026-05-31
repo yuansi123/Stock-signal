@@ -3309,10 +3309,12 @@ function renderScanStatus(s, fromError) {
   const dateText = s.date || s.lastDate || '尚無日期';
   const batchText = hasTargets ? `進度 ${Math.min(100, pct)}%（${s.batchStart || 0}/${s.targetCount} 檔）` : '尚未建立批次清單';
   const updated = s.updatedAt ? `更新 ${s.updatedAt}` : '尚無更新時間';
+  const dailyText = Number(s.dailyTriggerCount || 0) > 0 ? '每日23:00自動掃描已啟用' : '每日自動掃描未啟用';
+  const retryText = Number(s.retryCount || 0) > 0 ? ` · 重試 ${s.retryCount}/6` : '';
 
   title.textContent = `掃描狀態：${statusLabel}`;
   msg.textContent = s.message || (staleTriggers ? '偵測到殘留排程，可先清理後再掃描。' : busy ? '系統正在處理掃描流程，請稍等。' : '可以手動觸發盤後掃描。');
-  meta.textContent = `${dateText} · ${batchText} · ${updated}${staleTriggers ? ` · 殘留排程 ${s.triggerCount} 個` : ''}`;
+  meta.textContent = `${dateText} · ${batchText} · ${dailyText}${retryText} · ${updated}${staleTriggers ? ` · 殘留排程 ${s.triggerCount} 個` : ''}`;
   fill.style.width = busy && !hasTargets ? '18%' : `${Math.min(100, Math.max(0, pct))}%`;
   fill.style.background =
     s.status === 'waiting_data' ? 'var(--yellow)' :
