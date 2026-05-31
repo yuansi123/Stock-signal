@@ -869,7 +869,9 @@ async function copyWatchList() {
     await navigator.clipboard.writeText(text);
     toast('已複製自選股清單 ' + text);
   } catch(e) {
-    window.prompt('請手動複製自選股清單：', text);
+    const ta = Object.assign(document.createElement('textarea'),{value:text,style:'position:fixed;top:-9999px;opacity:0'});
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    toast('已複製自選股清單');
   }
 }
 function importWatchList() {
@@ -1455,9 +1457,10 @@ function renderSectorChips() {
     .sort((a,b) => b.avg - a.avg || b.buy - a.buy)
     .slice(0, 8);
 
-  card.innerHTML = `<button class="sector-chip ${selected ? '' : 'active'}" onclick="setSectorFilter('')">全部</button>` +
+  const totalBuy = allStocks.filter(s => s.op.includes('🟢')).length;
+  card.innerHTML = `<button class="sector-chip ${selected ? '' : 'active'}" onclick="setSectorFilter('')">全部 <span style="opacity:.7">${totalBuy}買</span></button>` +
     sectors.map(s => `<button class="sector-chip ${selected === s.name ? 'active' : ''}" onclick="setSectorFilter('${s.name.replace(/'/g, "\\'")}')">
-      <strong>${s.name.split('/')[0]}</strong> ${s.avg >= 0 ? '+' : ''}${s.avg}
+      <strong>${s.name.split('/')[0]}</strong>${s.buy ? ` <span style="opacity:.75">${s.buy}買</span>` : ''}
     </button>`).join('');
   section.style.display = '';
 }
@@ -1779,11 +1782,11 @@ async function copyDailyBrief() {
   const text = buildDailyBrief();
   try {
     await navigator.clipboard.writeText(text);
-    const old = qs('dateMeta').textContent;
-    qs('dateMeta').textContent = '已複製今日作戰簡報';
-    setTimeout(() => { qs('dateMeta').textContent = old; }, 1800);
+    toast('已複製今日作戰簡報');
   } catch(e) {
-    window.prompt('剪貼簿被瀏覽器阻擋，請手動複製：', text);
+    const ta = Object.assign(document.createElement('textarea'),{value:text,style:'position:fixed;top:-9999px;opacity:0'});
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    toast('已複製今日作戰簡報');
   }
 }
 function toggleDetail(code) {
@@ -1892,7 +1895,11 @@ function renderFilterStatus(count, total) {
     <button class="ghost-btn" onclick="clearAllFilters()" style="white-space:nowrap">清除</button>
   </div>`;
 }
+const _scrollPos = {};
 function showPage(page) {
+  const pages = ['signal','sector','backtest','ai','large'];
+  const cur = pages.find(p => qs(p+'Page')?.style.display !== 'none');
+  if (cur) _scrollPos[cur] = window.scrollY;
   ['Signal','Sector','Backtest','AI','Large'].forEach(name => {
     const key = name.toLowerCase();
     const nav = qs('nav' + name);
@@ -1903,6 +1910,7 @@ function showPage(page) {
   qs('backtestPage').style.display = page === 'backtest' ? '' : 'none';
   qs('aiPage').style.display = page === 'ai' ? '' : 'none';
   qs('largePage').style.display = page === 'large' ? '' : 'none';
+  requestAnimationFrame(() => window.scrollTo(0, _scrollPos[page] || 0));
   const disabled = el => `<div class="state" style="padding:3rem 1rem"><div style="font-size:1.5rem;margin-bottom:8px">⚙️</div><div>已在設定中停用</div><div style="font-size:.72rem;color:var(--text3);margin-top:6px">點右上角 ⚙️ 開啟</div></div>`;
   if (page === 'sector')   { dsEnabled('sector')   ? loadSector()   : qs('sectorContent').innerHTML  = disabled(); }
   if (page === 'backtest') { dsEnabled('backtest')  ? loadBacktest() : qs('btContent').innerHTML      = disabled(); }
@@ -2100,6 +2108,11 @@ async function applyTrendChanges(currentDate) {
   }
 }
 
+function hlMatch(text, q) {
+  if (!q) return text;
+  const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+  return text.replace(re, '<mark style="background:var(--yellow);color:var(--text);border-radius:2px;padding:0 1px">$1</mark>');
+}
 function renderCards() {
   updateWatchButton();
   updateNavBadge();
@@ -2170,8 +2183,8 @@ function renderCards() {
     return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*.035,.5)}s">
       <div class="card-header">
         <div>
-          <div class="stock-name">${s.name}${getSignalTag(s)}${getTrendTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}</div>
-          <div class="stock-code">${s.code}${s.sector ? ' · ' + s.sector : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
+          <div class="stock-name">${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}</div>
+          <div class="stock-code">${hlMatch(s.code,q)}${s.sector ? ` · <span onclick="setSectorFilter('${s.sector.replace(/'/g,"\\'")}');event.stopPropagation()" style="cursor:pointer;color:var(--brown)">${s.sector}</span>` : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
       </div>
@@ -3135,6 +3148,19 @@ async function loadAll(force = false) {
   await Promise.allSettled(tasks);
 }
 
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+  if (e.key === '/') {
+    e.preventDefault();
+    const inp = qs('searchInput');
+    if (inp) { showPage('signal'); inp.focus(); inp.select(); }
+  }
+  if (e.key === 'Escape') {
+    const inp = qs('searchInput');
+    if (inp && inp.value) { inp.value = ''; saveFilters(); renderCards(); }
+    closeSettings();
+  }
+});
 initCollapsibleSections();
 applyTheme();
 localStorage.removeItem('sc_AI分析');
