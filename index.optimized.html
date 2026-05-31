@@ -1509,51 +1509,63 @@ function renderRotationRadar() {
   const sectorMap = {};
   allStocks.forEach(s => {
     const sec = s.sector || '其他電子';
-    if (!sectorMap[sec]) sectorMap[sec] = {rows:[], net:0, score:0, warming:0, buy:0, hot:0};
+    if (!sectorMap[sec]) sectorMap[sec] = {net:0, score:0, warming:0, cooling:0, buy:0, count:0};
     const d = sectorMap[sec];
-    d.rows.push(s);
-    d.net += Number(s.instNet) || 0;
-    d.score += Number(s.score) || 0;
-    if ((s.scoreDelta || 0) > 0) d.warming++;
+    d.count++; d.net += Number(s.instNet)||0; d.score += Number(s.score)||0;
+    if ((s.scoreDelta||0) > 0) d.warming++;
+    if ((s.scoreDelta||0) < 0) d.cooling++;
     if (getDisplayOpClass(s) === 'buy') d.buy++;
-    if (getOverheatState(s)?.kind === 'strong') d.hot++;
   });
 
-  const sectors = Object.entries(sectorMap)
-    .map(([name, d]) => {
-      const count = d.rows.length || 1;
-      const avgNet = Math.round(d.net / count);
-      const avgScore = d.score / count;
-      const heat = Math.round(avgNet / 20 + avgScore * 6 + d.warming * 8 + d.buy * 10 + d.hot * 8);
-      const leader = d.rows.slice().sort((a,b) => b.score - a.score || b.instNet - a.instNet)[0];
-      return {name, count, avgNet, avgScore, warming:d.warming, buy:d.buy, hot:d.hot, heat, leader};
-    })
-    .sort((a,b) => b.heat - a.heat)
-    .slice(0, 5);
+  const sectors = Object.entries(sectorMap).map(([name, d]) => ({
+    name, count:d.count, buy:d.buy,
+    avgNet: Math.round(d.net / d.count),
+    totalNet: d.net,
+    trend: d.warming > d.cooling ? '升溫' : d.cooling > d.warming ? '降溫' : '持平'
+  })).sort((a,b) => b.avgNet - a.avgNet);
 
-  if (!sectors.length) {
-    section.style.display = 'none';
-    return;
-  }
+  if (!sectors.length) { section.style.display = 'none'; return; }
 
-  const maxHeat = Math.max(...sectors.map(s => Math.abs(s.heat)), 1);
-  card.innerHTML = sectors.map((s, idx) => {
-    const pct = Math.max(8, Math.min(100, Math.abs(s.heat) / maxHeat * 100));
-    const color = s.heat >= 80 ? 'var(--green)' : s.heat >= 45 ? 'var(--yellow)' : s.avgNet < 0 ? 'var(--blue)' : 'var(--brown)';
-    return `<div class="action-row" onclick="setSectorFilter('${s.name.replace(/'/g, "\\'")}')">
-      <div style="min-width:0;flex:1">
-        <div class="action-name">#${idx + 1} ${s.name} <span style="font-size:.6rem;color:var(--text3)">${s.count}檔</span></div>
-        <div class="action-meta">均買 ${s.avgNet >= 0 ? '+' : ''}${s.avgNet}張 · 均分 ${s.avgScore.toFixed(1)} · 升溫 ${s.warming} · 買入 ${s.buy}</div>
-        <div style="height:5px;background:var(--bg2);border-radius:4px;margin-top:5px;overflow:hidden">
-          <div style="width:${pct}%;height:100%;background:${color};border-radius:4px"></div>
+  const maxAbs = Math.max(...sectors.map(s => Math.abs(s.avgNet)), 1);
+  const inflow = sectors.filter(s => s.avgNet > 0);
+  const outflow = sectors.filter(s => s.avgNet <= 0).reverse();
+
+  const row = s => {
+    const isPos = s.avgNet >= 0;
+    const col = isPos ? 'var(--red)' : 'var(--blue)';
+    const barW = Math.max(3, Math.abs(s.avgNet) / maxAbs * 100);
+    const trendIcon = s.trend === '升溫' ? '↑' : s.trend === '降溫' ? '↓' : '→';
+    const trendCol = s.trend === '升溫' ? 'var(--green)' : s.trend === '降溫' ? 'var(--red)' : 'var(--text3)';
+    const leader = allStocks.filter(st => st.sector === s.name).sort((a,b) => b.instNet - a.instNet)[0];
+    const fmt = (isPos?'+':'') + s.avgNet.toLocaleString('zh-TW');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--border);cursor:pointer" onclick="setSectorFilter('${s.name.replace(/'/g,"\\'")}')">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
+          <span style="font-size:.74rem;font-weight:700;color:var(--text)">${s.name.split('/')[0]}</span>
+          <span style="font-size:.6rem;font-weight:700;color:${trendCol}">${trendIcon}${s.trend}</span>
+          <span style="font-size:.56rem;color:var(--text3)">${s.buy}/${s.count}買</span>
+        </div>
+        <div style="height:7px;background:var(--bg2);border-radius:4px;overflow:hidden">
+          <div style="width:${barW}%;height:100%;background:${col};border-radius:4px;opacity:.85"></div>
         </div>
       </div>
-      <div style="text-align:right;min-width:86px">
-        <div style="font-size:.88rem;font-weight:800;color:${color}">${s.heat}</div>
-        <div style="font-size:.62rem;color:var(--text3)">領頭 ${s.leader ? s.leader.name : '—'}</div>
+      <div style="text-align:right;flex-shrink:0;min-width:76px">
+        <div style="font-size:.82rem;font-weight:800;color:${col}">${fmt}</div>
+        <div style="font-size:.56rem;color:var(--text3)">張/檔${leader?' · '+leader.name:''}</div>
       </div>
     </div>`;
-  }).join('');
+  };
+
+  card.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div>
+      <div style="font-size:.62rem;color:var(--red);font-weight:700;margin-bottom:5px">▲ 資金流入</div>
+      ${inflow.map(row).join('') || '<div style="font-size:.68rem;color:var(--text3)">無流入板塊</div>'}
+    </div>
+    <div>
+      <div style="font-size:.62rem;color:var(--blue);font-weight:700;margin-bottom:5px">▼ 資金流出</div>
+      ${outflow.map(row).join('') || '<div style="font-size:.68rem;color:var(--text3)">無流出板塊</div>'}
+    </div>
+  </div>`;
   section.style.display = '';
 }
 function setSectorFilter(sector) {
@@ -2455,35 +2467,37 @@ async function loadSector() {
       return {name, points, delta, latest:latestPoint};
     }).sort((a,b) => b.delta - a.delta || b.latest.avgNet - a.latest.avgNet);
     const trendMax = Math.max(...trendList.flatMap(s => s.points.filter(Boolean).map(p => Math.abs(p.avgNet))), 1);
+    // 5日趨勢矩陣
+    const colMax = Math.max(...trendList.flatMap(s=>s.points.filter(Boolean).map(p=>Math.abs(p.avgNet))),1);
+    const cellBg = (val) => {
+      if (val === null || val === undefined) return 'var(--bg2)';
+      const alpha = Math.min(0.85, 0.1 + Math.abs(val)/colMax*0.75);
+      return val >= 0 ? `rgba(192,88,72,${alpha.toFixed(2)})` : `rgba(72,120,160,${alpha.toFixed(2)})`;
+    };
+    const cellTxt = val => val === null ? '—' : (val>0?'+':'')+Math.round(val);
+    const cellCol = val => val === null ? 'var(--text3)' : Math.abs(val)/colMax > 0.4 ? '#fff' : val>=0 ? 'var(--red)' : 'var(--blue)';
     const sectorTrendHtml = `<div class="plain-card" style="margin-bottom:14px">
       <div class="row-between" style="margin-bottom:10px">
-        <div class="section-title" style="margin:0">📈 板塊 5 日趨勢</div>
-        <div style="font-size:.62rem;color:var(--text3)">${recentDates[0] || ''} ~ ${recentDates[recentDates.length - 1] || ''}</div>
+        <div class="section-title" style="margin:0">📈 板塊 ${recentDates.length} 日資金矩陣</div>
+        <div style="font-size:.58rem;color:var(--text3)">數字 = 每檔均買超(張)　紅流入 藍流出</div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        ${trendList.slice(0, 8).map(s => {
-          const status = s.delta >= 50 ? '升溫' : s.delta <= -50 ? '降溫' : '持平';
-          const statusColor = s.delta >= 50 ? 'var(--green)' : s.delta <= -50 ? 'var(--red)' : 'var(--text3)';
-          const bars = s.points.map(p => {
-            const val = p ? p.avgNet : 0;
-            const h = Math.max(4, Math.abs(val) / trendMax * 34);
-            const col = val >= 0 ? 'var(--red)' : 'var(--blue)';
-            return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;flex:1;height:46px">
-              <div style="font-size:.52rem;color:${col};font-weight:700">${p ? (val > 0 ? '+' : '') + val : '—'}</div>
-              <div style="width:100%;height:${h}px;background:${col};border-radius:4px;opacity:${p ? .82 : .15}"></div>
-            </div>`;
-          }).join('');
-          return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:8px 10px">
-            <div class="row-between" style="margin-bottom:6px">
-              <div style="font-size:.78rem;font-weight:700;color:var(--text)">${s.name}</div>
-              <div style="font-size:.68rem;font-weight:700;color:${statusColor}">${status} ${s.delta >= 0 ? '+' : ''}${s.delta}</div>
-            </div>
-            <div style="display:flex;align-items:flex-end;gap:4px">${bars}</div>
-            <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:.55rem;color:var(--text3)">
-              ${recentDates.map(d => `<span>${d.slice(5).replace('-','/')}</span>`).join('')}
-            </div>
-          </div>`;
-        }).join('')}
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+        <table style="width:100%;border-collapse:separate;border-spacing:3px;min-width:340px">
+          <thead><tr>
+            <th style="font-size:.58rem;color:var(--text3);text-align:left;padding:0 4px;font-weight:500;white-space:nowrap">板塊</th>
+            ${recentDates.map(d=>`<th style="font-size:.56rem;color:var(--text3);text-align:center;font-weight:500;white-space:nowrap">${d.slice(5).replace('-','/')}</th>`).join('')}
+            <th style="font-size:.56rem;color:var(--text3);text-align:center;font-weight:500">趨勢</th>
+          </tr></thead>
+          <tbody>${trendList.map(s=>{
+            const statusIcon = s.delta>=50?'↑':s.delta<=-50?'↓':'→';
+            const statusCol = s.delta>=50?'var(--green)':s.delta<=-50?'var(--red)':'var(--text3)';
+            return `<tr>
+              <td style="font-size:.68rem;font-weight:700;color:var(--text);white-space:nowrap;padding:0 4px 0 0">${s.name.split('/')[0]}</td>
+              ${s.points.map(p=>{const v=p?p.avgNet:null;return `<td style="background:${cellBg(v)};border-radius:6px;padding:4px 3px;text-align:center;font-size:.58rem;font-weight:700;color:${cellCol(v)};white-space:nowrap">${cellTxt(v)}</td>`;}).join('')}
+              <td style="text-align:center;font-size:.68rem;font-weight:700;color:${statusCol}">${statusIcon}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
       </div>
     </div>`;
     const heatmap = `<div class="plain-card" style="margin-bottom:14px"><div class="section-title">🌡️ 板塊熱力圖 ${latest}</div>
@@ -2525,8 +2539,7 @@ async function loadSector() {
           <div class="sector-stat"><div class="sector-stat-label">平均評分</div><div class="sector-stat-val">${s.avgScore.toFixed(1)}/12</div></div>
           <div class="sector-stat"><div class="sector-stat-label">領頭股</div><div class="sector-stat-val" style="font-size:.78rem">${leader ? leader.name : '—'}</div></div>
         </div>
-        <div style="font-size:.72rem;color:var(--text2);line-height:1.55;margin-top:8px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:7px 9px">解讀：${note}</div>
-        ${stocks.length ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">${stocks.map(st => `<div class="row-between" style="background:var(--bg2);border-radius:8px;padding:5px 8px;margin-bottom:4px"><div style="font-size:.72rem;font-weight:600">${st.name} <span style="font-size:.6rem;color:var(--text3)">${st.code}</span></div><div style="font-size:.7rem;font-weight:700;color:${netColor(st.instNet)}">${fmtSigned(st.instNet)}張</div></div>`).join('')}</div>` : ''}
+        ${stocks.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px">${stocks.map(st=>`<div onclick="event.stopPropagation();focusStock('${st.code}')" style="display:flex;align-items:center;gap:4px;background:var(--bg2);border-radius:8px;padding:3px 8px;cursor:pointer"><span style="font-size:.68rem;font-weight:600;color:var(--text)">${st.name}</span><span style="font-size:.62rem;font-weight:700;color:${netColor(st.instNet)}">${fmtSigned(st.instNet)}</span></div>`).join('')}</div>` : ''}
       </div>`;
     }).join('');
     qs('sectorContent').innerHTML = sectorExplainHtml + sectorTrendHtml + heatmap + html;
