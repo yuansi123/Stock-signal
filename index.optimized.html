@@ -620,7 +620,7 @@ const FINMIND_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoieXVh
 const CACHE_TTL = 30 * 60 * 1000;
 let allStocks = [], currentFilter = 'all', actionFilter = '', entryFilter = '', riskFilter = '', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null, newsRowsCache = null;
 let stockInfoCache = null, stockLookupCache = {}, stockLookupPending = {};
-let scanStatusTimer = null, lastScanStatus = null;
+let scanStatusTimer = null, lastScanStatus = null, scanAutoRefreshKey = '';
 
 const COL = {
   date:0, code:1, name:2, op:3, score:4, instNet:5, streak:6, conc5:7, abnormal:8,
@@ -3283,6 +3283,20 @@ function isScanBusy(s) {
   if (!s) return false;
   return ['queued','starting','running','finalizing'].includes(s.status);
 }
+function maybeAutoRefreshAfterScan(prev, next) {
+  if (!prev || !next) return;
+  const finished = ['completed','skipped'].includes(next.status);
+  if (!isScanBusy(prev) || !finished) return;
+
+  const key = `${next.status}_${next.lastDate || next.date || ''}_${next.updatedAt || ''}`;
+  if (!key || key === scanAutoRefreshKey) return;
+  scanAutoRefreshKey = key;
+  toast('掃描完成，正在更新看板...', 2600);
+  clearCache();
+  trendRowsCache = null;
+  newsRowsCache = null;
+  loadAll(true);
+}
 function renderScanStatus(s, fromError) {
   const title = qs('scanTitle'), msg = qs('scanMessage'), meta = qs('scanMeta'), fill = qs('scanProgressFill'), btn = qs('fetchAllBtn');
   if (!title || !msg || !meta || !fill || !btn) return;
@@ -3336,8 +3350,10 @@ async function fetchScanStatus() {
 }
 async function updateScanStatus() {
   try {
+    const prev = lastScanStatus ? Object.assign({}, lastScanStatus) : null;
     const s = await fetchScanStatus();
     renderScanStatus(s);
+    maybeAutoRefreshAfterScan(prev, s);
     return s;
   } catch(e) {
     renderScanStatus(null, '狀態讀取失敗：' + e.message);
