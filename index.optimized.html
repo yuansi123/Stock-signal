@@ -1931,7 +1931,8 @@ async function loadUsSectors() {
   if (!card) return;
   card.innerHTML = '<div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div>';
   try {
-    const data = await fetchGas('usSectors');
+    const res = await fetch(`${WEB_APP_URL}?action=usSectors&ts=${Date.now()}`, {cache:'no-store'});
+    const data = await res.json();
     if (!data.ok || !data.sectors?.length) { card.innerHTML = '<div class="focus-empty">暫無資料</div>'; return; }
     const dateLabel = data.sectors[0]?.ts
       ? (() => { const d = new Date(data.sectors[0].ts * 1000); return `最近交易日 ${d.getMonth()+1}/${d.getDate()}`; })()
