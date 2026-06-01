@@ -555,7 +555,10 @@ button,select,input { font-family:inherit; }
   <div class="wrap">
     <div class="bt-header">
       <div class="logo"><div class="logo-icon">📊</div><div><div class="logo-title">回測分析</div><div class="logo-sub">BACKTEST ANALYSIS</div></div></div>
-      <button class="refresh-btn" onclick="clearCache();loadBacktest()">↻ 重新載入</button>
+      <div style="display:flex;gap:6px">
+        <button class="ghost-btn" id="fillReturnBtn" onclick="fillReturns()">回填報酬率</button>
+        <button class="refresh-btn" onclick="clearCache();loadBacktest()">↻ 重新載入</button>
+      </div>
     </div>
     <div id="btContent"><div class="state"><div class="spinner"></div><div>載入回測資料...</div></div></div>
   </div>
@@ -2924,6 +2927,17 @@ function renderBacktest(records,scoreFilter) {
   }).join('');
   qs('btContent').innerHTML += calHtml;
 }
+async function fillReturns() {
+  const btn = qs('fillReturnBtn');
+  if (btn) btn.textContent = '回填中...';
+  try {
+    const res = await fetch(`${WEB_APP_URL}?action=updateReturns&ts=${Date.now()}`, {cache:'no-store'});
+    const d = await res.json();
+    if (btn) btn.textContent = '回填完成✓';
+    setTimeout(() => { if(btn) btn.textContent='回填報酬率'; }, 3000);
+    if (d.ok) { clearCache(); loadBacktest(); }
+  } catch(e) { if(btn) btn.textContent='回填失敗'; }
+}
 function btCalDay(date){
   const recs=(window._btRecords||[]).filter(r=>r.date===date);
   if(!recs.length) return;
@@ -2954,7 +2968,7 @@ function loadAIByDate(date) {
   if (summary) {
     summaryHtml = `<div class="plain-card" style="margin-bottom:12px;border:1px solid var(--brown-light)">
       <div class="section-title">📊 每日市場總結</div>
-      ${[4,5,6,7,8,9,10,11].map(i=>String(cell(summary.c,i,''))).filter(Boolean).map(t=>`<div style="font-size:.78rem;color:var(--text2);line-height:1.7;margin-bottom:7px;padding-bottom:7px;border-bottom:1px solid var(--border)">${boldMd(t)}</div>`).join('')}
+      ${[4,5,6,7,8,9].map(i=>String(cell(summary.c,i,''))).filter(Boolean).map(t=>`<div style="font-size:.78rem;color:var(--text2);line-height:1.7;margin-bottom:7px;padding-bottom:7px;border-bottom:1px solid var(--border)">${boldMd(t)}</div>`).join('')}
     </div>`;
   }
   qs('aiContent').innerHTML = summaryHtml + stocks.map(r => {
