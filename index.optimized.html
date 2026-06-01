@@ -396,7 +396,8 @@ button,select,input { font-family:inherit; }
     <select id="compareDateSelect" class="date-select" style="margin-top:-.6rem;margin-bottom:.8rem;opacity:.85" onchange="setCompareDate(this.value)">
       <option value="">📊 載入比較日期...</option>
     </select>
-    <div id="dateMeta" style="font-size:.66rem;color:var(--text3);margin:-.4rem 0 1rem;padding-left:.2rem"></div>
+    <div id="dateMeta" style="font-size:.66rem;color:var(--text3);margin:-.4rem 0 .3rem;padding-left:.2rem"></div>
+    <div id="autoRefreshBar" style="display:none;font-size:.54rem;color:var(--green);margin-bottom:.8rem;padding-left:.2rem">📡 盤中模式 · 下次更新 <span id="arCountdown">--:--</span></div>
 
     <div id="breadthSection" style="display:none;margin-bottom:1rem">
       <div id="breadthCard" class="plain-card"></div>
@@ -2116,7 +2117,7 @@ function showPage(page) {
   requestAnimationFrame(() => window.scrollTo(0, _scrollPos[page] || 0));
   const disabled = el => `<div class="state" style="padding:3rem 1rem"><div style="font-size:1.5rem;margin-bottom:8px">⚙️</div><div>已在設定中停用</div><div style="font-size:.72rem;color:var(--text3);margin-top:6px">點右上角 ⚙️ 開啟</div></div>`;
   if (page === 'sector')   { dsEnabled('sector')   ? loadSector()   : qs('sectorContent').innerHTML  = disabled(); }
-  if (page === 'backtest') { dsEnabled('backtest')  ? loadBacktest() : qs('btContent').innerHTML      = disabled(); }
+  if (page === 'backtest') { dsEnabled('backtest')  ? loadBacktest().then(loadMarketCorrelation) : qs('btContent').innerHTML = disabled(); }
   if (page === 'ai')       { dsEnabled('ai')        ? loadAI()       : qs('aiContent').innerHTML      = disabled(); }
   if (page === 'large')    { dsEnabled('large')     ? loadLarge()    : qs('largeContent').innerHTML   = disabled(); }
 }
@@ -2267,6 +2268,7 @@ async function loadData() {
     renderStreakLeader();
     renderDailyFlow();
     loadUsSectors();
+    initAutoRefresh();
     renderWatchRadar();
     renderActionList();
     renderCards();
@@ -2479,11 +2481,16 @@ function renderCards() {
         <button class="mini-btn ${isWatched(s.code)?'active':''}" onclick="toggleWatch('${s.code}')">${isWatched(s.code)?'⭐ 已追蹤':'☆ 加入追蹤'}</button>
         <button class="mini-btn" onclick="toggleDetail('${s.code}')">單檔詳情</button>
         <button class="mini-btn" onclick="toggleKBar('${s.code}','${s.date}')">📈 K棒</button>
+        <button class="mini-btn" onclick="toggleInstAccum('${s.code}','${s.date}')">📊 法人趨勢</button>
         <button class="mini-btn" onclick="askStock('${s.code}')">問 AI</button>
         <button class="mini-btn" onclick="askCatalyst('${s.code}', event)">AI消息面</button>
       </div>
       <div id="kbar-wrap-${s.code}" style="display:none;margin-top:6px">
         <div id="kbar-inner-${s.code}" style="background:var(--bg2);border-radius:8px;height:80px;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--text3)">載入中...</div>
+      </div>
+      <div id="inst-wrap-${s.code}" style="display:none;margin-top:6px">
+        <div style="font-size:.58rem;color:var(--text3);margin-bottom:3px">📊 近20日法人累積（張）</div>
+        <div id="inst-inner-${s.code}" style="background:var(--bg2);border-radius:8px;padding:4px;min-height:60px;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--text3)">載入中...</div>
       </div>
       <div id="catalyst-${s.code}" style="display:none;margin-top:8px"></div>
       <div id="detail-${s.code}" class="detail-panel" style="display:none">
@@ -3077,6 +3084,120 @@ function formatMarkdown(text) {
     .replace(/^## (.+)$/gm,'<div style="font-weight:700;color:var(--brown);margin:12px 0 5px">$1</div>')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^- (.+)$/gm,'<div style="padding-left:8px">· $1</div>')
     .replace(/\n\n/g,'<br>').replace(/\n/g,'<br>');
+}
+
+// ── ④ 盤中自動刷新 ──────────────────────────────
+let _arNext = 0, _arTick = null;
+function isTradingNow() {
+  const tw = new Date(new Date().toLocaleString('en-US', {timeZone:'Asia/Taipei'}));
+  const d = tw.getDay(), t = tw.getHours()*100+tw.getMinutes();
+  return d>=1 && d<=5 && t>=900 && t<=1335;
+}
+function initAutoRefresh() {
+  if (_arTick) return;
+  _arTick = setInterval(() => {
+    if (!isTradingNow()) { qs('autoRefreshBar').style.display='none'; _arNext=0; return; }
+    qs('autoRefreshBar').style.display='';
+    const now=Date.now();
+    if (_arNext===0) _arNext=now+30*60*1000;
+    if (now>=_arNext) { _arNext=now+30*60*1000; clearCache(); loadData(); }
+    const r=Math.max(0,_arNext-Date.now()), m=Math.floor(r/60000), s=Math.floor((r%60000)/1000);
+    const el=qs('arCountdown'); if(el) el.textContent=m+':'+String(s).padStart(2,'0');
+  }, 10000);
+}
+
+// ── ⑤ 20日法人趨勢 ──────────────────────────────
+function toggleInstAccum(code, date) {
+  const wrap=qs('inst-wrap-'+code); if(!wrap) return;
+  const visible=wrap.style.display!=='none';
+  wrap.style.display=visible?'none':'';
+  if(!visible) loadInstAccum(code, date);
+}
+async function loadInstAccum(code, endDate) {
+  const el=qs('inst-inner-'+code); if(!el) return;
+  if(!FINMIND_TOKEN||FINMIND_TOKEN==='PASTE_YOUR_EXISTING_FINMIND_TOKEN_HERE'){el.textContent='請設定 FINMIND_TOKEN';return;}
+  try {
+    const end=new Date(endDate), start=new Date(end);
+    start.setDate(start.getDate()-35);
+    const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const url=`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInstitutionalInvestorsBuySell&data_id=${code}&start_date=${fmt(start)}&end_date=${endDate}&token=${FINMIND_TOKEN}`;
+    const j=await (await fetch(url)).json();
+    const byDate={};
+    (j.data||[]).forEach(r=>{
+      const net=Math.round((r.buy-r.sell)/1000);
+      byDate[r.date]=(byDate[r.date]||0)+net;
+    });
+    const dates=Object.keys(byDate).sort().slice(-20);
+    const vals=dates.map(d=>byDate[d]);
+    if(!vals.length){el.textContent='無資料';return;}
+    el.innerHTML=renderInstChart(dates,vals);
+  } catch(e){el.textContent='載入失敗';}
+}
+function renderInstChart(dates, vals) {
+  const W=300,H=60,PAD=2;
+  const maxV=Math.max(...vals.map(Math.abs),1);
+  const n=dates.length, bw=Math.max(1,Math.floor((W-PAD*2)/n)-1);
+  const midY=H/2;
+  const toH=v=>Math.max(1,Math.abs(v)/maxV*(H/2-4));
+  let bars='',cumul=0,cumPts=[];
+  vals.forEach((v,i)=>{
+    const x=PAD+i*(bw+1);
+    const h=toH(v);
+    const y=v>=0?midY-h:midY;
+    bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${h}" fill="${v>=0?'rgba(180,60,60,.75)':'rgba(60,100,180,.75)'}"/>`;
+    cumul+=v;
+    cumPts.push(`${x+bw/2},${midY-cumul/maxV*(H/2-4)}`);
+  });
+  const cumLine=`<polyline points="${cumPts.join(' ')}" fill="none" stroke="var(--brown)" stroke-width="1.5" opacity=".8"/>`;
+  const total=vals.reduce((a,b)=>a+b,0);
+  const totCol=total>=0?'var(--red)':'var(--blue)';
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="overflow:visible">
+    <line x1="${PAD}" y1="${midY}" x2="${W-PAD}" y2="${midY}" stroke="var(--border)" stroke-width="0.5"/>
+    ${bars}${cumLine}
+    <text x="${W-2}" y="10" text-anchor="end" font-size="8" fill="${totCol}">累積${total>=0?'+':''}${total}張</text>
+  </svg>`;
+}
+
+// ── ⑥ 大盤相關性（在 renderBacktest 之後呼叫）──────
+async function loadMarketCorrelation() {
+  const records=window._btRecords||[];
+  if(!records.length) return;
+  const done=records.filter(r=>r.return1!==null);
+  if(!done.length) return;
+  try {
+    const mkRows=await fetchSheet('大盤資料');
+    const mkMap={};
+    mkRows.forEach(r=>{
+      const d=parseDateVal(cell(r.c,0,''));
+      const chg=parseFloat(cell(r.c,3,'')||0);
+      if(d) mkMap[d]=chg;
+    });
+    const groups={strong:{w:0,t:0},up:{w:0,t:0},flat:{w:0,t:0},down:{w:0,t:0}};
+    done.forEach(r=>{
+      const mk=mkMap[r.date];
+      if(mk===undefined) return;
+      const g=mk>=1?'strong':mk>=0?'up':mk>=-1?'flat':'down';
+      groups[g].t++;
+      if(r.return1>0) groups[g].w++;
+    });
+    const labels={strong:'大漲>1%',up:'小漲0~1%',flat:'小跌0~1%',down:'大跌>1%'};
+    const html=`<div class="plain-card" style="margin-bottom:12px">
+      <div class="section-title">📉 大盤相關性（1日勝率 by 訊號當天大盤）</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px">
+        ${Object.entries(groups).map(([k,v])=>{
+          const wr=v.t?Math.round(v.w/v.t*100):null;
+          const col=wr===null?'var(--text3)':wr>=60?'var(--green)':wr>=45?'var(--yellow)':'var(--red)';
+          return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center">
+            <div style="font-size:.6rem;color:var(--text3)">${labels[k]}</div>
+            <div style="font-size:1.1rem;font-weight:800;color:${col}">${wr!==null?wr+'%':'—'}</div>
+            <div style="font-size:.54rem;color:var(--text3)">${v.t} 筆</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+    const btEl=qs('btContent');
+    if(btEl) btEl.innerHTML=html+btEl.innerHTML;
+  } catch(e){console.log('大盤相關性失敗',e);}
 }
 
 async function loadKBarInto(elId, code, endDate) {
