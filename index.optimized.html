@@ -427,7 +427,7 @@ button,select,input { font-family:inherit; }
     <div id="usSectorsSection" style="margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
         <div class="section-title" style="margin:0">🌐 美股板塊強弱</div>
-        <button class="ghost-btn" onclick="loadUsSectors()">重新載入</button>
+        <button class="ghost-btn" onclick="window._usSectorsForce=true;loadUsSectors()">重新載入</button>
       </div>
       <div id="usSectorsCard" class="plain-card"><div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div></div>
     </div>
@@ -1931,7 +1931,9 @@ async function loadUsSectors() {
   if (!card) return;
   card.innerHTML = '<div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div>';
   try {
-    const res = await fetch(`${WEB_APP_URL}?action=usSectors&ts=${Date.now()}`, {cache:'no-store'});
+    const force = window._usSectorsForce ? '&force=1' : '';
+    window._usSectorsForce = false;
+    const res = await fetch(`${WEB_APP_URL}?action=usSectors${force}&ts=${Date.now()}`, {cache:'no-store'});
     const data = await res.json();
     if (!data.ok || !data.sectors?.length) { card.innerHTML = '<div class="focus-empty">暫無資料</div>'; return; }
     const dateLabel = data.sectors[0]?.ts
@@ -1939,15 +1941,18 @@ async function loadUsSectors() {
       : (data.fetchedAt ? (() => { const d = new Date(data.fetchedAt); return `更新 ${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })() : '');
     card.innerHTML = `
       ${dateLabel ? `<div style="font-size:.54rem;color:var(--text3);margin-bottom:5px;text-align:right">${dateLabel}</div>` : ''}
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px">
         ${data.sectors.map(s => {
           const chg = parseFloat(s.chg);
           const col = chg>1?'var(--red)':chg>0?'#c08040':chg<-1?'var(--blue)':'var(--text3)';
+          const bg = chg>1?'rgba(180,60,60,.07)':chg<-1?'rgba(60,100,180,.07)':'';
           const arrow = chg>0?'▲':chg<0?'▼':'─';
-          return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:5px 7px;text-align:center">
-            <div style="font-size:.62rem;font-weight:700;color:var(--text)">${s.name}</div>
-            <div style="font-size:.58rem;color:var(--text3);margin-bottom:2px">${s.sym}</div>
-            <div style="font-size:.78rem;font-weight:800;color:${col}">${arrow}${Math.abs(chg).toFixed(2)}%</div>
+          return `<div style="background:${bg||'var(--card)'};border:1px solid var(--border);border-radius:8px;padding:6px 8px;display:flex;align-items:center;justify-content:space-between;cursor:default">
+            <div>
+              <div style="font-size:.7rem;font-weight:700;color:var(--text)">${s.name}</div>
+              <div style="font-size:.52rem;color:var(--text3)">${s.sym}</div>
+            </div>
+            <div style="font-size:.82rem;font-weight:800;color:${col};flex-shrink:0">${arrow}${Math.abs(chg).toFixed(2)}%</div>
           </div>`;
         }).join('')}
       </div>`;
