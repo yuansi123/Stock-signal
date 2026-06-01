@@ -1955,7 +1955,8 @@ async function loadUsSectors() {
             <div style="font-size:.82rem;font-weight:800;color:${col};flex-shrink:0">${arrow}${Math.abs(chg).toFixed(2)}%</div>
           </div>`;
         }).join('')}
-      </div>`;
+      </div>
+      ${data.aiComment ? `<div style="margin-top:8px;padding:8px 10px;background:var(--card);border-radius:10px;border-left:3px solid var(--brown);font-size:.68rem;color:var(--text2);line-height:1.6">🤖 ${data.aiComment}</div>` : ''}`;
   } catch(e) { card.innerHTML = '<div class="focus-empty">載入失敗，請稍後再試</div>'; }
 }
 function toggleAllActionCols() {
