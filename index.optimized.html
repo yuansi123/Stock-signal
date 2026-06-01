@@ -424,6 +424,14 @@ button,select,input { font-family:inherit; }
       <div id="actionListCard" class="plain-card"></div>
     </div>
 
+    <div id="usSectorsSection" style="margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">🌐 美股板塊強弱</div>
+        <button class="ghost-btn" onclick="loadUsSectors()">重新載入</button>
+      </div>
+      <div id="usSectorsCard" class="plain-card"><div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div></div>
+    </div>
+
     <div id="dailyNewsSection" style="margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
         <div class="section-title" style="margin:0">今日科技要聞</div>
@@ -459,14 +467,6 @@ button,select,input { font-family:inherit; }
       <div id="dailyFlowCard" class="plain-card"></div>
     </div>
 
-    <div id="compareSection" style="display:none;margin-bottom:1rem">
-      <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">⚖️ 高分股比較</div>
-        <button class="ghost-btn" onclick="renderCompareTable(true)">重新整理</button>
-      </div>
-      <div id="compareCard" class="plain-card"></div>
-    </div>
-
     <div class="sector-filter">
       <select class="sector-select" id="sectorFilter" onchange="setSectorFilter(this.value)">
         <option value="">🏭 所有板塊</option>
@@ -477,7 +477,7 @@ button,select,input { font-family:inherit; }
         <option value="記憶體">記憶體</option><option value="測試設備">測試設備</option>
         <option value="工業電腦/自動化">工業電腦/自動化</option><option value="電子通路">電子通路</option>
         <option value="軟體/雲端">軟體/雲端</option><option value="電動車/綠能">電動車/綠能</option>
-        <option value="功率元件">功率元件</option><option value="其他電子">其他電子</option>
+        <option value="功率元件">功率元件</option><option value="機器人/人形機器人">機器人/人形機器人</option><option value="其他電子">其他電子</option>
       </select>
       <select class="sector-select" id="volFilter" onchange="saveFilters();renderCards()">
         <option value="">📊 所有規模</option>
@@ -1214,7 +1214,9 @@ function renderActionList() {
       const c = conds.find(s => re.test(s));
       if (c) { const m = c.match(re); if (m) hints.push(fn(m[0])); }
     });
-    return hints.length ? hints.join(' · ') : (stock.sector || '');
+    const base = hints.length ? hints.join(' · ') : (stock.sector || '');
+    const warn = (Number(stock.score) >= 8 && Number(stock.instNet) < 100) ? ' ⚠️分高法少' : '';
+    return base + warn;
   };
   const row = (x, meta, color) => `<div class="action-row" onclick="focusStock('${x.stock.code}')">
     <div class="action-name">${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span><span style="font-size:.58rem;color:var(--brown);background:var(--bg2);border-radius:6px;padding:1px 5px;margin-left:4px">${x.stock.sector || '未分類'}</span></div>
@@ -1633,8 +1635,8 @@ function renderRotationRadar() {
         </div>
       </div>
       <div style="margin-top:3px;display:flex;align-items:center;gap:6px">
-        <span style="font-size:.56rem;color:${sigMom.col}">${sigMom.icon}（${s.warming}升/${s.cooling}降）</span>
-        ${leader?`<span style="font-size:.56rem;color:var(--text3)">領頭 ${leader.name}</span>`:''}
+        ${(s.warming||s.cooling)?`<span style="font-size:.56rem;color:${sigMom.col}">${sigMom.icon} ${s.warming}升/${s.cooling}降</span>`:''}
+        ${leader?`<span style="font-size:.56rem;color:var(--text3)">領頭：${leader.name}</span>`:''}
       </div>
     </div>`;
   };
@@ -1923,6 +1925,27 @@ ${fmtList(buckets.waitPullback)}
 ${riskText}
 
 備註：此簡報依系統訊號、進場區間、背離偵測與當沖風險整理，選股原始邏輯未改變。`;
+}
+async function loadUsSectors() {
+  const card = qs('usSectorsCard');
+  if (!card) return;
+  card.innerHTML = '<div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div>';
+  try {
+    const data = await fetchGas('usSectors');
+    if (!data.ok || !data.sectors?.length) { card.innerHTML = '<div class="focus-empty">暫無資料</div>'; return; }
+    card.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">
+      ${data.sectors.map(s => {
+        const chg = parseFloat(s.chg);
+        const col = chg > 1 ? 'var(--red)' : chg > 0 ? '#c08040' : chg < -1 ? 'var(--blue)' : 'var(--text3)';
+        const arrow = chg > 0 ? '▲' : chg < 0 ? '▼' : '─';
+        return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:5px 7px;text-align:center">
+          <div style="font-size:.62rem;font-weight:700;color:var(--text)">${s.name}</div>
+          <div style="font-size:.58rem;color:var(--text3);margin-bottom:2px">${s.sym}</div>
+          <div style="font-size:.78rem;font-weight:800;color:${col}">${arrow}${Math.abs(chg).toFixed(2)}%</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  } catch(e) { card.innerHTML = '<div class="focus-empty">載入失敗</div>'; }
 }
 function toggleAllActionCols() {
   const cols = document.querySelectorAll('#actionListCard .action-col');
@@ -2216,7 +2239,7 @@ async function loadData() {
     renderChangeRadar();
     renderStreakLeader();
     renderDailyFlow();
-    renderCompareTable();
+    loadUsSectors();
     renderWatchRadar();
     renderActionList();
     renderCards();
@@ -2463,7 +2486,7 @@ async function generateDailySummary() {
   if (!section || !card || !allStocks.length) return;
   section.style.display = '';
   card.innerHTML = '<div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div>';
-  const valid = ['半導體/IC設計','封測','AI伺服器/ODM','電源/散熱','PCB/載板','網通/連接','光電/面板','被動元件/機構','記憶體','測試設備','工業電腦/自動化','電子通路','軟體/雲端','電動車/綠能','功率元件','其他電子'];
+  const valid = ['半導體/IC設計','封測','AI伺服器/ODM','電源/散熱','PCB/載板','網通/連接','光電/面板','被動元件/機構','記憶體','測試設備','工業電腦/自動化','電子通路','軟體/雲端','電動車/綠能','功率元件','機器人/人形機器人','其他電子'];
   const map = {};
   allStocks.forEach(s => {
     const sec = valid.includes(s.sector) ? s.sector : '其他電子';
@@ -3567,7 +3590,7 @@ const COLLAPSIBLE = [
   {id:'changeRadar',  sec:'changeRadarSection'},
   {id:'streak',       sec:'streakSection'},
   {id:'dailyFlow',    sec:'dailyFlowSection'},
-  {id:'compare',      sec:'compareSection'}
+  {id:'usSectors',    sec:'usSectorsSection'}
 ];
 function initCollapsibleSections() {
   const saved = JSON.parse(localStorage.getItem('sec_state') || '{}');
