@@ -3232,18 +3232,17 @@ function renderStreakLeader() {
   const list = allStocks.filter(s=>s.streak>=3).sort((a,b)=>b.streak-a.streak).slice(0,8);
   if (!list.length) { section.style.display='none'; return; }
   const maxS = list[0].streak;
-  card.innerHTML = list.map((s,i) => {
-    const pct = Math.round(s.streak/maxS*100);
+  card.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">${list.map((s,i) => {
     const col = getDisplayOpClass(s)==='buy'?'var(--green)':getDisplayOpClass(s)==='watch'?'var(--yellow)':'var(--text3)';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)" onclick="focusStock('${s.code}')">
-      <div style="min-width:20px;text-align:center;font-size:.72rem;font-weight:800;color:var(--text3)">${i+1}</div>
+    return `<div style="display:flex;align-items:center;gap:5px;padding:4px 7px;background:var(--card);border:1px solid var(--border);border-radius:8px;cursor:pointer" onclick="focusStock('${s.code}')">
+      <span style="font-size:.56rem;color:var(--text3);font-weight:700;min-width:12px">${i+1}</span>
       <div style="flex:1;min-width:0">
-        <div style="font-size:.76rem;font-weight:700;color:var(--text)">${s.name} <span style="font-size:.58rem;color:var(--text3)">${s.code} · ${s.sector||''}</span></div>
-        <div style="height:4px;background:var(--bg2);border-radius:3px;margin-top:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${col};border-radius:3px"></div></div>
+        <div style="font-size:.66rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name}</div>
+        <div style="font-size:.52rem;color:var(--text3)">${s.instNet>0?'+':''}${s.instNet}張</div>
       </div>
-      <div style="text-align:right;flex-shrink:0"><div style="font-size:.88rem;font-weight:800;color:${col}">${s.streak}天</div><div style="font-size:.58rem;color:var(--text3)">${s.instNet>0?'+':''}${s.instNet}張</div></div>
+      <div style="font-size:.76rem;font-weight:800;color:${col};flex-shrink:0">${s.streak}天</div>
     </div>`;
-  }).join('');
+  }).join('')}</div>`;
   section.style.display='';
 }
 
