@@ -1956,7 +1956,7 @@ async function loadUsSectors() {
           </div>`;
         }).join('')}
       </div>
-      ${data.aiComment ? `<div style="margin-top:8px;padding:8px 10px;background:var(--card);border-radius:10px;border-left:3px solid var(--brown);font-size:.68rem;color:var(--text2);line-height:1.6">🤖 ${data.aiComment}</div>` : ''}`;
+      ${data.aiComment ? `<div style="margin-top:8px;padding:8px 10px;background:var(--card);border-radius:10px;border-left:3px solid var(--brown);font-size:.68rem;color:var(--text2);line-height:1.7">🤖 ${data.aiComment.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</div>` : ''}`;
   } catch(e) { card.innerHTML = '<div class="focus-empty">載入失敗，請稍後再試</div>'; }
 }
 function toggleAllActionCols() {
@@ -2863,10 +2863,11 @@ function loadAIByDate(date) {
   const summary = dayRows.find(isSummary), stocks = dayRows.filter(r=>!isSummary(r));
   qs('aiStockCount').textContent = `共 ${stocks.length} 檔`;
   let summaryHtml = '';
+  const boldMd = t => t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   if (summary) {
     summaryHtml = `<div class="plain-card" style="margin-bottom:12px;border:1px solid var(--brown-light)">
       <div class="section-title">📊 每日市場總結</div>
-      ${[4,5,6,7,8,9,10,11].map(i=>String(cell(summary.c,i,''))).filter(Boolean).map(t=>`<div style="font-size:.78rem;color:var(--text2);line-height:1.65;margin-bottom:5px">${t}</div>`).join('')}
+      ${[4,5,6,7,8,9,10,11].map(i=>String(cell(summary.c,i,''))).filter(Boolean).map(t=>`<div style="font-size:.78rem;color:var(--text2);line-height:1.7;margin-bottom:7px;padding-bottom:7px;border-bottom:1px solid var(--border)">${boldMd(t)}</div>`).join('')}
     </div>`;
   }
   qs('aiContent').innerHTML = summaryHtml + stocks.map(r => {
