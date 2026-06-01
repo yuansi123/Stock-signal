@@ -415,7 +415,10 @@ button,select,input { font-family:inherit; }
     <div id="actionListSection" style="display:none;margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
         <div class="section-title" style="margin:0">今日操作清單</div>
-        <button class="ghost-btn" onclick="copyDailyBrief()">複製簡報</button>
+        <div style="display:flex;gap:6px">
+          <button class="ghost-btn" id="toggleAllColsBtn" onclick="toggleAllActionCols()">全部收起</button>
+          <button class="ghost-btn" onclick="copyDailyBrief()">複製簡報</button>
+        </div>
       </div>
       <div id="actionFilterRow" class="filters" style="margin-bottom:8px"></div>
       <div id="actionListCard" class="plain-card"></div>
@@ -1920,6 +1923,13 @@ ${fmtList(buckets.waitPullback)}
 ${riskText}
 
 備註：此簡報依系統訊號、進場區間、背離偵測與當沖風險整理，選股原始邏輯未改變。`;
+}
+function toggleAllActionCols() {
+  const cols = document.querySelectorAll('#actionListCard .action-col');
+  const anyExpanded = [...cols].some(c => !c.classList.contains('collapsed'));
+  cols.forEach(c => c.classList.toggle('collapsed', anyExpanded));
+  const btn = document.getElementById('toggleAllColsBtn');
+  if (btn) btn.textContent = anyExpanded ? '全部展開' : '全部收起';
 }
 async function copyDailyBrief() {
   const text = buildDailyBrief();
