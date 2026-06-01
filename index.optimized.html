@@ -1170,28 +1170,25 @@ function renderActionList() {
   const actionable = enriched
     .filter(x => getActionCategory(x.stock) === 'actionable')
     .sort((a,b) => b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet)
-    .slice(0, 5);
+    .slice(0, 20);
   const candidateActionable = actionable.length ? [] : enriched
     .filter(x => {
       const opClass = getDisplayOpClass(x.stock);
-      const rr = parseFloat(x.stock.rr) || 0;
       return (opClass === 'buy' || opClass === 'hot')
         && x.entryStatus !== 'above'
         && x.warnCount <= 1
-        && x.dayTradePct < 50
-        && Number(x.stock.score) >= 8
-        && (rr === 0 || rr >= 1.0);
+        && Number(x.stock.score) >= 8;
     })
     .sort((a,b) => b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet)
-    .slice(0, 5);
+    .slice(0, 20);
   const waitPullback = enriched
     .filter(x => getActionCategory(x.stock) === 'wait')
     .sort((a,b) => b.stock.score - a.stock.score)
-    .slice(0, 5);
+    .slice(0, 20);
   const avoid = enriched
     .filter(x => getActionCategory(x.stock) === 'avoid')
     .sort((a,b) => b.warnCount - a.warnCount || b.stock.score - a.stock.score)
-    .slice(0, 5);
+    .slice(0, 20);
 
   const row = (x, meta, color) => `<div class="action-row" onclick="focusStock('${x.stock.code}')">
     <div class="action-name">${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span><span style="font-size:.58rem;color:var(--brown);background:var(--bg2);border-radius:6px;padding:1px 5px;margin-left:4px">${x.stock.sector || '未分類'}</span></div>
@@ -1840,16 +1837,16 @@ function buildActionBuckets() {
     })
     .sort((a,b) => b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet);
   return {
-    actionable: actionable.slice(0, 5),
-    candidateActionable: candidateActionable.slice(0, 5),
+    actionable: actionable.slice(0, 20),
+    candidateActionable: candidateActionable.slice(0, 20),
     waitPullback: enriched
       .filter(x => getActionCategory(x.stock) === 'wait')
       .sort((a,b) => b.stock.score - a.stock.score)
-      .slice(0, 5),
+      .slice(0, 20),
     avoid: enriched
       .filter(x => getActionCategory(x.stock) === 'avoid')
       .sort((a,b) => b.warnCount - a.warnCount || b.stock.score - a.stock.score)
-      .slice(0, 5)
+      .slice(0, 20)
   };
 }
 function buildDailyBrief() {
