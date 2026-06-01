@@ -229,6 +229,15 @@ button,select,input { font-family:inherit; }
 }
 .action-name { font-size:.74rem; font-weight:700; color:var(--text); }
 .action-meta { font-size:.58rem; color:var(--text3); margin-top:2px; line-height:1.4; }
+@keyframes entryGlow { 0%,100%{box-shadow:0 0 0 0 rgba(76,175,80,.3)} 50%{box-shadow:0 0 0 3px rgba(76,175,80,.12)} }
+.action-row-hot { border-color:var(--green) !important; animation:entryGlow 2.5s infinite; }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+.cal-cell { border-radius:6px; padding:4px 3px; text-align:center; font-size:.58rem; min-height:38px; background:var(--card); border:1px solid var(--border); cursor:pointer; }
+.cal-cell.has-signal { background:rgba(76,175,80,.12); border-color:rgba(76,175,80,.4); }
+.cal-cell.weekend { background:var(--bg2); color:var(--text3); }
+.cal-cell.today { border-color:var(--brown); font-weight:700; }
+.cal-day-num { font-size:.62rem; font-weight:700; color:var(--text2); }
+.cal-badge { font-size:.5rem; background:var(--green); color:#fff; border-radius:4px; padding:0 3px; margin-top:1px; display:inline-block; }
 .breadth-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
 .breadth-cell { background:var(--card2); border:1px solid var(--border); border-radius:10px; padding:.55rem .65rem; }
 .breadth-label { font-size:.58rem; color:var(--text3); margin-bottom:3px; }
@@ -1218,11 +1227,14 @@ function renderActionList() {
     const warn = (Number(stock.score) >= 8 && Number(stock.instNet) < 100) ? ' ⚠️分高法少' : '';
     return base + warn;
   };
-  const row = (x, meta, color) => `<div class="action-row" onclick="focusStock('${x.stock.code}')">
-    <div class="action-name">${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span><span style="font-size:.58rem;color:var(--brown);background:var(--bg2);border-radius:6px;padding:1px 5px;margin-left:4px">${x.stock.sector || '未分類'}</span></div>
-    <div class="action-theme">${themeHints(x.stock)}</div>
-    <div class="action-meta"><span style="color:${color};font-weight:700">${meta}</span> · ${x.stock.score}分 · 法人 ${x.stock.instNet > 0 ? '+' : ''}${x.stock.instNet}張</div>
-  </div>`;
+  const row = (x, meta, color) => {
+    const isHot = x.entryStatus === 'inside' && (Number(x.stock.score) >= 10 || Number(x.stock.instNet) >= 500);
+    return `<div class="action-row${isHot ? ' action-row-hot' : ''}" onclick="focusStock('${x.stock.code}')">
+      <div class="action-name">${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span><span style="font-size:.58rem;color:var(--brown);background:var(--bg2);border-radius:6px;padding:1px 5px;margin-left:4px">${x.stock.sector || '未分類'}</span>${isHot ? '<span style="font-size:.5rem;background:var(--green);color:#fff;border-radius:4px;padding:1px 4px;margin-left:4px">🔥強勢</span>' : ''}</div>
+      <div class="action-theme">${themeHints(x.stock)}</div>
+      <div class="action-meta"><span style="color:${color};font-weight:700">${meta}</span> · ${x.stock.score}分 · 法人 ${x.stock.instNet > 0 ? '+' : ''}${x.stock.instNet}張</div>
+    </div>`;
+  };
   const col = (title, rows, empty, color, renderMeta) => `<div class="action-col">
     <div class="action-col-header" onclick="this.parentElement.classList.toggle('collapsed')">
       <div class="action-title" style="color:${color}">${title} <span style="font-size:.56rem;color:var(--text3);font-weight:400">${rows.length}檔</span></div>
@@ -2841,6 +2853,81 @@ function renderBacktest(records,scoreFilter) {
     }).join('')}</div></div>`;
   }).join('')}`;
   window._btRecords = records;
+
+  // 板塊績效
+  const sectorPerf = {};
+  records.forEach(r => {
+    const sec = (allStocks||[]).find(s=>s.code===r.code)?.sector || '其他';
+    if (r.return3===null && r.return1===null) return;
+    const ret = r.return3 ?? r.return1;
+    if (!sectorPerf[sec]) sectorPerf[sec]={win:0,total:0,sum:0};
+    sectorPerf[sec].total++;
+    sectorPerf[sec].sum+=ret;
+    if(ret>0) sectorPerf[sec].win++;
+  });
+  const secRows = Object.entries(sectorPerf).filter(([,v])=>v.total>=2)
+    .sort(([,a],[,b])=>b.win/b.total-a.win/a.total);
+  if(secRows.length){
+    const secHtml = `<div class="plain-card" style="margin-bottom:12px">
+      <div class="section-title">🏭 板塊績效（3日）</div>
+      ${secRows.map(([name,v])=>{
+        const wr=Math.round(v.win/v.total*100);
+        const avg=(v.sum/v.total).toFixed(2);
+        const col=wr>=60?'var(--green)':wr>=45?'var(--yellow)':'var(--red)';
+        const barW=wr;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)">
+          <div style="min-width:90px;font-size:.62rem;color:var(--text2)">${name.split('/')[0]}</div>
+          <div style="flex:1;height:6px;background:var(--bg2);border-radius:3px;overflow:hidden"><div style="width:${barW}%;height:100%;background:${col};border-radius:3px"></div></div>
+          <div style="min-width:65px;text-align:right;font-size:.6rem"><span style="color:${col};font-weight:700">${wr}%</span> <span style="color:var(--text3)">${v.total}筆 均${avg>=0?'+':''}${avg}%</span></div>
+        </div>`;
+      }).join('')}
+    </div>`;
+    qs('btContent').innerHTML += secHtml;
+  }
+
+  // 歷史日曆
+  const sigDays={};
+  records.forEach(r=>{
+    if(!r.date) return;
+    if(!sigDays[r.date]) sigDays[r.date]={count:0,win:0,done:0};
+    sigDays[r.date].count++;
+    const ret=r.return3??r.return1;
+    if(ret!==null){sigDays[r.date].done++;if(ret>0)sigDays[r.date].win++;}
+  });
+  const today=new Date(), todayStr=today.toISOString().slice(0,10);
+  const calMonths=[];
+  for(let m=1;m>=0;m--){
+    const d=new Date(today.getFullYear(),today.getMonth()-m,1);
+    calMonths.push({year:d.getFullYear(),month:d.getMonth()});
+  }
+  const calHtml=calMonths.map(({year,month})=>{
+    const label=`${year}/${month+1}`;
+    const firstDay=new Date(year,month,1).getDay();
+    const daysInMonth=new Date(year,month+1,0).getDate();
+    let cells='<div class="cal-grid">';
+    ['日','一','二','三','四','五','六'].forEach(h=>{cells+=`<div style="font-size:.52rem;color:var(--text3);text-align:center;padding:2px 0">${h}</div>`;});
+    for(let i=0;i<firstDay;i++) cells+=`<div class="cal-cell" style="background:transparent;border-color:transparent"></div>`;
+    for(let d=1;d<=daysInMonth;d++){
+      const ds=`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const sig=sigDays[ds];
+      const dow=new Date(year,month,d).getDay();
+      const isWknd=dow===0||dow===6;
+      const isToday=ds===todayStr;
+      cells+=`<div class="cal-cell${sig?' has-signal':''}${isWknd?' weekend':''}${isToday?' today':''}" onclick="btCalDay('${ds}')">
+        <div class="cal-day-num">${d}</div>
+        ${sig?`<div class="cal-badge">${sig.count}</div>`:''}
+        ${sig&&sig.done?`<div style="font-size:.46rem;color:${sig.win/sig.done>=.5?'var(--green)':'var(--red)'}">${Math.round(sig.win/sig.done*100)}%</div>`:''}
+      </div>`;
+    }
+    cells+='</div>';
+    return `<div class="plain-card" style="margin-bottom:12px"><div class="section-title">📅 ${label} 訊號日曆</div>${cells}</div>`;
+  }).join('');
+  qs('btContent').innerHTML += calHtml;
+}
+function btCalDay(date){
+  const recs=(window._btRecords||[]).filter(r=>r.date===date);
+  if(!recs.length) return;
+  alert(date+' 訊號：\n'+recs.map(r=>`${r.name}(${r.code}) ${r.score}分 → ${r.return3!==null?((r.return3>=0?'+':'')+r.return3.toFixed(2)+'%'):r.return1!==null?((r.return1>=0?'+':'')+r.return1.toFixed(2)+'%(1日)'):'待回測'}`).join('\n'));
 }
 
 async function loadAI() {
