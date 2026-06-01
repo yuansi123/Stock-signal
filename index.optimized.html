@@ -424,14 +424,6 @@ button,select,input { font-family:inherit; }
       <div id="actionListCard" class="plain-card"></div>
     </div>
 
-    <div id="usSectorsSection" style="margin-bottom:1rem">
-      <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">🌐 美股板塊強弱</div>
-        <button class="ghost-btn" onclick="window._usSectorsForce=true;loadUsSectors()">重新載入</button>
-      </div>
-      <div id="usSectorsCard" class="plain-card"><div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div></div>
-    </div>
-
     <div id="dailyNewsSection" style="margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
         <div class="section-title" style="margin:0">今日科技要聞</div>
@@ -537,6 +529,14 @@ button,select,input { font-family:inherit; }
         <div class="section-title" style="margin:0">板塊輪動雷達</div>
       </div>
       <div id="rotationRadarCard" class="plain-card"></div>
+    </div>
+
+    <div id="usSectorsSection" style="margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">🌐 美股科技主題強弱</div>
+        <button class="ghost-btn" onclick="window._usSectorsForce=true;loadUsSectors()">重新載入</button>
+      </div>
+      <div id="usSectorsCard" class="plain-card"><div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div></div>
     </div>
     <div id="sectorContent"><div class="state"><div class="spinner"></div><div>載入板塊資料...</div></div></div>
   </div>
