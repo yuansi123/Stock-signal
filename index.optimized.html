@@ -923,6 +923,86 @@ function getTradeNarrator(s) {
   const under = pctDiff(price, range.low) || 0;
   return {tone:'等轉強', color:'var(--yellow)', icon:'⏳', text:`旁白：收盤價低於進場區間約 ${under.toFixed(1)}%，現在還不用急。等它站回 ${fmtPrice(range.low)} 以上、量能轉強或法人續買，再把它拉回可操作名單。${why}`};
 }
+function getSignalValidity(s) {
+  const opClass = getDisplayOpClass(s);
+  const reasons = parseReasons(s.reasons).join(' ');
+  const rsi = num(s.rsi);
+  const conc = num(s.conc5);
+  const dayTradePct = num(s.dayTradeRatio);
+  const entryStatus = getEntryStatus(s);
+  const warn = [];
+  const good = [];
+
+  if (Number(s.instNet) < 0) warn.push('法人轉賣');
+  if (Number(s.scoreDelta || 0) <= -2) warn.push('分數降溫');
+  if (rsi >= 78 && Number(s.instNet) <= 0) warn.push('過熱缺接手');
+  if (conc >= 14) warn.push('集中偏熱');
+  if (dayTradePct >= 50) warn.push('當沖過高');
+  if (entryStatus === 'above') warn.push('價格偏高');
+
+  if (Number(s.instNet) > 0) good.push('法人仍買');
+  if (Number(s.streak) >= 2) good.push('連買延續');
+  if (Number(s.scoreDelta || 0) >= 1) good.push('分數升溫');
+  if (/量能放大|多頭排列|站上|突破/.test(reasons)) good.push('技術配合');
+
+  if (opClass === 'avoid' || opClass === 'bear') {
+    return {
+      label: '偏弱或失效',
+      color: 'var(--red)',
+      detail: warn.length ? warn.join('、') : '系統目前已標成避開/空頭，先不要把它當買點。',
+      next: '隔天除非法人重新轉買、分數回升，否則先從清單移開。'
+    };
+  }
+  if (warn.length >= 2) {
+    return {
+      label: '有效但風險升高',
+      color: 'var(--yellow)',
+      detail: warn.join('、'),
+      next: '隔天要看是否站穩進場區間；若開高無量或法人轉賣，先不要追。'
+    };
+  }
+  if (opClass === 'buy' && good.length >= 2) {
+    return {
+      label: '訊號仍有效',
+      color: 'var(--green)',
+      detail: good.slice(0, 3).join('、'),
+      next: '隔天若沒有跳空過高，且量能沒有明顯萎縮，可以照分批節奏觀察。'
+    };
+  }
+  return {
+    label: '觀察中',
+    color: 'var(--brown)',
+    detail: good.length ? good.join('、') : '條件還沒有明顯惡化，但也不是完整買點。',
+    next: '等價格、量能或法人方向再多給一個確認。'
+  };
+}
+function getNextDayFollowup(s) {
+  const price = Number(s.price);
+  const range = parseEntryRange(s.entry);
+  const entryStatus = getEntryStatus(s);
+  const opClass = getDisplayOpClass(s);
+  const validity = getSignalValidity(s);
+  const dayTradePct = num(s.dayTradeRatio);
+
+  if (!price || !range) return '隔日先看資料是否補齊，不要硬追。';
+  if (opClass === 'avoid' || opClass === 'bear') return '隔日先避開，除非法人重新轉買且重新站回短線均線。';
+  if (entryStatus === 'above') return `隔日若開高續漲，先不要追；拉回 ${fmtPrice(range.low)}~${fmtPrice(range.high)} 再看量能。`;
+  if (entryStatus === 'below') return `隔日重點看能不能站回 ${fmtPrice(range.low)}，站不回就當作還沒輪到它。`;
+  if (validity.label === '訊號仍有效' && dayTradePct < 30) return '隔日若開盤沒有爆量急拉，可以小量分批；放量突破昨日高點再加強。';
+  return '隔日可以先小量觀察，等法人續買、量能不縮，再考慮提高部位。';
+}
+function getStockArchetype(s) {
+  const reasons = parseReasons(s.reasons).join(' ');
+  const rsi = num(s.rsi);
+  const conc = num(s.conc5);
+  const entryStatus = getEntryStatus(s);
+  if (String(s.op || '').includes('過熱') || rsi >= 75 || conc >= 12) return '過熱續航型';
+  if (/突破|站上|多頭排列/.test(reasons) || Number(s.momS) >= 2) return '突破動能型';
+  if (Number(s.instNet) > 0 && Number(s.streak) >= 3) return '法人卡位型';
+  if (entryStatus === 'below' && Number(s.instNet) > 0) return '低檔轉強型';
+  if (getDisplayOpClass(s) === 'avoid' || getDisplayOpClass(s) === 'bear') return '風險警示型';
+  return '一般觀察型';
+}
 function getBarColor(s,m) { const p=s/m; return p>=.75?'#5a9460':p>=.5?'#c08830':p>=.25?'#a07850':'#d0c8bc'; }
 function parseReasons(str) { return String(str || '').split('|').map(s => s.trim()).filter(Boolean); }
 function rClass(r) {
@@ -1212,7 +1292,7 @@ function renderActionList() {
     .slice(0, 20);
 
   const themeHints = stock => {
-    const conds = (stock.conditions || '').split('|').map(s => s.trim());
+    const conds = parseReasons(stock.reasons);
     const hints = [];
     const checks = [
       [/外資連買\d+天/, m => m],
@@ -2423,6 +2503,8 @@ function renderCards() {
     const entryPosition = getEntryPosition(s);
     const rrDistance = getRiskRewardDistance(s);
     const narrator = getTradeNarrator(s);
+    const validity = getSignalValidity(s);
+    const nextDayFollowup = getNextDayFollowup(s);
     const fourCond = reasons.some(r => r.includes('四大條件'));
     const fColor = s.foreign > 0 ? 'color:var(--red)' : s.foreign < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
     const tColor = s.trust > 0 ? 'color:var(--red)' : s.trust < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
@@ -2472,6 +2554,19 @@ function renderCards() {
           <span style="font-size:.72rem;font-weight:800;color:${narrator.color}">交易旁白：${narrator.tone}</span>
         </div>
         <div style="font-size:.74rem;line-height:1.55;color:var(--text2)">${narrator.text}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr;gap:6px;margin:-2px 0 10px">
+        <div style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:.58rem .72rem;border-left:4px solid ${validity.color}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px">
+            <span style="font-size:.68rem;font-weight:800;color:${validity.color}">訊號有效性：${validity.label}</span>
+            <span style="font-size:.58rem;color:var(--text3)">不改變選股邏輯</span>
+          </div>
+          <div style="font-size:.72rem;line-height:1.55;color:var(--text2)">${validity.detail}</div>
+        </div>
+        <div style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:.58rem .72rem">
+          <div style="font-size:.68rem;font-weight:800;color:var(--brown);margin-bottom:3px">隔日追蹤提醒</div>
+          <div style="font-size:.72rem;line-height:1.55;color:var(--text2)">${nextDayFollowup}</div>
+        </div>
       </div>
       <div class="breakdown">${pips}</div>
       <div class="reasons">${reasons.map(r => `<span class="rtag ${rClass(r)}">${r}</span>`).join('')}</div>
@@ -3075,7 +3170,10 @@ async function sendAIChat() {
 function buildAIPrompt(q,target) {
   if (target) {
     const sizing = getPositionSizing(target);
-    return `你是台灣資深股票分析師，請針對以下股票給出完整分析，回覆用繁體中文。\n\n用戶問題：「${q}」\n股票：${target.name}(${target.code}) 板塊：${target.sector}\n收盤價：${target.price} 總分：${target.score} 操作：${getDisplayOp(target)}\n建議倉位：${sizing.label} ${sizing.pct}，原因：${sizing.reason}\n法人淨買超：${target.instNet}張 連買：${target.streak}天\nRSI：${target.rsi} K/D：${target.kVal}/${target.dVal} 五日集中：${target.conc5}\n外資：${target.foreign} 投信：${target.trust} 自營：${target.dealer}\n融資餘額：${target.marginBal} 融資增減：${target.marginChg} 融券：${target.shortBal} 券資比：${target.shortRatio}%\n進場：${target.entry} 停損：${target.stop} 停利1：${target.tp1} 停利2：${target.tp2} 風報比：${target.rr}\n當沖比：${target.dayTradeRatio} 當沖扣分：${target.dayTradePenalty}\n訊號說明：${target.reasons}\n\n請分成：籌碼分析、技術面判斷、操作建議、停損停利、主要風險。`;
+    const archetype = getStockArchetype(target);
+    const validity = getSignalValidity(target);
+    const nextDay = getNextDayFollowup(target);
+    return `你是台灣資深股票分析師，請針對以下股票給出完整分析，回覆用繁體中文。\n\n用戶問題：「${q}」\n股票：${target.name}(${target.code}) 板塊：${target.sector}\n型態分類：${archetype}\n訊號有效性：${validity.label}，原因：${validity.detail}\n隔日追蹤：${nextDay}\n收盤價：${target.price} 總分：${target.score} 操作：${getDisplayOp(target)}\n建議倉位：${sizing.label} ${sizing.pct}，原因：${sizing.reason}\n法人淨買超：${target.instNet}張 連買：${target.streak}天\nRSI：${target.rsi} K/D：${target.kVal}/${target.dVal} 五日集中：${target.conc5}\n外資：${target.foreign} 投信：${target.trust} 自營：${target.dealer}\n融資餘額：${target.marginBal} 融資增減：${target.marginChg} 融券：${target.shortBal} 券資比：${target.shortRatio}%\n進場：${target.entry} 停損：${target.stop} 停利1：${target.tp1} 停利2：${target.tp2} 風報比：${target.rr}\n當沖比：${target.dayTradeRatio} 當沖扣分：${target.dayTradePenalty}\n訊號說明：${target.reasons}\n\n請先用一句話說明「這檔是哪一型、現在該怎麼看」。再分成：籌碼分析、技術面判斷、操作建議、停損停利、主要風險。\n回答要依型態調整口吻：突破動能型重視續量與追價風險；法人卡位型重視連買與消息催化；過熱續航型重視拉回和續航條件；低檔轉強型重視是否站回關鍵價；風險警示型要直接提醒不要硬做。不要每檔都套同一種模板。`;
   }
   return `你是台灣資深股票分析師，請針對以下問題給出專業建議，繁體中文，簡潔有力。\n\n用戶問題：「${q}」\n今日資料日期：${qs('dateTag').textContent}\n買入訊號：${allStocks.filter(s=>s.op.includes('🟢')).length}檔\n前5強：${allStocks.filter(s=>s.op.includes('🟢')).slice(0,5).map(s=>`${s.name}(${s.code})${s.score}分`).join('、')}\n連買3天以上：${allStocks.filter(s=>s.streak>=3).slice(0,5).map(s=>`${s.name}連買${s.streak}天`).join('、')}\n\n請直接給明確立場。`;
 }
