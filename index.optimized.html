@@ -3438,6 +3438,121 @@ async function loadMarketCorrelation() {
   } catch(e){console.log('大盤相關性失敗',e);}
 }
 
+// Override: market correlation should not be blank when only current market data exists.
+async function loadMarketCorrelation() {
+  const records = window._btRecords || [];
+  if (!records.length) return;
+
+  const done = records.filter(r => r.return1 !== null);
+  if (!done.length) return;
+
+  const btEl = qs('btContent');
+  if (!btEl) return;
+
+  const readMarketRows = async () => {
+    try {
+      const hist = await fetchSheet('大盤日誌');
+      if (hist && hist.length) return {rows: hist, source: '大盤日誌', dateCol: 0, chgCol: 3};
+    } catch (e) {}
+
+    try {
+      const latest = await fetchSheet('大盤資料');
+      if (latest && latest.length) return {rows: latest, source: '大盤資料', dateCol: 0, chgCol: 3};
+    } catch (e) {}
+
+    return {rows: [], source: '', dateCol: 0, chgCol: 3};
+  };
+
+  const parseMarketChange = (raw) => {
+    if (raw === null || raw === undefined || raw === '') return null;
+    if (typeof raw === 'number') return Math.abs(raw) <= 1 ? raw * 100 : raw;
+    const n = parseFloat(String(raw).replace('%', '').trim());
+    if (isNaN(n)) return null;
+    return Math.abs(n) <= 1 ? n * 100 : n;
+  };
+
+  try {
+    const market = await readMarketRows();
+    const mkMap = {};
+    const availableDates = [];
+
+    market.rows.forEach(r => {
+      const c = r.c || [];
+      const d = parseDateVal(cell(c, market.dateCol, ''));
+      const chg = parseMarketChange(cell(c, market.chgCol, ''));
+      if (d && chg !== null) {
+        mkMap[d] = chg;
+        availableDates.push(d);
+      }
+    });
+
+    const groups = {
+      strong: {w: 0, t: 0},
+      up: {w: 0, t: 0},
+      flat: {w: 0, t: 0},
+      down: {w: 0, t: 0}
+    };
+
+    let matched = 0;
+    done.forEach(r => {
+      const mk = mkMap[r.date];
+      if (mk === undefined) return;
+      matched++;
+      const g = mk >= 1 ? 'strong' : mk >= 0 ? 'up' : mk >= -1 ? 'flat' : 'down';
+      groups[g].t++;
+      if (r.return1 > 0) groups[g].w++;
+    });
+
+    const signalDates = [...new Set(done.map(r => r.date).filter(Boolean))].sort().reverse();
+    const uniqMarketDates = [...new Set(availableDates)].sort().reverse();
+
+    if (!matched) {
+      const html = `<div class="plain-card" style="margin-bottom:12px;border-left:4px solid var(--brown-light)">
+        <div class="section-title">📉 大盤相關性（1日勝率 by 訊號當天大盤）</div>
+        <div style="font-size:.78rem;line-height:1.65;color:var(--text2)">
+          目前沒有可配對的歷史大盤資料，所以先不硬算勝率。這通常是因為 <strong>大盤資料</strong> 只保留最新一筆，不是每天累積的歷史表。
+        </div>
+        <div style="margin-top:8px;background:var(--bg2);border-radius:8px;padding:8px 10px;font-size:.68rem;color:var(--text3);line-height:1.6">
+          大盤資料來源：${market.source || '無'}<br>
+          可用大盤日期：${uniqMarketDates.slice(0, 4).join('、') || '無'}${uniqMarketDates.length > 4 ? '…' : ''}<br>
+          回測訊號日期：${signalDates.slice(0, 4).join('、') || '無'}${signalDates.length > 4 ? '…' : ''}
+        </div>
+        <div style="margin-top:8px;font-size:.68rem;color:var(--brown)">
+          之後只要 Apps Script 開始累積「大盤日誌」，這裡就會自動顯示不同大盤漲跌情境下的勝率。
+        </div>
+      </div>`;
+      btEl.innerHTML = html + btEl.innerHTML;
+      return;
+    }
+
+    const labels = {
+      strong: '大盤漲 > 1%',
+      up: '大盤漲 0~1%',
+      flat: '大盤跌 0~1%',
+      down: '大盤跌 > 1%'
+    };
+
+    const html = `<div class="plain-card" style="margin-bottom:12px">
+      <div class="section-title">📉 大盤相關性（1日勝率 by 訊號當天大盤）</div>
+      <div style="font-size:.65rem;color:var(--text3);margin-bottom:8px">已配對 ${matched} 筆訊號 · 資料來源：${market.source}</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px">
+        ${Object.entries(groups).map(([k, v]) => {
+          const wr = v.t ? Math.round(v.w / v.t * 100) : null;
+          const col = wr === null ? 'var(--text3)' : wr >= 60 ? 'var(--green)' : wr >= 45 ? 'var(--yellow)' : 'var(--red)';
+          return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center">
+            <div style="font-size:.6rem;color:var(--text3)">${labels[k]}</div>
+            <div style="font-size:1.1rem;font-weight:800;color:${col}">${wr !== null ? wr + '%' : '—'}</div>
+            <div style="font-size:.54rem;color:var(--text3)">${v.t} 筆</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+    btEl.innerHTML = html + btEl.innerHTML;
+  } catch (e) {
+    console.log('大盤相關性失敗', e);
+  }
+}
+
 async function loadKBarInto(elId, code, endDate) {
   const el = qs(elId);
   if (!el) return;
