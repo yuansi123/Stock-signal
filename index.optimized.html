@@ -1180,6 +1180,23 @@ function getTrendTag(s) {
   if (s.scoreDelta === -1) return '<span class="signal-tag trend-down">-1 轉弱</span>';
   return '<span class="signal-tag trend-flat">持平</span>';
 }
+function isClassicStrictSignal(s) {
+  const reasons = parseReasons(s.reasons);
+  const reasonText = reasons.join(' ');
+  const score = Number(s.score) || 0;
+  const rsi = num(s.rsi);
+  const dayTradePct = num(s.dayTradeRatio);
+  const hasBreakout = /突破|站上MA5|MA多頭排列|多頭排列/.test(reasonText) || Number(s.momS) >= 2;
+  const hasVolume = /量能放大|量創|放量/.test(reasonText) || Number(s.volS) >= 1;
+  const classicCore = score >= 10 || (score >= 8 && hasBreakout && hasVolume && Number(s.instNet) > 0);
+  const rsiOk = !rsi || (rsi >= 40 && rsi <= 66);
+  const dayTradeOk = !dayTradePct || dayTradePct < 40;
+  return getDisplayOpClass(s) === 'buy' && classicCore && rsiOk && dayTradeOk;
+}
+function getClassicTag(s) {
+  if (!isClassicStrictSignal(s)) return '';
+  return '<span class="signal-tag cont" title="接近 5/20 早期嚴選條件：高分，或 8 分以上且突破放量、法人買超，RSI 不過熱">經典嚴選</span>';
+}
 function getDivergenceSignals(s, reasons) {
   const list = [];
   const reasonText = reasons.join(' ');
@@ -2612,7 +2629,7 @@ function renderCards() {
     return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*.035,.5)}s">
       <div class="card-header">
         <div>
-          <div class="stock-name">${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}</div>
+          <div class="stock-name">${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}</div>
           <div class="stock-code">${hlMatch(s.code,q)}${s.sector ? ` · <span onclick="setSectorFilter('${s.sector.replace(/'/g,"\\'")}');event.stopPropagation()" style="cursor:pointer;color:var(--brown)">${s.sector}</span>` : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
