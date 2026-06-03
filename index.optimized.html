@@ -1025,6 +1025,53 @@ function getBuyRiskWarning(s) {
   }
   return {level:maxLevel, label:'輕微提醒', color:'var(--brown)', title:'買入風險提醒', action:'買點要更挑，避免追高', items:items.map(x => x.text)};
 }
+function getBacktestReview(r) {
+  const main = r.return3 ?? r.return2 ?? r.return1;
+  if (main === null || main === undefined) {
+    return {label:'等待回測', color:'var(--text3)', text:'還沒有足夠交易日，暫時不檢討。'};
+  }
+
+  const dayTradePct = num(r.dayTradeRatio);
+  const rr = parseFloat(r.rr) || 0;
+  const conc = num(r.conc5);
+  const rsi = num(r.rsi);
+  const reasons = [];
+
+  if (main < 0) {
+    if (dayTradePct >= 50) reasons.push('當沖比超過50%，短線籌碼太躁');
+    else if (dayTradePct >= 40) reasons.push('當沖比超過40%，高分也容易隔日震盪');
+    else if (dayTradePct >= 30) reasons.push('當沖比偏高，適合小量不適合追價');
+
+    if (rr <= 0 && String(r.rr || '') !== '') reasons.push('風報比小於等於0，停利空間不夠漂亮');
+    else if (rr > 0 && rr < 1) reasons.push('風報比低於1，賺賠不划算');
+
+    if (conc >= 8) reasons.push('五日集中度偏熱，可能遇到獲利了結');
+    else if (conc >= 6) reasons.push('五日集中度偏高，追高風險增加');
+
+    if (rsi >= 70) reasons.push('RSI偏熱，隔日容易拉回');
+    if ((Number(r.trust) || 0) > 0 && (Number(r.foreign) || 0) < 0) reasons.push('投信買但外資賣，法人方向不一致');
+    if ((Number(r.streak) || 0) <= 1) reasons.push('連買天數不足，法人延續性還沒確認');
+
+    return {
+      label:'下跌檢討',
+      color:'var(--red)',
+      text: reasons.length ? '可能因為：' + reasons.slice(0, 3).join('、') + '。' : '可能是隔日大盤或板塊轉弱，原始欄位沒有明顯單一風險。'
+    };
+  }
+
+  if (dayTradePct < 30) reasons.push('當沖比不高');
+  if (rr >= 1.2) reasons.push('風報比夠漂亮');
+  if (conc > 0 && conc <= 6) reasons.push('集中度在甜蜜區');
+  if ((Number(r.instNet) || 0) > 0) reasons.push('法人買盤支撐');
+  if ((Number(r.streak) || 0) >= 2) reasons.push('法人連買延續');
+  if (rsi > 0 && rsi < 70) reasons.push('RSI未明顯過熱');
+
+  return {
+    label:'上漲觀察',
+    color:'var(--green)',
+    text: reasons.length ? '表現較好可能因為：' + reasons.slice(0, 3).join('、') + '。' : '表現較好，但欄位特徵不明顯，可能受題材或板塊輪動帶動。'
+  };
+}
 function getStockArchetype(s) {
   const reasons = parseReasons(s.reasons).join(' ');
   const rsi = num(s.rsi);
@@ -2888,14 +2935,39 @@ async function loadBacktest() {
   qs('btContent').innerHTML = '<div class="state"><div class="spinner"></div><div>載入回測資料...</div></div>';
   try {
     const rows = await fetchSheet('訊號歷史');
+    const logRows = await fetchSheet('訊號日誌', true).catch(() => []);
+    const logMap = {};
+    logRows.forEach(r => {
+      const c = r.c;
+      const date = parseDateVal(cell(c,0,''));
+      const code = String(cell(c,1,''));
+      if (!date || !code) return;
+      logMap[date + '_' + code] = {
+        op:String(cell(c,3,'')),
+        instNet:num(cell(c,5,0)),
+        streak:num(cell(c,6,0)),
+        conc5:String(cell(c,7,'')),
+        rsi:num(cell(c,16,'')),
+        sector:String(cell(c,19,'')),
+        reasons:String(cell(c,21,'')),
+        foreign:num(cell(c,26,0)),
+        trust:num(cell(c,27,0)),
+        dealer:num(cell(c,28,0)),
+        rr:String(cell(c,33,'')),
+        dayTradeRatio:String(cell(c,34,''))
+      };
+    });
     if (!rows.length) { qs('btContent').innerHTML = '<div class="state">還沒有回測資料</div>'; return; }
-    const records = rows.map(r => ({
-      date:parseDateVal(cell(r.c,0,'')), code:String(cell(r.c,1,'')), name:String(cell(r.c,2,'')),
-      signal:String(cell(r.c,3,'')), score:Number(cell(r.c,4,0))||0, entryClose:num(cell(r.c,5,0)),
-      entryOpen:cell(r.c,6,'')===''?null:num(cell(r.c,6,'')), return1:cell(r.c,7,'')===''?null:num(cell(r.c,7,'')),
-      price2:cell(r.c,8,'')===''?null:num(cell(r.c,8,'')), return2:cell(r.c,9,'')===''?null:num(cell(r.c,9,'')),
-      price3:cell(r.c,10,'')===''?null:num(cell(r.c,10,'')), return3:cell(r.c,11,'')===''?null:num(cell(r.c,11,''))
-    })).filter(r=>r.code && r.date.length===10);
+    const records = rows.map(r => {
+      const base = {
+        date:parseDateVal(cell(r.c,0,'')), code:String(cell(r.c,1,'')), name:String(cell(r.c,2,'')),
+        signal:String(cell(r.c,3,'')), score:Number(cell(r.c,4,0))||0, entryClose:num(cell(r.c,5,0)),
+        entryOpen:cell(r.c,6,'')===''?null:num(cell(r.c,6,'')), return1:cell(r.c,7,'')===''?null:num(cell(r.c,7,'')),
+        price2:cell(r.c,8,'')===''?null:num(cell(r.c,8,'')), return2:cell(r.c,9,'')===''?null:num(cell(r.c,9,'')),
+        price3:cell(r.c,10,'')===''?null:num(cell(r.c,10,'')), return3:cell(r.c,11,'')===''?null:num(cell(r.c,11,''))
+      };
+      return Object.assign(base, logMap[base.date + '_' + base.code] || {});
+    }).filter(r=>r.code && r.date.length===10);
     renderBacktest(records,0);
   } catch(e) {
     qs('btContent').innerHTML = '<div class="state">載入失敗：' + e.message + '</div>';
@@ -2994,9 +3066,15 @@ function renderBacktest(records,scoreFilter) {
       <div style="font-weight:700;color:${retCol(avgDay)}">${retTxt(avgDay)}</div>
     </div><div style="display:none;margin-top:8px">${day.map(r => {
       const main = r.return3 ?? r.return2 ?? r.return1, label = r.return3!==null?'3日':r.return2!==null?'2日':r.return1!==null?'1日':'等待';
-      return `<div class="row-between" style="background:var(--bg2);border-radius:8px;padding:7px 10px;margin-bottom:4px">
-        <div><span style="font-size:.82rem;font-weight:700">${r.name}</span> <span style="font-size:.62rem;color:var(--text3)">${r.code}</span> <span style="font-size:.62rem;background:var(--card);padding:1px 6px;border-radius:6px">${r.score}分</span></div>
-        <div style="text-align:right;color:${retCol(main)};font-weight:700">${main===null?'等待中':`${main>=0?'+':''}${main.toFixed(2)}%`}<div style="font-size:.58rem;color:var(--text3);font-weight:400">${label}</div></div>
+      const review = getBacktestReview(r);
+      return `<div style="background:var(--bg2);border-radius:8px;padding:7px 10px;margin-bottom:5px">
+        <div class="row-between">
+          <div><span style="font-size:.82rem;font-weight:700">${r.name}</span> <span style="font-size:.62rem;color:var(--text3)">${r.code}</span> <span style="font-size:.62rem;background:var(--card);padding:1px 6px;border-radius:6px">${r.score}分</span>${r.sector ? `<span style="font-size:.58rem;color:var(--brown);margin-left:4px">${r.sector}</span>` : ''}</div>
+          <div style="text-align:right;color:${retCol(main)};font-weight:700">${main===null?'等待中':`${main>=0?'+':''}${main.toFixed(2)}%`}<div style="font-size:.58rem;color:var(--text3);font-weight:400">${label}</div></div>
+        </div>
+        <div style="margin-top:5px;font-size:.66rem;line-height:1.5;color:var(--text2);border-left:3px solid ${review.color};padding-left:7px">
+          <span style="font-weight:800;color:${review.color}">${review.label}</span>：${review.text}
+        </div>
       </div>`;
     }).join('')}</div></div>`;
   }).join('')}`;
