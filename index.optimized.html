@@ -992,6 +992,39 @@ function getNextDayFollowup(s) {
   if (validity.label === '訊號仍有效' && dayTradePct < 30) return '隔日若開盤沒有爆量急拉，可以小量分批；放量突破昨日高點再加強。';
   return '隔日可以先小量觀察，等法人續買、量能不縮，再考慮提高部位。';
 }
+function getBuyRiskWarning(s) {
+  const dayTradePct = num(s.dayTradeRatio);
+  const rr = parseFloat(s.rr) || 0;
+  const conc = num(s.conc5);
+  const rsi = num(s.rsi);
+  const items = [];
+
+  if (dayTradePct >= 50) items.push({level:3, text:'當沖比超過50%，近期回測下跌率偏高，隔日容易劇烈震盪'});
+  else if (dayTradePct >= 40) items.push({level:3, text:'當沖比超過40%，高分也不適合追價'});
+  else if (dayTradePct >= 30) items.push({level:2, text:'當沖比超過30%，只能小量分批觀察'});
+
+  if (rr <= 0 && String(s.rr || '') !== '') items.push({level:3, text:'風報比小於等於0，停利空間不夠漂亮，先等拉回'});
+  else if (rr > 0 && rr < 1) items.push({level:2, text:'風報比低於1，賺賠不划算，部位要縮小'});
+  else if (rr >= 1 && rr < 1.2) items.push({level:1, text:'風報比略低，買點要更挑'});
+
+  if (conc >= 8) items.push({level:2, text:'五日集中度超過8%，籌碼偏熱，容易出現獲利了結'});
+  else if (conc >= 6) items.push({level:1, text:'五日集中度超過6%，追高要保守'});
+
+  if (rsi >= 70) items.push({level:1, text:'RSI接近/進入過熱區，隔日不要用市價追'});
+  if ((Number(s.trust) || 0) > 0 && (Number(s.foreign) || 0) < 0) items.push({level:1, text:'投信買但外資賣，法人方向不完全一致'});
+
+  const maxLevel = items.reduce((m, x) => Math.max(m, x.level), 0);
+  if (!items.length) {
+    return {level:0, label:'風險正常', color:'var(--green)', title:'買入風險檢查', action:'可照原計畫觀察', items:['沒有踩到近期失敗樣本的主要共通風險']};
+  }
+  if (maxLevel >= 3) {
+    return {level:maxLevel, label:'高風險，不追', color:'var(--red)', title:'買入風險警示', action:'先不要追價，等拉回進場區或隔日量價確認', items:items.map(x => x.text)};
+  }
+  if (maxLevel === 2) {
+    return {level:maxLevel, label:'只適合小量', color:'var(--yellow)', title:'買入風險提醒', action:'可以觀察，但不要一次打滿', items:items.map(x => x.text)};
+  }
+  return {level:maxLevel, label:'輕微提醒', color:'var(--brown)', title:'買入風險提醒', action:'買點要更挑，避免追高', items:items.map(x => x.text)};
+}
 function getStockArchetype(s) {
   const reasons = parseReasons(s.reasons).join(' ');
   const rsi = num(s.rsi);
@@ -2506,6 +2539,7 @@ function renderCards() {
     const narrator = getTradeNarrator(s);
     const validity = getSignalValidity(s);
     const nextDayFollowup = getNextDayFollowup(s);
+    const buyRisk = getBuyRiskWarning(s);
     const fourCond = reasons.some(r => r.includes('四大條件'));
     const fColor = s.foreign > 0 ? 'color:var(--red)' : s.foreign < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
     const tColor = s.trust > 0 ? 'color:var(--red)' : s.trust < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
@@ -2555,6 +2589,14 @@ function renderCards() {
           <span style="font-size:.72rem;font-weight:800;color:${narrator.color}">交易旁白：${narrator.tone}</span>
         </div>
         <div style="font-size:.74rem;line-height:1.55;color:var(--text2)">${narrator.text}</div>
+      </div>
+      <div style="margin:-2px 0 10px;padding:.62rem .78rem;border-radius:12px;background:${buyRisk.level>=3?'#fef0ee':buyRisk.level===2?'#fef8ea':'var(--card2)'};border:1px solid var(--border);border-left:4px solid ${buyRisk.color}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+          <span style="font-size:.72rem;font-weight:900;color:${buyRisk.color}">${buyRisk.title}：${buyRisk.label}</span>
+          <span style="font-size:.58rem;color:var(--text3)">依近期跌股共通點</span>
+        </div>
+        <div style="font-size:.72rem;line-height:1.55;color:var(--text2);margin-bottom:4px">${buyRisk.action}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">${buyRisk.items.slice(0,3).map(t=>`<span class="rtag ${buyRisk.level>=3?'warn':buyRisk.level===0?'good':'info'}">${t}</span>`).join('')}</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr;gap:6px;margin:-2px 0 10px">
         <div style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:.58rem .72rem;border-left:4px solid ${validity.color}">
@@ -3174,7 +3216,8 @@ function buildAIPrompt(q,target) {
     const archetype = getStockArchetype(target);
     const validity = getSignalValidity(target);
     const nextDay = getNextDayFollowup(target);
-    return `你是台灣資深股票分析師，請針對以下股票給出完整分析，回覆用繁體中文。\n\n用戶問題：「${q}」\n股票：${target.name}(${target.code}) 板塊：${target.sector}\n型態分類：${archetype}\n訊號有效性：${validity.label}，原因：${validity.detail}\n隔日追蹤：${nextDay}\n收盤價：${target.price} 總分：${target.score} 操作：${getDisplayOp(target)}\n建議倉位：${sizing.label} ${sizing.pct}，原因：${sizing.reason}\n法人淨買超：${target.instNet}張 連買：${target.streak}天\nRSI：${target.rsi} K/D：${target.kVal}/${target.dVal} 五日集中：${target.conc5}\n外資：${target.foreign} 投信：${target.trust} 自營：${target.dealer}\n融資餘額：${target.marginBal} 融資增減：${target.marginChg} 融券：${target.shortBal} 券資比：${target.shortRatio}%\n進場：${target.entry} 停損：${target.stop} 停利1：${target.tp1} 停利2：${target.tp2} 風報比：${target.rr}\n當沖比：${target.dayTradeRatio} 當沖扣分：${target.dayTradePenalty}\n訊號說明：${target.reasons}\n\n請先用一句話說明「這檔是哪一型、現在該怎麼看」。再分成：籌碼分析、技術面判斷、操作建議、停損停利、主要風險。\n回答要依型態調整口吻：突破動能型重視續量與追價風險；法人卡位型重視連買與消息催化；過熱續航型重視拉回和續航條件；低檔轉強型重視是否站回關鍵價；風險警示型要直接提醒不要硬做。不要每檔都套同一種模板。`;
+    const buyRisk = getBuyRiskWarning(target);
+    return `你是台灣資深股票分析師，請針對以下股票給出完整分析，回覆用繁體中文。\n\n用戶問題：「${q}」\n股票：${target.name}(${target.code}) 板塊：${target.sector}\n型態分類：${archetype}\n訊號有效性：${validity.label}，原因：${validity.detail}\n買入風險警示：${buyRisk.label}，操作：${buyRisk.action}，原因：${buyRisk.items.join('；')}\n隔日追蹤：${nextDay}\n收盤價：${target.price} 總分：${target.score} 操作：${getDisplayOp(target)}\n建議倉位：${sizing.label} ${sizing.pct}，原因：${sizing.reason}\n法人淨買超：${target.instNet}張 連買：${target.streak}天\nRSI：${target.rsi} K/D：${target.kVal}/${target.dVal} 五日集中：${target.conc5}\n外資：${target.foreign} 投信：${target.trust} 自營：${target.dealer}\n融資餘額：${target.marginBal} 融資增減：${target.marginChg} 融券：${target.shortBal} 券資比：${target.shortRatio}%\n進場：${target.entry} 停損：${target.stop} 停利1：${target.tp1} 停利2：${target.tp2} 風報比：${target.rr}\n當沖比：${target.dayTradeRatio} 當沖扣分：${target.dayTradePenalty}\n訊號說明：${target.reasons}\n\n請先用一句話說明「這檔是哪一型、現在該怎麼看」。再分成：籌碼分析、技術面判斷、操作建議、停損停利、主要風險。\n回答要依型態調整口吻：突破動能型重視續量與追價風險；法人卡位型重視連買與消息催化；過熱續航型重視拉回和續航條件；低檔轉強型重視是否站回關鍵價；風險警示型要直接提醒不要硬做。若買入風險警示是「高風險，不追」，請明確講不要追價，只能等拉回或隔日量價確認。不要每檔都套同一種模板。`;
   }
   return `你是台灣資深股票分析師，請針對以下問題給出專業建議，繁體中文，簡潔有力。\n\n用戶問題：「${q}」\n今日資料日期：${qs('dateTag').textContent}\n買入訊號：${allStocks.filter(s=>s.op.includes('🟢')).length}檔\n前5強：${allStocks.filter(s=>s.op.includes('🟢')).slice(0,5).map(s=>`${s.name}(${s.code})${s.score}分`).join('、')}\n連買3天以上：${allStocks.filter(s=>s.streak>=3).slice(0,5).map(s=>`${s.name}連買${s.streak}天`).join('、')}\n\n請直接給明確立場。`;
 }
