@@ -3101,6 +3101,32 @@ function buildBacktestCorrelationCharts(records) {
     const sy = y => T + (y1 - signedLog(y)) / (y1 - y0 || 1) * (H - T - B);
     const zeroY = y0 <= 0 && y1 >= 0 ? sy(0) : null;
     const zeroX = x0 <= 0 && x1 >= 0 ? L + (0 - x0) / (x1 - x0 || 1) * (W - L - R) : null;
+    const rawMinX = Math.min(...pairs.map(p=>p.x)), rawMaxX = Math.max(...pairs.map(p=>p.x));
+    const rawMinY = Math.min(...pairs.map(p=>p.y)), rawMaxY = Math.max(...pairs.map(p=>p.y));
+    const makeTicks = (min, max, count = 4) => {
+      if (!isFinite(min) || !isFinite(max)) return [];
+      if (min === max) return [min];
+      const ticks = [];
+      for (let i = 0; i < count; i++) ticks.push(min + (max - min) * i / (count - 1));
+      if (min < 0 && max > 0 && !ticks.some(v => Math.abs(v) < 1e-9)) ticks.push(0);
+      return [...new Set(ticks.map(v => Number(v.toFixed(4))))].sort((a,b)=>a-b);
+    };
+    const fmtTick = (v, pct=false) => {
+      const abs = Math.abs(v);
+      const body = abs >= 100 ? v.toFixed(0) : abs >= 10 ? v.toFixed(1) : v.toFixed(2);
+      return pct ? body + '%' : body;
+    };
+    const xTicks = makeTicks(rawMinX, rawMaxX, 4);
+    const yTicks = makeTicks(rawMinY, rawMaxY, 5);
+    const xTickSvg = xTicks.map(v => `<g>
+      <line x1="${sx(v).toFixed(1)}" y1="${H-B}" x2="${sx(v).toFixed(1)}" y2="${H-B+4}" stroke="var(--text3)" opacity=".45" />
+      <text x="${sx(v).toFixed(1)}" y="${H-7}" text-anchor="middle" font-size="6.5" fill="var(--text3)">${fmtTick(v, cfg.percent)}</text>
+    </g>`).join('');
+    const yTickSvg = yTicks.map(v => `<g>
+      <line x1="${L-4}" y1="${sy(v).toFixed(1)}" x2="${L}" y2="${sy(v).toFixed(1)}" stroke="var(--text3)" opacity=".45" />
+      <line x1="${L}" y1="${sy(v).toFixed(1)}" x2="${W-R}" y2="${sy(v).toFixed(1)}" stroke="var(--border)" opacity=".35" />
+      <text x="${L-6}" y="${(sy(v)+2.5).toFixed(1)}" text-anchor="end" font-size="6.5" fill="var(--text3)">${fmtTick(v, true)}</text>
+    </g>`).join('');
     const rVal = corr(pairs);
     const reg = regression(pairs);
     const smooth = smoothLine(pairs);
@@ -3149,13 +3175,14 @@ function buildBacktestCorrelationCharts(records) {
       <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;background:var(--card2);border-radius:8px">
         <line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="var(--border)" />
         <line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="var(--border)" />
+        ${yTickSvg}
+        ${xTickSvg}
         ${zeroY !== null ? `<line x1="${L}" y1="${zeroY.toFixed(1)}" x2="${W-R}" y2="${zeroY.toFixed(1)}" stroke="var(--text3)" stroke-dasharray="3 3" opacity=".5" />` : ''}
         ${zeroX !== null ? `<line x1="${zeroX.toFixed(1)}" y1="${T}" x2="${zeroX.toFixed(1)}" y2="${H-B}" stroke="var(--text3)" stroke-dasharray="3 3" opacity=".35" />` : ''}
         ${activeLine}
         ${dots}
-        <text x="${L}" y="${H-8}" font-size="8" fill="var(--text3)">${cfg.xLabel}</text>
-        <text x="${W-R}" y="${H-8}" text-anchor="end" font-size="8" fill="var(--text3)">高</text>
-        <text x="8" y="${T+6}" font-size="8" fill="var(--text3)" transform="rotate(-90 8 ${T+6})">1日漲跌%</text>
+        <text x="${(L+W-R)/2}" y="${H-1}" text-anchor="middle" font-size="7" fill="var(--text3)">${cfg.xLabel}</text>
+        <text x="9" y="${(T+H-B)/2}" text-anchor="middle" font-size="7" fill="var(--text3)" transform="rotate(-90 9 ${(T+H-B)/2})">1日漲跌%</text>
       </svg>
       <div style="font-size:.58rem;color:var(--text3);margin-top:5px;line-height:1.45">
         平均 ${avgRet >= 0 ? '+' : ''}${avgRet.toFixed(2)}%，勝率 ${winRate.toFixed(0)}%。平滑線看資料走勢，回歸線看整體斜率。
@@ -3174,7 +3201,8 @@ function buildBacktestCorrelationCharts(records) {
       title:'當沖率 vs 1日漲跌',
       xLabel:'當沖率%',
       getX:r => parseMetricNumber(r.dayTradeRatio, {percent:true}),
-      format:v => Number(v).toFixed(1) + '%'
+      format:v => Number(v).toFixed(1) + '%',
+      percent:true
     },
     {
       title:'RSI vs 1日漲跌',
@@ -3186,7 +3214,8 @@ function buildBacktestCorrelationCharts(records) {
       title:'五日集中度 vs 1日漲跌',
       xLabel:'五日集中%',
       getX:r => parseMetricNumber(r.conc5, {percent:true}),
-      format:v => Number(v).toFixed(2) + '%'
+      format:v => Number(v).toFixed(2) + '%',
+      percent:true
     }
   ];
 
