@@ -3420,17 +3420,25 @@ function buildBacktestStatDashboard(records) {
     score:s.score,
     n:s.rows.length,
     win:s.rows.filter(r=>r.return1>0).length / s.rows.length * 100,
-    avgRet:avg(s.rows.map(r=>r.return1))
+    avgRet:avg(s.rows.map(r=>r.return1)),
+    rows3:s.rows.filter(r=>r.return3!==null && r.return3!==undefined)
   })).filter(s=>s.score>0);
+  scoreRows.forEach(s => {
+    s.n3 = s.rows3.length;
+    s.win3 = s.n3 ? s.rows3.filter(r=>r.return3>0).length / s.n3 * 100 : null;
+    s.avgRet3 = s.n3 ? avg(s.rows3.map(r=>r.return3)) : null;
+  });
   const calW = 320, calH = 150, calL = 34, calR = 12, calT = 14, calB = 28;
   const maxWin = 100, minScore = Math.min(...scoreRows.map(s=>s.score), 0), maxScore = Math.max(...scoreRows.map(s=>s.score), 1);
   const sxScore = s => calL + (s - minScore) / (maxScore - minScore || 1) * (calW - calL - calR);
   const syWin = w => calT + (maxWin - w) / maxWin * (calH - calT - calB);
-  const points = scoreRows.map(s=>`${sxScore(s.score).toFixed(1)},${syWin(s.win).toFixed(1)}`).join(' ');
+  const points1 = scoreRows.map(s=>`${sxScore(s.score).toFixed(1)},${syWin(s.win).toFixed(1)}`).join(' ');
+  const scoreRows3 = scoreRows.filter(s=>s.win3!==null);
+  const points3 = scoreRows3.map(s=>`${sxScore(s.score).toFixed(1)},${syWin(s.win3).toFixed(1)}`).join(' ');
   const scoreHtml = `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px">
     <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:7px">
       <div style="font-size:.72rem;font-weight:900;color:var(--text)">分數校準曲線</div>
-      <div style="font-size:.58rem;color:var(--text3)">分數 vs 1日勝率</div>
+      <div style="font-size:.58rem;color:var(--text3)">分數 vs 1日/3日勝率</div>
     </div>
     ${scoreRows.length >= 2 ? `<svg viewBox="0 0 ${calW} ${calH}" style="width:100%;height:auto;background:var(--card2);border-radius:8px;display:block">
       <line x1="${calL}" y1="${calH-calB}" x2="${calW-calR}" y2="${calH-calB}" stroke="var(--border)" />
@@ -3439,18 +3447,26 @@ function buildBacktestStatDashboard(records) {
         <line x1="${calL}" y1="${syWin(w).toFixed(1)}" x2="${calW-calR}" y2="${syWin(w).toFixed(1)}" stroke="var(--border)" opacity=".5" />
         <text x="${calL-6}" y="${(syWin(w)+2.5).toFixed(1)}" text-anchor="end" font-size="7" fill="var(--text3)">${w}%</text>
       </g>`).join('')}
-      <polyline points="${points}" fill="none" stroke="var(--brown)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+      <polyline points="${points1}" fill="none" stroke="var(--brown)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+      ${scoreRows3.length >= 2 ? `<polyline points="${points3}" fill="none" stroke="#5a9460" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3" />` : ''}
       ${scoreRows.map(s => `<g>
         <circle cx="${sxScore(s.score).toFixed(1)}" cy="${syWin(s.win).toFixed(1)}" r="${Math.min(6, 2.5 + Math.sqrt(s.n))}" fill="${s.avgRet>=0?'#c05848':'#4878a0'}" opacity=".8">
           <title>${s.score}分：${s.n}筆，勝率${pctTxt(s.win)}，平均${retTxt(s.avgRet)}</title>
         </circle>
+        ${s.win3!==null ? `<circle cx="${sxScore(s.score).toFixed(1)}" cy="${syWin(s.win3).toFixed(1)}" r="${Math.min(5, 2 + Math.sqrt(s.n3))}" fill="#5a9460" opacity=".72">
+          <title>${s.score}分 3日：${s.n3}筆，勝率${pctTxt(s.win3)}，平均${retTxt(s.avgRet3)}</title>
+        </circle>` : ''}
         <text x="${sxScore(s.score).toFixed(1)}" y="${calH-9}" text-anchor="middle" font-size="7" fill="var(--text3)">${s.score}</text>
       </g>`).join('')}
       <text x="${(calL+calW-calR)/2}" y="${calH-1}" text-anchor="middle" font-size="7" fill="var(--text3)">總分</text>
       <text x="9" y="${(calT+calH-calB)/2}" text-anchor="middle" font-size="7" fill="var(--text3)" transform="rotate(-90 9 ${(calT+calH-calB)/2})">勝率</text>
     </svg>` : '<div style="font-size:.66rem;color:var(--text3)">分數層級不足，暫時無法畫曲線。</div>'}
+    <div style="display:flex;gap:10px;align-items:center;margin-top:6px;font-size:.56rem;color:var(--text3)">
+      <span><i style="display:inline-block;width:12px;height:3px;background:var(--brown);border-radius:3px;vertical-align:middle;margin-right:4px"></i>1日勝率</span>
+      <span><i style="display:inline-block;width:12px;height:3px;background:#5a9460;border-radius:3px;vertical-align:middle;margin-right:4px"></i>3日勝率</span>
+    </div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px">
-      ${scoreRows.map(s => `<span style="font-size:.56rem;background:var(--bg2);border-radius:999px;padding:2px 7px;color:var(--text2)">${s.score}分 ${s.n}筆 / ${pctTxt(s.win)}</span>`).join('')}
+      ${scoreRows.map(s => `<span style="font-size:.56rem;background:var(--bg2);border-radius:999px;padding:2px 7px;color:var(--text2)">${s.score}分 1日${pctTxt(s.win)}${s.win3!==null ? ` / 3日${pctTxt(s.win3)}` : ''}</span>`).join('')}
     </div>
   </div>`;
 
