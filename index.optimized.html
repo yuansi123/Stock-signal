@@ -1035,22 +1035,24 @@ function getBacktestReview(r) {
   const rr = parseFloat(r.rr) || 0;
   const conc = num(r.conc5);
   const rsi = num(r.rsi);
+  const fmt1 = v => v === null || v === undefined || isNaN(v) ? '—' : Number(v).toFixed(1);
+  const fmt2 = v => v === null || v === undefined || isNaN(v) ? '—' : Number(v).toFixed(2);
   const reasons = [];
 
   if (main < 0) {
-    if (dayTradePct >= 50) reasons.push('當沖比超過50%，短線籌碼太躁');
-    else if (dayTradePct >= 40) reasons.push('當沖比超過40%，高分也容易隔日震盪');
-    else if (dayTradePct >= 30) reasons.push('當沖比偏高，適合小量不適合追價');
+    if (dayTradePct >= 50) reasons.push(`當沖比 ${fmt1(dayTradePct)}% >= 50%，短線籌碼太躁`);
+    else if (dayTradePct >= 40) reasons.push(`當沖比 ${fmt1(dayTradePct)}% >= 40%，高分也容易隔日震盪`);
+    else if (dayTradePct >= 30) reasons.push(`當沖比 ${fmt1(dayTradePct)}% >= 30%，適合小量不適合追價`);
 
-    if (rr <= 0 && String(r.rr || '') !== '') reasons.push('風報比小於等於0，停利空間不夠漂亮');
-    else if (rr > 0 && rr < 1) reasons.push('風報比低於1，賺賠不划算');
+    if (rr <= 0 && String(r.rr || '') !== '') reasons.push(`風報比 ${fmt2(rr)} <= 0，停利空間不夠漂亮`);
+    else if (rr > 0 && rr < 1) reasons.push(`風報比 ${fmt2(rr)} < 1，賺賠不划算`);
 
-    if (conc >= 8) reasons.push('五日集中度偏熱，可能遇到獲利了結');
-    else if (conc >= 6) reasons.push('五日集中度偏高，追高風險增加');
+    if (conc >= 8) reasons.push(`五日集中度 ${fmt1(conc)}% >= 8%，籌碼偏熱`);
+    else if (conc >= 6) reasons.push(`五日集中度 ${fmt1(conc)}% >= 6%，追高風險增加`);
 
-    if (rsi >= 70) reasons.push('RSI偏熱，隔日容易拉回');
-    if ((Number(r.trust) || 0) > 0 && (Number(r.foreign) || 0) < 0) reasons.push('投信買但外資賣，法人方向不一致');
-    if ((Number(r.streak) || 0) <= 1) reasons.push('連買天數不足，法人延續性還沒確認');
+    if (rsi >= 70) reasons.push(`RSI ${fmt1(rsi)} >= 70，短線偏熱`);
+    if ((Number(r.trust) || 0) > 0 && (Number(r.foreign) || 0) < 0) reasons.push(`投信買 ${Number(r.trust)} 張但外資賣 ${Math.abs(Number(r.foreign))} 張，法人方向不一致`);
+    if ((Number(r.streak) || 0) <= 1) reasons.push(`連買 ${Number(r.streak) || 0} 天，法人延續性還沒確認`);
 
     return {
       label:'下跌檢討',
@@ -1059,12 +1061,13 @@ function getBacktestReview(r) {
     };
   }
 
-  if (dayTradePct < 30) reasons.push('當沖比不高');
-  if (rr >= 1.2) reasons.push('風報比夠漂亮');
-  if (conc > 0 && conc <= 6) reasons.push('集中度在甜蜜區');
-  if ((Number(r.instNet) || 0) > 0) reasons.push('法人買盤支撐');
-  if ((Number(r.streak) || 0) >= 2) reasons.push('法人連買延續');
-  if (rsi > 0 && rsi < 70) reasons.push('RSI未明顯過熱');
+  if (dayTradePct > 0 && dayTradePct < 30) reasons.push(`當沖比 ${fmt1(dayTradePct)}% < 30%，短線籌碼較穩`);
+  if (rr >= 1.2) reasons.push(`風報比 ${fmt2(rr)} >= 1.2，停利空間較漂亮`);
+  if (conc >= 2 && conc <= 6) reasons.push(`五日集中度 ${fmt1(conc)}% 在 2~6% 甜蜜區`);
+  else if (conc > 0 && conc < 2) reasons.push(`五日集中度 ${fmt1(conc)}% 偏低，籌碼未過熱`);
+  if ((Number(r.instNet) || 0) > 0) reasons.push(`法人買超 ${Number(r.instNet)} 張`);
+  if ((Number(r.streak) || 0) >= 2) reasons.push(`法人連買 ${Number(r.streak)} 天`);
+  if (rsi > 0 && rsi < 70) reasons.push(`RSI ${fmt1(rsi)} < 70，未明顯過熱`);
 
   return {
     label:'上漲觀察',
