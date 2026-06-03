@@ -3308,7 +3308,8 @@ function buildBacktestStatDashboard(records) {
   const maxAbsHeat = Math.max(...heatCells.map(c => Math.abs(c.avgRet || 0)), 1);
   const heatHtml = `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px">
     <div style="font-size:.72rem;font-weight:900;color:var(--text);margin-bottom:7px">RSI × 五日集中熱力圖</div>
-    <div style="display:grid;grid-template-columns:54px repeat(${concBins.length},1fr);gap:4px;align-items:stretch">
+    <div style="overflow-x:auto;padding-bottom:4px">
+    <div style="display:grid;grid-template-columns:54px repeat(${concBins.length},76px);gap:4px;align-items:stretch;min-width:${54 + concBins.length * 80}px">
       <div></div>${concBins.map(c=>`<div style="font-size:.52rem;color:var(--text3);text-align:center;font-weight:800">${c.label}</div>`).join('')}
       ${rsiBins.map(rb => `<div style="font-size:.54rem;color:var(--text3);font-weight:800;display:flex;align-items:center">${rb.label}</div>${concBins.map(cb => {
         const c = heatCells.find(x=>x.rsi===rb.label&&x.conc===cb.label);
@@ -3321,6 +3322,7 @@ function buildBacktestStatDashboard(records) {
           <div style="font-size:.5rem;opacity:.85">${c.n}筆</div>
         </div>`;
       }).join('')}`).join('')}
+    </div>
     </div>
     <div style="font-size:.56rem;color:var(--text3);margin-top:6px">紅=平均上漲，藍=平均下跌；格內為 1 日平均報酬。</div>
   </div>`;
@@ -3356,6 +3358,9 @@ function buildBacktestStatDashboard(records) {
     <div class="row-between" style="margin-bottom:8px">
       <div class="section-title" style="margin:0">📊 統計趨勢儀表板</div>
       <div style="font-size:.62rem;color:var(--text3)">找甜蜜區與避雷因子</div>
+    </div>
+    <div style="font-size:.62rem;color:var(--text3);line-height:1.55;margin-bottom:8px">
+      資料來源：訊號歷史的 1 日報酬，合併訊號日誌/訊號看板的風報比、當沖率、RSI、五日集中度、法人資料；只統計已經有隔日報酬的 ${done.length} 筆訊號。
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-bottom:8px">
       ${factors.map(renderBins).join('')}
