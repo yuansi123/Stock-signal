@@ -3041,6 +3041,37 @@ function buildBacktestCorrelationCharts(records) {
     return {slope, intercept};
   };
 
+  const smoothLine = pairs => {
+    const pts = pairs.map(p => ({x:signedLog(p.x), y:signedLog(p.y)}))
+      .filter(p => p.x !== null && p.y !== null)
+      .sort((a,b) => a.x - b.x);
+    if (pts.length < 5) return null;
+
+    const bucketCount = Math.min(9, Math.max(4, Math.round(Math.sqrt(pts.length))));
+    const buckets = [];
+    for (let i = 0; i < bucketCount; i++) {
+      const start = Math.floor(i * pts.length / bucketCount);
+      const end = Math.floor((i + 1) * pts.length / bucketCount);
+      const chunk = pts.slice(start, Math.max(start + 1, end));
+      if (!chunk.length) continue;
+      buckets.push({
+        x: chunk.reduce((s,p)=>s+p.x,0) / chunk.length,
+        y: chunk.reduce((s,p)=>s+p.y,0) / chunk.length
+      });
+    }
+    if (buckets.length < 3) return null;
+
+    const smoothed = buckets.map((p, i) => {
+      const prev = buckets[Math.max(0, i - 1)];
+      const next = buckets[Math.min(buckets.length - 1, i + 1)];
+      return {
+        x: p.x,
+        y: (prev.y + p.y * 2 + next.y) / 4
+      };
+    });
+    return smoothed;
+  };
+
   const renderScatter = cfg => {
     const pairs = done.map(r => ({
       x: cfg.getX(r),
@@ -3072,17 +3103,32 @@ function buildBacktestCorrelationCharts(records) {
     const zeroX = x0 <= 0 && x1 >= 0 ? L + (0 - x0) / (x1 - x0 || 1) * (W - L - R) : null;
     const rVal = corr(pairs);
     const reg = regression(pairs);
+    const smooth = smoothLine(pairs);
+    const lineMode = window._factorLineMode || 'smooth';
     const avgRet = pairs.reduce((s,p)=>s+p.y,0) / pairs.length;
     const winRate = pairs.filter(p=>p.y>0).length / pairs.length * 100;
     const rColor = rVal === null ? 'var(--text3)' : Math.abs(rVal) >= .35 ? 'var(--brown)' : 'var(--text3)';
     const trendColor = !reg ? 'var(--text3)' : reg.slope >= 0 ? '#5a9460' : '#c05848';
-    const trendText = !reg ? '斜率 —' : `斜率 ${reg.slope >= 0 ? '+' : ''}${reg.slope.toFixed(2)}`;
-    const trendLine = reg ? (() => {
+    const trendText = lineMode === 'smooth' ? '平滑線' : lineMode === 'reg' && reg ? `斜率 ${reg.slope >= 0 ? '+' : ''}${reg.slope.toFixed(2)}` : '只看點';
+    const yToSvg = y => T + (y1 - y) / (y1 - y0 || 1) * (H - T - B);
+    const xLogToSvg = x => L + (x - x0) / (x1 - x0 || 1) * (W - L - R);
+    const regLine = reg ? (() => {
       const yStart = reg.intercept + reg.slope * x0;
       const yEnd = reg.intercept + reg.slope * x1;
-      const yToSvg = y => T + (y1 - y) / (y1 - y0 || 1) * (H - T - B);
       return `<line x1="${L}" y1="${yToSvg(yStart).toFixed(1)}" x2="${W-R}" y2="${yToSvg(yEnd).toFixed(1)}" stroke="${trendColor}" stroke-width="2" opacity=".85" />`;
     })() : '';
+    const smoothPath = smooth ? (() => {
+      const pts = smooth.map(p => ({x:xLogToSvg(p.x), y:yToSvg(p.y)}));
+      if (pts.length < 2) return '';
+      let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+      for (let i = 1; i < pts.length; i++) {
+        const prev = pts[i - 1], cur = pts[i];
+        const cx = (prev.x + cur.x) / 2;
+        d += ` Q ${cx.toFixed(1)} ${prev.y.toFixed(1)} ${cur.x.toFixed(1)} ${cur.y.toFixed(1)}`;
+      }
+      return `<path d="${d}" fill="none" stroke="#a07850" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".9" />`;
+    })() : '';
+    const activeLine = lineMode === 'reg' ? regLine : lineMode === 'smooth' ? smoothPath : '';
 
     const dots = pairs.map(p => {
       const col = p.y >= 0 ? '#c05848' : '#4878a0';
@@ -3105,14 +3151,14 @@ function buildBacktestCorrelationCharts(records) {
         <line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="var(--border)" />
         ${zeroY !== null ? `<line x1="${L}" y1="${zeroY.toFixed(1)}" x2="${W-R}" y2="${zeroY.toFixed(1)}" stroke="var(--text3)" stroke-dasharray="3 3" opacity=".5" />` : ''}
         ${zeroX !== null ? `<line x1="${zeroX.toFixed(1)}" y1="${T}" x2="${zeroX.toFixed(1)}" y2="${H-B}" stroke="var(--text3)" stroke-dasharray="3 3" opacity=".35" />` : ''}
-        ${trendLine}
+        ${activeLine}
         ${dots}
         <text x="${L}" y="${H-8}" font-size="8" fill="var(--text3)">${cfg.xLabel}</text>
         <text x="${W-R}" y="${H-8}" text-anchor="end" font-size="8" fill="var(--text3)">高</text>
         <text x="8" y="${T+6}" font-size="8" fill="var(--text3)" transform="rotate(-90 8 ${T+6})">1日漲跌%</text>
       </svg>
       <div style="font-size:.58rem;color:var(--text3);margin-top:5px;line-height:1.45">
-        平均 ${avgRet >= 0 ? '+' : ''}${avgRet.toFixed(2)}%，勝率 ${winRate.toFixed(0)}%。趨勢線向上代表因子越高，隔日報酬傾向越好。
+        平均 ${avgRet >= 0 ? '+' : ''}${avgRet.toFixed(2)}%，勝率 ${winRate.toFixed(0)}%。平滑線看資料走勢，回歸線看整體斜率。
       </div>
     </div>`;
   };
@@ -3144,10 +3190,17 @@ function buildBacktestCorrelationCharts(records) {
     }
   ];
 
+  const mode = window._factorLineMode || 'smooth';
+  const modeBtn = (value, label) => `<button onclick="setFactorLineMode('${value}')" style="border:1px solid var(--border);border-radius:12px;padding:3px 9px;font-size:.62rem;font-weight:700;background:${mode === value ? 'var(--brown)' : 'var(--bg2)'};color:${mode === value ? '#fff' : 'var(--text2)'};cursor:pointer;font-family:inherit">${label}</button>`;
+
   return `<div class="plain-card" style="margin-bottom:12px">
     <div class="row-between" style="margin-bottom:8px">
       <div class="section-title" style="margin:0">📈 因子相關性散點圖</div>
-      <div style="font-size:.62rem;color:var(--text3)">每日回測完成後自動新增點</div>
+      <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+        ${modeBtn('point', '點')}
+        ${modeBtn('smooth', '平滑線')}
+        ${modeBtn('reg', '回歸線')}
+      </div>
     </div>
     <div style="font-size:.66rem;color:var(--text2);line-height:1.55;margin-bottom:8px">
       X 軸是因子數值，Y 軸是隔日漲跌幅；為了保留負報酬與負風報比，使用 signed log-log scale。
@@ -3158,7 +3211,13 @@ function buildBacktestCorrelationCharts(records) {
   </div>`;
 }
 
+function setFactorLineMode(mode) {
+  window._factorLineMode = mode;
+  renderBacktest(window._btRecords || [], window._btScoreFilter || 0);
+}
+
 function renderBacktest(records,scoreFilter) {
+  window._btScoreFilter = scoreFilter || 0;
   const filtered = scoreFilter ? records.filter(r=>r.score>=scoreFilter) : records;
   const done1 = filtered.filter(r=>r.return1!==null), done3 = filtered.filter(r=>r.return3!==null);
   const win1 = done1.filter(r=>r.return1>0).length, win3 = done3.filter(r=>r.return3>0).length;
