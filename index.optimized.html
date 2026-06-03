@@ -2990,6 +2990,146 @@ async function loadBacktest() {
     qs('btContent').innerHTML = '<div class="state">載入失敗：' + e.message + '</div>';
   }
 }
+
+function buildBacktestCorrelationCharts(records) {
+  const done = (records || []).filter(r => r.return1 !== null && r.return1 !== undefined);
+  if (!done.length) return '';
+
+  const parseMetricNumber = (raw, opts = {}) => {
+    if (raw === null || raw === undefined || raw === '') return null;
+    const hasPct = String(raw).indexOf('%') !== -1;
+    let n = parseFloat(String(raw).replace('%', '').replace('x', '').trim());
+    if (isNaN(n)) return null;
+    if (opts.percent && !hasPct && Math.abs(n) <= 1) n *= 100;
+    return n;
+  };
+
+  const signedLog = v => {
+    if (v === null || v === undefined || isNaN(v)) return null;
+    return Math.sign(v) * Math.log10(1 + Math.abs(v));
+  };
+
+  const corr = pairs => {
+    const pts = pairs.map(p => ({x:signedLog(p.x), y:signedLog(p.y)}))
+      .filter(p => p.x !== null && p.y !== null);
+    if (pts.length < 3) return null;
+    const mx = pts.reduce((s,p)=>s+p.x,0) / pts.length;
+    const my = pts.reduce((s,p)=>s+p.y,0) / pts.length;
+    let cov = 0, vx = 0, vy = 0;
+    pts.forEach(p => {
+      const dx = p.x - mx, dy = p.y - my;
+      cov += dx * dy; vx += dx * dx; vy += dy * dy;
+    });
+    return vx && vy ? cov / Math.sqrt(vx * vy) : null;
+  };
+
+  const renderScatter = cfg => {
+    const pairs = done.map(r => ({
+      x: cfg.getX(r),
+      y: Number(r.return1),
+      code: r.code,
+      name: r.name,
+      date: r.date,
+      score: r.score
+    })).filter(p => p.x !== null && p.x !== undefined && !isNaN(p.x) && p.y !== null && !isNaN(p.y));
+
+    if (pairs.length < 3) {
+      return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px">
+        <div style="font-size:.72rem;font-weight:800;color:var(--text);margin-bottom:4px">${cfg.title}</div>
+        <div style="font-size:.66rem;color:var(--text3)">資料不足，至少需要 3 筆可配對資料。</div>
+      </div>`;
+    }
+
+    const W = 320, H = 190, L = 34, R = 14, T = 16, B = 30;
+    const xs = pairs.map(p => signedLog(p.x));
+    const ys = pairs.map(p => signedLog(p.y));
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const pad = (a,b) => a === b ? 0.5 : (b - a) * 0.08;
+    const px = pad(minX, maxX), py = pad(minY, maxY);
+    const x0 = minX - px, x1 = maxX + px, y0 = minY - py, y1 = maxY + py;
+    const sx = x => L + (signedLog(x) - x0) / (x1 - x0 || 1) * (W - L - R);
+    const sy = y => T + (y1 - signedLog(y)) / (y1 - y0 || 1) * (H - T - B);
+    const zeroY = y0 <= 0 && y1 >= 0 ? sy(0) : null;
+    const zeroX = x0 <= 0 && x1 >= 0 ? L + (0 - x0) / (x1 - x0 || 1) * (W - L - R) : null;
+    const rVal = corr(pairs);
+    const avgRet = pairs.reduce((s,p)=>s+p.y,0) / pairs.length;
+    const winRate = pairs.filter(p=>p.y>0).length / pairs.length * 100;
+    const rColor = rVal === null ? 'var(--text3)' : Math.abs(rVal) >= .35 ? 'var(--brown)' : 'var(--text3)';
+
+    const dots = pairs.map(p => {
+      const col = p.y >= 0 ? '#c05848' : '#4878a0';
+      const radius = p.score >= 10 ? 3.5 : p.score >= 8 ? 3 : 2.4;
+      return `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${radius}" fill="${col}" opacity=".72">
+        <title>${p.date} ${p.name}(${p.code}) ${cfg.xLabel}:${cfg.format(p.x)} → ${p.y >= 0 ? '+' : ''}${p.y.toFixed(2)}%</title>
+      </circle>`;
+    }).join('');
+
+    return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;min-width:0">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px">
+        <div>
+          <div style="font-size:.72rem;font-weight:800;color:var(--text)">${cfg.title}</div>
+          <div style="font-size:.56rem;color:var(--text3)">signed log-log scale · ${pairs.length} 筆</div>
+        </div>
+        <div style="font-size:.62rem;text-align:right;color:${rColor};font-weight:800">r=${rVal === null ? '—' : rVal.toFixed(2)}<br><span style="font-weight:500;color:var(--text3)">勝率 ${winRate.toFixed(0)}%</span></div>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;background:var(--card2);border-radius:8px">
+        <line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="var(--border)" />
+        <line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="var(--border)" />
+        ${zeroY !== null ? `<line x1="${L}" y1="${zeroY.toFixed(1)}" x2="${W-R}" y2="${zeroY.toFixed(1)}" stroke="var(--text3)" stroke-dasharray="3 3" opacity=".5" />` : ''}
+        ${zeroX !== null ? `<line x1="${zeroX.toFixed(1)}" y1="${T}" x2="${zeroX.toFixed(1)}" y2="${H-B}" stroke="var(--text3)" stroke-dasharray="3 3" opacity=".35" />` : ''}
+        ${dots}
+        <text x="${L}" y="${H-8}" font-size="8" fill="var(--text3)">${cfg.xLabel}</text>
+        <text x="${W-R}" y="${H-8}" text-anchor="end" font-size="8" fill="var(--text3)">高</text>
+        <text x="8" y="${T+6}" font-size="8" fill="var(--text3)" transform="rotate(-90 8 ${T+6})">1日漲跌%</text>
+      </svg>
+      <div style="font-size:.58rem;color:var(--text3);margin-top:5px;line-height:1.45">
+        平均 ${avgRet >= 0 ? '+' : ''}${avgRet.toFixed(2)}%。紅點上漲、藍點下跌；點越大代表分數越高。
+      </div>
+    </div>`;
+  };
+
+  const configs = [
+    {
+      title:'風報比 vs 1日漲跌',
+      xLabel:'風報比',
+      getX:r => parseMetricNumber(r.rr),
+      format:v => Number(v).toFixed(2)
+    },
+    {
+      title:'當沖率 vs 1日漲跌',
+      xLabel:'當沖率%',
+      getX:r => parseMetricNumber(r.dayTradeRatio, {percent:true}),
+      format:v => Number(v).toFixed(1) + '%'
+    },
+    {
+      title:'RSI vs 1日漲跌',
+      xLabel:'RSI',
+      getX:r => parseMetricNumber(r.rsi),
+      format:v => Number(v).toFixed(1)
+    },
+    {
+      title:'五日集中度 vs 1日漲跌',
+      xLabel:'五日集中%',
+      getX:r => parseMetricNumber(r.conc5, {percent:true}),
+      format:v => Number(v).toFixed(2) + '%'
+    }
+  ];
+
+  return `<div class="plain-card" style="margin-bottom:12px">
+    <div class="row-between" style="margin-bottom:8px">
+      <div class="section-title" style="margin:0">📈 因子相關性散點圖</div>
+      <div style="font-size:.62rem;color:var(--text3)">每日回測完成後自動新增點</div>
+    </div>
+    <div style="font-size:.66rem;color:var(--text2);line-height:1.55;margin-bottom:8px">
+      X 軸是因子數值，Y 軸是隔日漲跌幅；為了保留負報酬與負風報比，使用 signed log-log scale。
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px">
+      ${configs.map(renderScatter).join('')}
+    </div>
+  </div>`;
+}
+
 function renderBacktest(records,scoreFilter) {
   const filtered = scoreFilter ? records.filter(r=>r.score>=scoreFilter) : records;
   const done1 = filtered.filter(r=>r.return1!==null), done3 = filtered.filter(r=>r.return3!==null);
@@ -3067,6 +3207,7 @@ function renderBacktest(records,scoreFilter) {
   </div>`;
   const byDate = {};
   filtered.sort((a,b)=>b.date.localeCompare(a.date)||b.score-a.score).forEach(r => { (byDate[r.date] ||= []).push(r); });
+  const corrChartsHtml = buildBacktestCorrelationCharts(filtered);
   qs('btContent').innerHTML = `<div class="summary">
     <div class="sum-card"><div class="sum-label">總訊號數</div><div class="sum-val brown">${filtered.length}</div><div class="sum-sub">已完成 ${done1.length}</div></div>
     <div class="sum-card"><div class="sum-label">1日勝率</div><div class="sum-val" style="color:${done1.length&&win1/done1.length>=.5?'var(--green)':'var(--red)'}">${done1.length?Math.round(win1/done1.length*100)+'%':'—'}</div><div class="sum-sub">獲利 ${win1}/${done1.length}</div></div>
@@ -3075,6 +3216,7 @@ function renderBacktest(records,scoreFilter) {
   </div>
   ${matrixHtml}
   ${holdingHtml}
+  ${corrChartsHtml}
   <div class="control-row">${[{l:'全部',s:0},{l:'8分↑',s:8},{l:'10分↑',s:10}].map(b=>`<button class="filter-btn ${scoreFilter===b.s?'active':''}" onclick="renderBacktest(window._btRecords,${b.s})">${b.l}</button>`).join('')}</div>
   ${Object.keys(byDate).sort().reverse().map(date => {
     const day = byDate[date], done = day.filter(r=>r.return3!==null), avgDay = avg(done.map(r=>r.return3));
