@@ -661,7 +661,8 @@ async function fetchSheet(sheet, bypassCache = false) {
       if (c && Date.now() - c.ts < CACHE_TTL) return c.data;
     } catch(e) {}
   }
-  const res = await fetch(gvizUrl(sheet));
+  const url = bypassCache ? gvizUrl(sheet) + '&_cb=' + Date.now() : gvizUrl(sheet);
+  const res = await fetch(url, bypassCache ? {cache:'no-store'} : undefined);
   const text = await res.text();
   const start = text.indexOf('{'), end = text.lastIndexOf('}');
   if (start === -1 || end === -1) throw new Error(sheet + ' 格式錯誤');
