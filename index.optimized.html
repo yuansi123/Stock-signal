@@ -1037,6 +1037,18 @@ function getBacktestReview(r) {
   const rsi = num(r.rsi);
   const fmt1 = v => v === null || v === undefined || isNaN(v) ? '—' : Number(v).toFixed(1);
   const fmt2 = v => v === null || v === undefined || isNaN(v) ? '—' : Number(v).toFixed(2);
+  const trustNet = Number(r.trust) || 0;
+  const foreignNet = Number(r.foreign) || 0;
+  const alerts = [];
+  if (trustNet > 0 && foreignNet < 0) {
+    const major = trustNet >= 500 && Math.abs(foreignNet) >= 500;
+    alerts.push({
+      label: major ? '重大法人分歧' : '法人分歧',
+      text: `投信買 ${trustNet} 張，外資賣 ${Math.abs(foreignNet)} 張`,
+      color: 'var(--red)',
+      bg: '#fef0ee'
+    });
+  }
   const reasons = [];
 
   if (main < 0) {
@@ -1051,12 +1063,13 @@ function getBacktestReview(r) {
     else if (conc >= 6) reasons.push(`五日集中度 ${fmt1(conc)}% >= 6%，追高風險增加`);
 
     if (rsi >= 70) reasons.push(`RSI ${fmt1(rsi)} >= 70，短線偏熱`);
-    if ((Number(r.trust) || 0) > 0 && (Number(r.foreign) || 0) < 0) reasons.push(`投信買 ${Number(r.trust)} 張但外資賣 ${Math.abs(Number(r.foreign))} 張，法人方向不一致`);
+    if (trustNet > 0 && foreignNet < 0) reasons.push(`投信買 ${trustNet} 張但外資賣 ${Math.abs(foreignNet)} 張，法人方向不一致`);
     if ((Number(r.streak) || 0) <= 1) reasons.push(`連買 ${Number(r.streak) || 0} 天，法人延續性還沒確認`);
 
     return {
       label:'下跌檢討',
       color:'var(--red)',
+      alerts,
       text: reasons.length ? '可能因為：' + reasons.slice(0, 3).join('、') + '。' : '可能是隔日大盤或板塊轉弱，原始欄位沒有明顯單一風險。'
     };
   }
@@ -1072,6 +1085,7 @@ function getBacktestReview(r) {
   return {
     label:'上漲觀察',
     color:'var(--green)',
+    alerts,
     text: reasons.length ? '表現較好可能因為：' + reasons.slice(0, 3).join('、') + '。' : '表現較好，但欄位特徵不明顯，可能受題材或板塊輪動帶動。'
   };
 }
@@ -3076,6 +3090,7 @@ function renderBacktest(records,scoreFilter) {
           <div style="text-align:right;color:${retCol(main)};font-weight:700">${main===null?'等待中':`${main>=0?'+':''}${main.toFixed(2)}%`}<div style="font-size:.58rem;color:var(--text3);font-weight:400">${label}</div></div>
         </div>
         <div style="margin-top:5px;font-size:.66rem;line-height:1.5;color:var(--text2);border-left:3px solid ${review.color};padding-left:7px">
+          ${(review.alerts || []).map(a => `<div style="display:inline-flex;align-items:center;gap:4px;margin:0 4px 4px 0;padding:2px 7px;border-radius:8px;background:${a.bg};color:${a.color};font-weight:900;border:1px solid rgba(192,88,72,.28)">${a.label}：${a.text}</div>`).join('')}
           <span style="font-weight:800;color:${review.color}">${review.label}</span>：${review.text}
         </div>
       </div>`;
