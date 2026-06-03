@@ -3337,8 +3337,7 @@ function buildBacktestStatDashboard(records) {
   const maxAbsHeat = Math.max(...heatCells.map(c => Math.abs(c.avgRet || 0)), 1);
   const heatHtml = `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px">
     <div style="font-size:.72rem;font-weight:900;color:var(--text);margin-bottom:7px">RSI × 五日集中熱力圖</div>
-    <div style="overflow-x:auto;padding-bottom:4px">
-    <div style="display:grid;grid-template-columns:54px repeat(${concBins.length},76px);gap:4px;align-items:stretch;min-width:${54 + concBins.length * 80}px">
+    <div style="display:grid;grid-template-columns:minmax(28px,.6fr) repeat(${concBins.length},minmax(0,1fr));gap:4px;align-items:stretch;width:100%">
       <div></div>${concBins.map(c=>`<div style="font-size:.52rem;color:var(--text3);text-align:center;font-weight:800">${c.label}</div>`).join('')}
       ${rsiBins.map(rb => `<div style="font-size:.54rem;color:var(--text3);font-weight:800;display:flex;align-items:center">${rb.label}</div>${concBins.map(cb => {
         const c = heatCells.find(x=>x.rsi===rb.label&&x.conc===cb.label);
@@ -3346,41 +3345,13 @@ function buildBacktestStatDashboard(records) {
         const alpha = Math.min(.88, .12 + Math.abs(val) / maxAbsHeat * .76);
         const bg = c.n ? (val >= 0 ? `rgba(192,88,72,${alpha})` : `rgba(72,120,160,${alpha})`) : 'var(--bg2)';
         const color = c.n && alpha > .48 ? '#fff' : 'var(--text2)';
-        return `<div title="RSI ${rb.label}, 集中 ${cb.label}: ${c.n}筆, 平均${retTxt(c.avgRet)}, 勝率${pctTxt(c.win)}" style="background:${bg};color:${color};border-radius:8px;padding:7px 4px;text-align:center;min-height:45px;display:flex;flex-direction:column;justify-content:center">
-          <div style="font-size:.66rem;font-weight:900">${c.n ? retTxt(c.avgRet) : '—'}</div>
-          <div style="font-size:.5rem;opacity:.85">${c.n}筆</div>
+        return `<div title="RSI ${rb.label}, 集中 ${cb.label}: ${c.n}筆, 平均${retTxt(c.avgRet)}, 勝率${pctTxt(c.win)}" style="background:${bg};color:${color};border-radius:8px;padding:6px 2px;text-align:center;min-height:45px;display:flex;flex-direction:column;justify-content:center;min-width:0">
+          <div style="font-size:clamp(.52rem,1.75vw,.66rem);font-weight:900;white-space:nowrap">${c.n ? retTxt(c.avgRet) : '—'}</div>
+          <div style="font-size:clamp(.43rem,1.45vw,.5rem);opacity:.85;white-space:nowrap">${c.n}筆</div>
         </div>`;
       }).join('')}`).join('')}
     </div>
-    </div>
     <div style="font-size:.56rem;color:var(--text3);margin-top:6px">紅=平均上漲，藍=平均下跌；格內為 1 日平均報酬。</div>
-  </div>`;
-
-  const losers = done.filter(r => r.return1 < 0);
-  const lossFactors = [
-    {label:'風報比<=0', test:r=>metricNum(r.rr)!==null && metricNum(r.rr)<=0},
-    {label:'當沖率>=30%', test:r=>metricNum(r.dayTradeRatio,{percent:true})!==null && metricNum(r.dayTradeRatio,{percent:true})>=30},
-    {label:'RSI>=75', test:r=>metricNum(r.rsi)!==null && metricNum(r.rsi)>=75},
-    {label:'集中>=12%', test:r=>metricNum(r.conc5,{percent:true})!==null && metricNum(r.conc5,{percent:true})>=12},
-    {label:'外資賣/投信買', test:r=>(Number(r.foreign)||0)<0 && (Number(r.trust)||0)>0},
-    {label:'法人合計賣超', test:r=>(Number(r.instNet)||0)<0},
-    {label:'分數>=10仍下跌', test:r=>(Number(r.score)||0)>=10}
-  ].map(f => {
-    const count = losers.filter(f.test).length;
-    return {label:f.label, count, pct:losers.length ? count / losers.length * 100 : 0};
-  }).filter(x=>x.count>0).sort((a,b)=>b.count-a.count);
-  const maxLossCount = Math.max(...lossFactors.map(x=>x.count), 1);
-  const paretoHtml = `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px">
-    <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:7px">
-      <div style="font-size:.72rem;font-weight:900;color:var(--text)">虧損共通因子 Pareto</div>
-      <div style="font-size:.58rem;color:var(--text3)">下跌樣本 ${losers.length} 筆</div>
-    </div>
-    ${lossFactors.length ? lossFactors.map(f => `<div style="display:grid;grid-template-columns:92px 1fr 46px;align-items:center;gap:7px;margin:6px 0">
-      <div style="font-size:.6rem;color:var(--text2);font-weight:800">${f.label}</div>
-      <div style="height:9px;background:var(--bg2);border-radius:999px;overflow:hidden"><div style="width:${Math.max(5, f.count/maxLossCount*100)}%;height:100%;background:#c05848;border-radius:999px;opacity:.78"></div></div>
-      <div style="font-size:.58rem;color:var(--red);font-weight:900;text-align:right">${f.count}筆</div>
-      <div></div><div style="grid-column:2/4;font-size:.53rem;color:var(--text3)">占虧損 ${f.pct.toFixed(0)}%</div>
-    </div>`).join('') : '<div style="font-size:.66rem;color:var(--text3)">目前沒有可統計的虧損樣本。</div>'}
   </div>`;
 
   return `<div class="plain-card" style="margin-bottom:12px">
@@ -3394,9 +3365,8 @@ function buildBacktestStatDashboard(records) {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-bottom:8px">
       ${factors.map(renderBins).join('')}
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px">
+    <div style="display:grid;grid-template-columns:1fr;gap:8px">
       ${heatHtml}
-      ${paretoHtml}
     </div>
   </div>`;
 }
