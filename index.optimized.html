@@ -3216,6 +3216,157 @@ function setFactorLineMode(mode) {
   renderBacktest(window._btRecords || [], window._btScoreFilter || 0);
 }
 
+function buildBacktestStatDashboard(records) {
+  const done = (records || []).filter(r => r.return1 !== null && r.return1 !== undefined);
+  if (done.length < 5) return '';
+
+  const metricNum = (raw, opts = {}) => {
+    if (raw === null || raw === undefined || raw === '') return null;
+    const hasPct = String(raw).indexOf('%') !== -1;
+    let n = parseFloat(String(raw).replace('%', '').replace('x', '').trim());
+    if (isNaN(n)) return null;
+    if (opts.percent && !hasPct && Math.abs(n) <= 1) n *= 100;
+    return n;
+  };
+  const avg = arr => arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : null;
+  const retCol = v => v === null ? 'var(--text3)' : v >= 0 ? 'var(--red)' : 'var(--blue)';
+  const retTxt = v => v === null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+  const pctTxt = v => v === null ? '—' : `${Math.round(v)}%`;
+
+  const factors = [
+    {title:'風報比分箱', get:r=>metricNum(r.rr), bins:[
+      {label:'<=0', test:v=>v<=0}, {label:'0~0.5', test:v=>v>0&&v<0.5},
+      {label:'0.5~1', test:v=>v>=0.5&&v<1}, {label:'1~2', test:v=>v>=1&&v<2}, {label:'>=2', test:v=>v>=2}
+    ]},
+    {title:'當沖率分箱', get:r=>metricNum(r.dayTradeRatio,{percent:true}), bins:[
+      {label:'<15%', test:v=>v<15}, {label:'15~30%', test:v=>v>=15&&v<30},
+      {label:'30~45%', test:v=>v>=30&&v<45}, {label:'45~60%', test:v=>v>=45&&v<60}, {label:'>=60%', test:v=>v>=60}
+    ]},
+    {title:'RSI 分箱', get:r=>metricNum(r.rsi), bins:[
+      {label:'<45', test:v=>v<45}, {label:'45~55', test:v=>v>=45&&v<55},
+      {label:'55~65', test:v=>v>=55&&v<65}, {label:'65~75', test:v=>v>=65&&v<75}, {label:'>=75', test:v=>v>=75}
+    ]},
+    {title:'五日集中分箱', get:r=>metricNum(r.conc5,{percent:true}), bins:[
+      {label:'<1%', test:v=>v<1}, {label:'1~3%', test:v=>v>=1&&v<3},
+      {label:'3~6%', test:v=>v>=3&&v<6}, {label:'6~12%', test:v=>v>=6&&v<12}, {label:'>=12%', test:v=>v>=12}
+    ]}
+  ];
+
+  const renderBins = f => {
+    const rows = f.bins.map(bin => {
+      const arr = done.filter(r => {
+        const v = f.get(r);
+        return v !== null && bin.test(v);
+      });
+      return {
+        label:bin.label,
+        n:arr.length,
+        win:arr.length ? arr.filter(r=>r.return1>0).length / arr.length * 100 : null,
+        avgRet:avg(arr.map(r=>r.return1))
+      };
+    });
+    const maxN = Math.max(...rows.map(r=>r.n), 1);
+    const best = rows.filter(r=>r.n>=3).sort((a,b)=>(b.avgRet??-999)-(a.avgRet??-999))[0];
+    return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:7px">
+        <div style="font-size:.72rem;font-weight:900;color:var(--text)">${f.title}</div>
+        <div style="font-size:.58rem;color:var(--brown);font-weight:800">${best ? `最佳 ${best.label}` : '樣本累積中'}</div>
+      </div>
+      ${rows.map(r => {
+        const barW = Math.max(4, r.n / maxN * 100);
+        const col = r.avgRet === null ? 'var(--text3)' : r.avgRet >= 0 ? '#c05848' : '#4878a0';
+        return `<div style="display:grid;grid-template-columns:54px 1fr 46px 58px;align-items:center;gap:6px;margin:5px 0">
+          <div style="font-size:.58rem;color:var(--text2);font-weight:700">${r.label}</div>
+          <div style="height:8px;background:var(--bg2);border-radius:999px;overflow:hidden">
+            <div style="width:${barW}%;height:100%;background:${col};border-radius:999px;opacity:.86"></div>
+          </div>
+          <div style="font-size:.56rem;color:var(--text3);text-align:right">${r.n}筆</div>
+          <div style="font-size:.58rem;text-align:right;color:${retCol(r.avgRet)};font-weight:900">${retTxt(r.avgRet)}</div>
+          <div></div><div style="font-size:.54rem;color:var(--text3);grid-column:2 / 5">勝率 ${pctTxt(r.win)}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  };
+
+  const rsiBins = [
+    {label:'<55', test:v=>v<55}, {label:'55~65', test:v=>v>=55&&v<65},
+    {label:'65~75', test:v=>v>=65&&v<75}, {label:'>=75', test:v=>v>=75}
+  ];
+  const concBins = [
+    {label:'<1%', test:v=>v<1}, {label:'1~3%', test:v=>v>=1&&v<3},
+    {label:'3~6%', test:v=>v>=3&&v<6}, {label:'6~12%', test:v=>v>=6&&v<12}, {label:'>=12%', test:v=>v>=12}
+  ];
+  const heatCells = [];
+  rsiBins.forEach(rb => concBins.forEach(cb => {
+    const arr = done.filter(r => {
+      const rsi = metricNum(r.rsi);
+      const conc = metricNum(r.conc5, {percent:true});
+      return rsi !== null && conc !== null && rb.test(rsi) && cb.test(conc);
+    });
+    heatCells.push({rsi:rb.label, conc:cb.label, n:arr.length, avgRet:avg(arr.map(r=>r.return1)), win:arr.length ? arr.filter(r=>r.return1>0).length/arr.length*100 : null});
+  }));
+  const maxAbsHeat = Math.max(...heatCells.map(c => Math.abs(c.avgRet || 0)), 1);
+  const heatHtml = `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px">
+    <div style="font-size:.72rem;font-weight:900;color:var(--text);margin-bottom:7px">RSI × 五日集中熱力圖</div>
+    <div style="display:grid;grid-template-columns:54px repeat(${concBins.length},1fr);gap:4px;align-items:stretch">
+      <div></div>${concBins.map(c=>`<div style="font-size:.52rem;color:var(--text3);text-align:center;font-weight:800">${c.label}</div>`).join('')}
+      ${rsiBins.map(rb => `<div style="font-size:.54rem;color:var(--text3);font-weight:800;display:flex;align-items:center">${rb.label}</div>${concBins.map(cb => {
+        const c = heatCells.find(x=>x.rsi===rb.label&&x.conc===cb.label);
+        const val = c.avgRet || 0;
+        const alpha = Math.min(.88, .12 + Math.abs(val) / maxAbsHeat * .76);
+        const bg = c.n ? (val >= 0 ? `rgba(192,88,72,${alpha})` : `rgba(72,120,160,${alpha})`) : 'var(--bg2)';
+        const color = c.n && alpha > .48 ? '#fff' : 'var(--text2)';
+        return `<div title="RSI ${rb.label}, 集中 ${cb.label}: ${c.n}筆, 平均${retTxt(c.avgRet)}, 勝率${pctTxt(c.win)}" style="background:${bg};color:${color};border-radius:8px;padding:7px 4px;text-align:center;min-height:45px;display:flex;flex-direction:column;justify-content:center">
+          <div style="font-size:.66rem;font-weight:900">${c.n ? retTxt(c.avgRet) : '—'}</div>
+          <div style="font-size:.5rem;opacity:.85">${c.n}筆</div>
+        </div>`;
+      }).join('')}`).join('')}
+    </div>
+    <div style="font-size:.56rem;color:var(--text3);margin-top:6px">紅=平均上漲，藍=平均下跌；格內為 1 日平均報酬。</div>
+  </div>`;
+
+  const losers = done.filter(r => r.return1 < 0);
+  const lossFactors = [
+    {label:'風報比<=0', test:r=>metricNum(r.rr)!==null && metricNum(r.rr)<=0},
+    {label:'當沖率>=30%', test:r=>metricNum(r.dayTradeRatio,{percent:true})!==null && metricNum(r.dayTradeRatio,{percent:true})>=30},
+    {label:'RSI>=75', test:r=>metricNum(r.rsi)!==null && metricNum(r.rsi)>=75},
+    {label:'集中>=12%', test:r=>metricNum(r.conc5,{percent:true})!==null && metricNum(r.conc5,{percent:true})>=12},
+    {label:'外資賣/投信買', test:r=>(Number(r.foreign)||0)<0 && (Number(r.trust)||0)>0},
+    {label:'法人合計賣超', test:r=>(Number(r.instNet)||0)<0},
+    {label:'分數>=10仍下跌', test:r=>(Number(r.score)||0)>=10}
+  ].map(f => {
+    const count = losers.filter(f.test).length;
+    return {label:f.label, count, pct:losers.length ? count / losers.length * 100 : 0};
+  }).filter(x=>x.count>0).sort((a,b)=>b.count-a.count);
+  const maxLossCount = Math.max(...lossFactors.map(x=>x.count), 1);
+  const paretoHtml = `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px">
+    <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:7px">
+      <div style="font-size:.72rem;font-weight:900;color:var(--text)">虧損共通因子 Pareto</div>
+      <div style="font-size:.58rem;color:var(--text3)">下跌樣本 ${losers.length} 筆</div>
+    </div>
+    ${lossFactors.length ? lossFactors.map(f => `<div style="display:grid;grid-template-columns:92px 1fr 46px;align-items:center;gap:7px;margin:6px 0">
+      <div style="font-size:.6rem;color:var(--text2);font-weight:800">${f.label}</div>
+      <div style="height:9px;background:var(--bg2);border-radius:999px;overflow:hidden"><div style="width:${Math.max(5, f.count/maxLossCount*100)}%;height:100%;background:#c05848;border-radius:999px;opacity:.78"></div></div>
+      <div style="font-size:.58rem;color:var(--red);font-weight:900;text-align:right">${f.count}筆</div>
+      <div></div><div style="grid-column:2/4;font-size:.53rem;color:var(--text3)">占虧損 ${f.pct.toFixed(0)}%</div>
+    </div>`).join('') : '<div style="font-size:.66rem;color:var(--text3)">目前沒有可統計的虧損樣本。</div>'}
+  </div>`;
+
+  return `<div class="plain-card" style="margin-bottom:12px">
+    <div class="row-between" style="margin-bottom:8px">
+      <div class="section-title" style="margin:0">📊 統計趨勢儀表板</div>
+      <div style="font-size:.62rem;color:var(--text3)">找甜蜜區與避雷因子</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-bottom:8px">
+      ${factors.map(renderBins).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px">
+      ${heatHtml}
+      ${paretoHtml}
+    </div>
+  </div>`;
+}
+
 function renderBacktest(records,scoreFilter) {
   window._btScoreFilter = scoreFilter || 0;
   const filtered = scoreFilter ? records.filter(r=>r.score>=scoreFilter) : records;
@@ -3295,6 +3446,7 @@ function renderBacktest(records,scoreFilter) {
   const byDate = {};
   filtered.sort((a,b)=>b.date.localeCompare(a.date)||b.score-a.score).forEach(r => { (byDate[r.date] ||= []).push(r); });
   const corrChartsHtml = buildBacktestCorrelationCharts(filtered);
+  const statDashboardHtml = buildBacktestStatDashboard(filtered);
   qs('btContent').innerHTML = `<div class="summary">
     <div class="sum-card"><div class="sum-label">總訊號數</div><div class="sum-val brown">${filtered.length}</div><div class="sum-sub">已完成 ${done1.length}</div></div>
     <div class="sum-card"><div class="sum-label">1日勝率</div><div class="sum-val" style="color:${done1.length&&win1/done1.length>=.5?'var(--green)':'var(--red)'}">${done1.length?Math.round(win1/done1.length*100)+'%':'—'}</div><div class="sum-sub">獲利 ${win1}/${done1.length}</div></div>
@@ -3304,6 +3456,7 @@ function renderBacktest(records,scoreFilter) {
   ${matrixHtml}
   ${holdingHtml}
   ${corrChartsHtml}
+  ${statDashboardHtml}
   <div class="control-row">${[{l:'全部',s:0},{l:'8分↑',s:8},{l:'10分↑',s:10}].map(b=>`<button class="filter-btn ${scoreFilter===b.s?'active':''}" onclick="renderBacktest(window._btRecords,${b.s})">${b.l}</button>`).join('')}</div>
   ${Object.keys(byDate).sort().reverse().map(date => {
     const day = byDate[date], done = day.filter(r=>r.return3!==null), avgDay = avg(done.map(r=>r.return3));
