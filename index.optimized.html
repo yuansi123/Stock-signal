@@ -899,6 +899,37 @@ function getInstitutionalWhy(s) {
   }
   return parts.length ? `籌碼面看法：${parts.slice(0,4).join('，')}。消息面原因可按「AI消息面」另外判讀。` : '籌碼買盤理由不夠明確，消息面原因可按「AI消息面」另外判讀。';
 }
+function getHighScoreContinuationCheck(s, range) {
+  const score = Number(s.score) || 0;
+  const opClass = getDisplayOpClass(s);
+  if (score < 10 || !['buy','hot'].includes(opClass)) return null;
+  const price = Number(s.price);
+  const rsi = num(s.rsi);
+  const conc = num(s.conc5);
+  const dayTradePct = num(s.dayTradeRatio);
+  const rr = parseFloat(s.rr) || 0;
+  const tp1 = Number(s.tp1);
+  const entryStatus = getEntryStatus(s);
+  const flags = [];
+  if (entryStatus === 'above') flags.push('收盤價已高於建議進場區');
+  if (rsi >= 70) flags.push(`RSI ${rsi.toFixed(1)} 偏熱`);
+  if (conc >= 6) flags.push(`五日集中 ${conc.toFixed(2)}% 偏高`);
+  if (dayTradePct >= 30) flags.push(`當沖比 ${dayTradePct.toFixed(1)}% 偏高`);
+  if (rr > 0 && rr < 1.2) flags.push(`風報比 ${rr.toFixed(2)} 不漂亮`);
+  if ((Number(s.trust)||0) > 0 && (Number(s.foreign)||0) < 0) flags.push(`投信買 ${s.trust} 張但外資賣 ${Math.abs(Number(s.foreign)||0)} 張`);
+  if (price && tp1 && tp1 > 0) {
+    const room = (tp1 - price) / price * 100;
+    if (room <= 3) flags.push(`離第一停利只剩 ${room.toFixed(1)}% 空間`);
+  }
+  if (!flags.length) return null;
+  const entryText = range ? `${fmtPrice(range.low)}~${fmtPrice(range.high)}` : '建議進場區';
+  return {
+    tone:'高分等開盤確認',
+    color:'var(--yellow)',
+    icon:'⚠️',
+    text:`旁白：這檔有 ${score} 分，代表昨天量價與法人條件很強，但也可能已經先反映一段漲幅。現在要小心「高分但隔天不續強」的洗盤型態，因為 ${flags.slice(0,3).join('、')}。做法：明天不要看到高分就直接追，先看開盤 30 分鐘；如果開高後守住昨收、量能沒有失控、法人方向沒有轉弱，才分批。若開低、跌破昨收或高開走弱，先放掉，等拉回 ${entryText} 或重新轉強再說。`
+  };
+}
 function getTradeNarrator(s) {
   const price = Number(s.price);
   const range = parseEntryRange(s.entry);
@@ -917,6 +948,8 @@ function getTradeNarrator(s) {
   if (opClass === 'avoid' || opClass === 'bear' || heat?.kind === 'danger') {
     return {tone:'先不要買', color:'var(--red)', icon:'🛑', text:`旁白：這檔現在偏風險，不適合硬買。主要原因是 ${riskText}。等它重新站回進場區間、法人轉買或分數回升，再看下一次機會。${why}`};
   }
+  const highScoreCheck = getHighScoreContinuationCheck(s, range);
+  if (highScoreCheck) return highScoreCheck;
   if (price > range.high) {
     const over = pctDiff(range.high, price) || 0;
     return {tone:'不要追高', color:'var(--red)', icon:'🗣️', text:`旁白：收盤價已高於進場上緣約 ${over.toFixed(1)}%，這裡不要急著追。比較好的做法是等拉回 ${entryText}，或明天放量站穩高點且法人續買，再考慮小量跟進。${why}`};
