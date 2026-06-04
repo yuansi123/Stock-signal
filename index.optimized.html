@@ -2595,6 +2595,29 @@ function hlMatch(text, q) {
   const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
   return text.replace(re, '<mark style="background:var(--yellow);color:var(--text);border-radius:2px;padding:0 1px">$1</mark>');
 }
+// 勝率體質檢查：把回測頁的「正期望組合 / 警示清單」邏輯搬到卡片上
+// ⚠️ 純顯示用，不影響 score / op / 排序 / 篩選，完全不動選股邏輯
+function getWinRateFactors(s) {
+  const rsi = num(s.rsi), conc = num(s.conc5), rr = num(s.rr), dt = num(s.dayTradeRatio);
+  const f = Number(s.foreign) || 0, t = Number(s.trust) || 0, net = Number(s.instNet) || 0;
+  const mBal = Number(s.marginBal) || 0, mChg = Number(s.marginChg) || 0;
+  const good = [], warn = [];
+  // 正向因子（與回測正期望組合同條件）
+  if (rsi >= 45 && rsi <= 65) good.push('RSI甜蜜');
+  if (conc >= 1 && conc <= 6) good.push('集中甜蜜');
+  if (rr > 1) good.push('風報比優');
+  if (dt > 0 && dt < 30) good.push('當沖健康');
+  if (f > 0 && t > 0 && net > 0) good.push('雙法人同買');
+  // 警示因子（與回測警示清單同條件）
+  if (f < 0 && t > 0) warn.push('外資背離');
+  if (dt >= 30) warn.push('當沖過熱');
+  if (conc >= 12) warn.push('集中過熱');
+  if (rsi >= 75) warn.push('RSI過熱');
+  if (rr > 0 && rr <= 0.5) warn.push('風報比差');
+  if (mBal > 0 && mChg / mBal >= 0.15) warn.push('融資急增');
+  return { good, warn };
+}
+
 function renderCards() {
   updateWatchButton();
   updateNavBadge();
@@ -2661,14 +2684,24 @@ function renderCards() {
     const nextDayFollowup = getNextDayFollowup(s);
     const buyRisk = getBuyRiskWarning(s);
     const fourCond = reasons.some(r => r.includes('四大條件'));
+    const isStrongConfirm = opClass === 'buy' && s.score >= 8 && num(s.rsi) >= 45 && num(s.rsi) <= 65 && num(s.conc5) >= 1 && num(s.conc5) <= 6 && num(s.dayTradeRatio) < 30;
     const fColor = s.foreign > 0 ? 'color:var(--red)' : s.foreign < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
     const tColor = s.trust > 0 ? 'color:var(--red)' : s.trust < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
     const dColor = s.dealer > 0 ? 'color:var(--red)' : s.dealer < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
     const mChgColor = s.marginChg > 0 ? 'color:var(--red)' : s.marginChg < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
+    const wf = getWinRateFactors(s);
+    const showWinFactors = ['buy','watch','hot'].includes(opClass) && (wf.good.length || wf.warn.length);
+    const winFactorsHtml = showWinFactors
+      ? `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:-2px 0 10px">
+          <span style="font-size:.6rem;color:var(--text3);margin-right:2px">勝率體質</span>
+          ${wf.good.map(g => `<span class="rtag good">✅ ${g}</span>`).join('')}
+          ${wf.warn.map(w => `<span class="rtag warn">⚠️ ${w}</span>`).join('')}
+        </div>`
+      : '';
     return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*.035,.5)}s">
       <div class="card-header">
         <div>
-          <div class="stock-name">${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}</div>
+          <div class="stock-name">${isStrongConfirm?'⭐ ':''}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}</div>
           <div class="stock-code">${hlMatch(s.code,q)}${s.sector ? ` · <span onclick="setSectorFilter('${s.sector.replace(/'/g,"\\'")}');event.stopPropagation()" style="cursor:pointer;color:var(--brown)">${s.sector}</span>` : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
@@ -2691,6 +2724,7 @@ function renderCards() {
         <div class="stat-box"><div class="stat-label">投信</div><div class="stat-val" style="${tColor}">${s.trust>0?'+':''}${s.trust}</div></div>
         <div class="stat-box"><div class="stat-label">自營</div><div class="stat-val" style="${dColor}">${s.dealer>0?'+':''}${s.dealer}</div></div>
       </div>
+      ${winFactorsHtml}
       <div class="detail-panel" style="margin-bottom:8px">
         <div class="detail-title">${planLabels.title}</div>
         <div class="detail-grid">
