@@ -440,6 +440,14 @@ button,select,input { font-family:inherit; }
       <div id="actionListCard" class="plain-card"></div>
     </div>
 
+    <div id="openConfirmSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">開盤確認雷達</div>
+        <button class="ghost-btn" onclick="refreshOpenConfirm()">更新</button>
+      </div>
+      <div id="openConfirmCard" class="plain-card"></div>
+    </div>
+
     <div id="dailyNewsSection" style="margin-bottom:1rem">
       <div class="row-between" style="margin-bottom:8px">
         <div class="section-title" style="margin:0">今日科技要聞</div>
@@ -1582,6 +1590,97 @@ function renderPricePositionRadar() {
     }).join('')}
   </div>`;
   section.style.display = '';
+}
+async function loadOpenConfirm() {
+  const section = qs('openConfirmSection'), card = qs('openConfirmCard');
+  if (!section || !card) return;
+  try {
+    const rows = await fetchSheet('開盤確認', true);
+    if (!rows.length) { section.style.display = 'none'; return; }
+    const data = rows.map(r => {
+      const c = r.c || [];
+      return {
+        updateDate: parseDateVal(cell(c,0,'')),
+        signalDate: parseDateVal(cell(c,1,'')),
+        time: String(cell(c,2,'')),
+        code: String(cell(c,3,'')),
+        name: String(cell(c,4,'')),
+        sector: String(cell(c,5,'')),
+        op: String(cell(c,6,'')),
+        score: Number(cell(c,7,0)) || 0,
+        prevClose: num(cell(c,8,0)),
+        open: num(cell(c,9,0)),
+        price: num(cell(c,10,0)),
+        openGap: num(cell(c,11,0)),
+        liveChange: num(cell(c,12,0)),
+        label: String(cell(c,13,'')),
+        advice: String(cell(c,14,'')),
+        reason: String(cell(c,15,''))
+      };
+    }).filter(r => r.code && r.updateDate);
+    const latest = [...new Set(data.map(r => r.updateDate))].sort().reverse()[0];
+    const latestRows = data.filter(r => r.updateDate === latest).sort((a,b) => {
+      const rank = x => x.label.includes('開高續強') ? 3 : x.label.includes('小高開') ? 2 : x.label.includes('低開承接') ? 1 : x.label.includes('開低') ? -2 : 0;
+      return rank(b) - rank(a) || b.score - a.score;
+    });
+    if (!latestRows.length) { section.style.display = 'none'; return; }
+    const strong = latestRows.filter(r => r.label.includes('開高續強') || r.label.includes('小高開')).length;
+    const weak = latestRows.filter(r => r.label.includes('開低失敗') || r.label.includes('開低續弱') || r.label.includes('高開走弱') || r.label.includes('平開轉弱')).length;
+    const support = latestRows.filter(r => r.label.includes('低開承接')).length;
+    const labelStyle = label => {
+      if (label.includes('開高續強')) return {bg:'#eaf5ea', col:'var(--green)', border:'var(--green)'};
+      if (label.includes('小高開') || label.includes('低開承接')) return {bg:'#fef8ea', col:'var(--yellow)', border:'var(--yellow)'};
+      if (label.includes('開低') || label.includes('走弱') || label.includes('轉弱')) return {bg:'#fef0ee', col:'var(--red)', border:'var(--red)'};
+      return {bg:'var(--bg2)', col:'var(--text2)', border:'var(--border)'};
+    };
+    card.innerHTML = `
+      <div class="row-between" style="align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div style="font-size:.82rem;font-weight:800;color:var(--text)">開盤二次確認 · ${latest}</div>
+          <div style="font-size:.62rem;color:var(--text3);margin-top:2px">訊號日 ${latestRows[0].signalDate || '—'} · 已確認 ${latestRows.length} 檔</div>
+        </div>
+        <div style="font-size:.68rem;color:var(--text3);text-align:right">強 ${strong} · 承接 ${support} · 弱 ${weak}</div>
+      </div>
+      <div style="font-size:.72rem;line-height:1.55;color:var(--text2);background:var(--bg2);border-radius:10px;padding:7px 9px;margin-bottom:8px">
+        開高守住通常代表資金願意追；開低續弱先不要接，等翻上開盤價或隔日重新確認。
+      </div>
+      ${latestRows.slice(0, 18).map(r => {
+        const st = labelStyle(r.label);
+        const gapCol = r.openGap >= 0 ? 'var(--red)' : 'var(--blue)';
+        const liveCol = r.liveChange >= 0 ? 'var(--red)' : 'var(--blue)';
+        return `<div onclick="focusStock('${r.code}')" style="border:1px solid var(--border);border-left:4px solid ${st.border};border-radius:12px;padding:8px 10px;margin-bottom:7px;background:var(--card2);cursor:pointer">
+          <div class="row-between" style="gap:8px">
+            <div style="min-width:0">
+              <div style="font-size:.82rem;font-weight:800;color:var(--text)">${r.name} <span style="font-size:.62rem;color:var(--text3)">${r.code}</span> <span style="font-size:.62rem;color:var(--brown)">${r.sector}</span></div>
+              <div style="font-size:.62rem;color:var(--text3);margin-top:2px">${r.score}分 · 昨收 ${fmtPrice(r.prevClose)} · 開 ${fmtPrice(r.open)} · 現 ${fmtPrice(r.price)}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="display:inline-block;background:${st.bg};color:${st.col};font-size:.68rem;font-weight:800;border-radius:999px;padding:2px 8px">${r.label}</div>
+              <div style="font-size:.62rem;margin-top:3px"><span style="color:${gapCol}">開 ${r.openGap>=0?'+':''}${r.openGap.toFixed(2)}%</span> · <span style="color:${liveCol}">現 ${r.liveChange>=0?'+':''}${r.liveChange.toFixed(2)}%</span></div>
+            </div>
+          </div>
+          <div style="font-size:.68rem;color:var(--text2);line-height:1.5;margin-top:5px">${r.advice}</div>
+        </div>`;
+      }).join('')}
+    `;
+    section.style.display = '';
+  } catch(e) {
+    section.style.display = 'none';
+  }
+}
+
+async function refreshOpenConfirm() {
+  const card = qs('openConfirmCard');
+  if (card) card.innerHTML = '<div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div>';
+  try {
+    const res = await fetch(`${WEB_APP_URL}?action=openConfirm&ts=${Date.now()}`, {cache:'no-store'});
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.msg || '更新失敗');
+    toast('開盤確認已更新');
+  } catch(e) {
+    toast('開盤確認更新失敗：' + e.message);
+  }
+  await loadOpenConfirm();
 }
 function renderRiskFactorRadar() {
   const section = qs('riskFactorSection'), card = qs('riskFactorCard');
@@ -4758,6 +4857,7 @@ function clearPreset() {
 // ── Settings panel ────────────────────────────────────────
 const DS = [
   {key:'openBias', icon:'🧭', label:'隔日開盤傾向', desc:'用美股、風險與訊號強度估明日開盤劇本'},
+  {key:'openConfirm', icon:'🚦', label:'開盤確認雷達', desc:'隔天開盤後確認買入股是開高續強或開低失敗'},
   {key:'news',     icon:'📰', label:'每日科技要聞', desc:'新聞摘要，關閉可加快啟動'},
   {key:'ai',       icon:'🤖', label:'AI 分析',      desc:'個股 AI 報告（每次直連 Sheet）'},
   {key:'sector',   icon:'🏭', label:'板塊資料',      desc:'板塊熱力圖與 5 日趨勢'},
@@ -4818,6 +4918,7 @@ const COLLAPSIBLE = [
   {id:'dailySummary', sec:'dailySummarySection'},
   {id:'watchRadar',   sec:'watchRadarSection'},
   {id:'actionList',   sec:'actionListSection'},
+  {id:'openConfirm',  sec:'openConfirmSection'},
   {id:'dailyNews',    sec:'dailyNewsSection'},
   {id:'changeRadar',  sec:'changeRadarSection'},
   {id:'streak',       sec:'streakSection'},
@@ -4877,6 +4978,11 @@ async function loadAll(force = false) {
   if (dsEnabled('openBias')) loadOpenBias();
   else {
     const sec = qs('openBiasSection');
+    if (sec) sec.style.display = 'none';
+  }
+  if (dsEnabled('openConfirm')) loadOpenConfirm();
+  else {
+    const sec = qs('openConfirmSection');
     if (sec) sec.style.display = 'none';
   }
 }
