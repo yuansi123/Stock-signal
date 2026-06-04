@@ -650,7 +650,7 @@ const HISTORY_SHEET_NAME = '訊號日誌';
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby-KbeEe-LDpu2Fdg_PlQjSOy6cqNQpYQ_eTZC86pZMz_yXVurPLysXd7kBQ6W-2KgKWA/exec';
 const FINMIND_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoieXVhbnc1MjRAZ21haWwuY29tIiwiZW1haWwiOiJ5dWFudzUyNEBnbWFpbC5jb20iLCJ0b2tlbl92ZXJzaW9uIjowfQ.3rEhSqwuZR3OdB5MBWThDfU30HlTDbUv4yzmZVpH_Lc';
 const CACHE_TTL = 30 * 60 * 1000;
-let allStocks = [], currentFilter = 'all', actionFilter = '', entryFilter = '', riskFilter = '', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null, newsRowsCache = null;
+let allStocks = [], currentFilter = 'all', actionFilter = '', entryFilter = '', riskFilter = '', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null, newsRowsCache = null, themeFilter = '';
 let stockInfoCache = null, stockLookupCache = {}, stockLookupPending = {};
 let scanStatusTimer = null, lastScanStatus = null, scanAutoRefreshKey = '';
 
@@ -2640,6 +2640,33 @@ function hlMatch(text, q) {
   const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
   return text.replace(re, '<mark style="background:var(--yellow);color:var(--text);border-radius:2px;padding:0 1px">$1</mark>');
 }
+// ═══ 投資題材分類（跨板塊概念，獨立於技術板塊 sector）═══
+// ⚠️ 純題材標記與資金統計，不影響 score / op / 選股；新題材在這裡增刪即可
+// 來源：x.stock_men（Chris）產業分析，僅收錄文章點名且代號確認的台股
+const THEME_MAP = [
+  { key:'passive', icon:'🔵', name:'被動元件 Super Cycle', short:'被動Super', color:'#4878a0',
+    note:'AI Server 拉貨漲價；出關日 國巨6/8、日電貿6/9、禾伸堂6/11、華新科6/17；小摩喊國巨1000',
+    codes:['2327','3026','2492','3090'] },
+  { key:'memory', icon:'🟢', name:'記憶體 Super Cycle', short:'記憶Super', color:'#5a9460',
+    note:'大摩上修 南亞科380/華邦電222；DDR4 Q3再漲20%；eSSD與利基記憶體缺貨',
+    codes:['2344','2408','8299','3260','4919'] },
+  { key:'sicap', icon:'🟣', name:'SiCap 矽電容', short:'SiCap', color:'#8060a0',
+    note:'GPU/HBM 穩壓新需求；華邦電以晶圓製程切入、國巨找國際夥伴',
+    codes:['2344','2327','4919'] },
+  { key:'substrate', icon:'🟠', name:'AI 載板 / CCL', short:'載板/CCL', color:'#c08830',
+    note:'M8/M9 升級；ABF膜與T布缺貨漲價；VR200 拉貨',
+    codes:['2383','6274'] }
+];
+function getStockThemes(code) {
+  const c = String(code);
+  return THEME_MAP.filter(t => t.codes.includes(c));
+}
+function getThemeTag(s) {
+  return getStockThemes(s.code).map(t =>
+    `<span class="signal-tag" style="background:${t.color}1f;color:${t.color}" title="${t.note}">${t.icon}${t.short}</span>`
+  ).join('');
+}
+
 // 強勢確認組合判斷（與回測頁同條件），供卡片 ⭐ 與晨間簡報共用
 function isStrongConfirmStock(s) {
   return getDisplayOpClass(s) === 'buy' && Number(s.score) >= 8 &&
@@ -2679,6 +2706,10 @@ function renderCards() {
   const volFilter = qs('volFilter')?.value || '';
   const MAX = 12;
   let list = allStocks.filter(s => {
+    if (themeFilter) {
+      const th = THEME_MAP.find(t => t.key === themeFilter);
+      if (th && !th.codes.includes(String(s.code))) return false;
+    }
     if (watchOnly && !isWatched(s.code)) return false;
     if (q && !s.name.toLowerCase().includes(q) && !s.code.includes(q)) return false;
     if (!q) {
@@ -2706,9 +2737,12 @@ function renderCards() {
     return b.score - a.score || b.instNet - a.instNet;
   });
   const countEl = qs('resultCount');
-  if (countEl) countEl.textContent = list.length === allStocks.length
-    ? `共 ${allStocks.length} 檔`
-    : `顯示 ${list.length} / ${allStocks.length} 檔`;
+  if (countEl) {
+    const themePrefix = themeFilter ? `【${THEME_MAP.find(t => t.key === themeFilter)?.name || ''}】　` : '';
+    countEl.textContent = themePrefix + (list.length === allStocks.length
+      ? `共 ${allStocks.length} 檔`
+      : `顯示 ${list.length} / ${allStocks.length} 檔`);
+  }
   renderFilterStatus(list.length, allStocks.length);
   if (!list.length) {
     if (q) {
@@ -2754,7 +2788,7 @@ function renderCards() {
     return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*.035,.5)}s">
       <div class="card-header">
         <div>
-          <div class="stock-name">${isStrongConfirm?'⭐ ':''}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}</div>
+          <div class="stock-name">${isStrongConfirm?'⭐ ':''}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getThemeTag(s)}</div>
           <div class="stock-code">${hlMatch(s.code,q)}${s.sector ? ` · <span onclick="setSectorFilter('${s.sector.replace(/'/g,"\\'")}');event.stopPropagation()" style="cursor:pointer;color:var(--brown)">${s.sector}</span>` : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
@@ -2961,6 +2995,21 @@ function renderBriefing() {
       col, "showPage('backtest')"));
   }
 
+  // ⑤ 題材資金流向（法人今天在買哪個題材）
+  const themeStats = THEME_MAP.map(t => {
+    const members = allStocks.filter(s => t.codes.includes(String(s.code)));
+    const net = members.reduce((a,s) => a + (Number(s.instNet)||0), 0);
+    const buy = members.filter(s => getDisplayOpClass(s) === 'buy').length;
+    return {t, n: members.length, net, buy};
+  }).filter(x => x.n > 0).sort((a,b) => b.net - a.net);
+  if (themeStats.length) {
+    const chips = themeStats.map(x => {
+      const sel = themeFilter === x.t.key;
+      return `<span onclick="event.stopPropagation();filterByTheme('${x.t.key}')" title="${x.t.note}" style="display:inline-block;cursor:pointer;border:1px solid ${sel?x.t.color:'var(--border)'};background:${sel?x.t.color+'22':'var(--bg2)'};border-radius:8px;padding:2px 7px;margin:2px 5px 0 0;font-size:.72rem">${x.t.icon}<strong>${x.t.short}</strong> <span style="color:${x.net>=0?'var(--red)':'var(--blue)'};font-weight:700">${x.net>=0?'+':''}${x.net}張</span>${x.buy?` <span style="color:var(--green)">${x.buy}買</span>`:''}</span>`;
+    }).join('');
+    blocks.push(block('🔥', '題材資金流向（法人買超）', chips, 'var(--red)'));
+  }
+
   card.innerHTML = `<div style="display:flex;flex-direction:column;gap:7px">${blocks.join('')}</div>`;
   section.style.display = '';
 }
@@ -2984,6 +3033,15 @@ function computeBriefingReview() {
   });
   if (!n) return null;
   return {n, hit, avgChg: sum / n};
+}
+
+// 點題材 → 篩選成員股（再點同題材取消）；純顯示篩選，不影響選股
+function filterByTheme(key) {
+  themeFilter = (themeFilter === key) ? '' : key;
+  const si = qs('searchInput'); if (si) si.value = '';
+  renderCards();
+  renderBriefing();
+  if (themeFilter) document.getElementById('content')?.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 async function loadMarket() {
@@ -4890,6 +4948,10 @@ function exportCSV() {
   const selectedSector = qs('sectorFilter')?.value||'';
   const vf = qs('volFilter')?.value||'';
   let list = allStocks.filter(s => {
+    if (themeFilter) {
+      const th = THEME_MAP.find(t => t.key === themeFilter);
+      if (th && !th.codes.includes(String(s.code))) return false;
+    }
     if (watchOnly && !isWatched(s.code)) return false;
     if (q && !s.name.toLowerCase().includes(q) && !s.code.includes(q)) return false;
     if (!q) {
