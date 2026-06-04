@@ -1473,10 +1473,13 @@ function renderActionList() {
   };
   const row = (x, meta, color) => {
     const isHot = x.entryStatus === 'inside' && (Number(x.stock.score) >= 10 || Number(x.stock.instNet) >= 500);
+    const star = isStrongConfirmStock(x.stock) ? '⭐ ' : '';
+    const rsiText = x.stock.rsi || '—';
+    const dayTradeText = x.stock.dayTradeRatio || '—';
     return `<div class="action-row${isHot ? ' action-row-hot' : ''}" onclick="focusStock('${x.stock.code}')">
-      <div class="action-name">${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span><span style="font-size:.58rem;color:var(--brown);background:var(--bg2);border-radius:6px;padding:1px 5px;margin-left:4px">${x.stock.sector || '未分類'}</span>${isHot ? '<span style="font-size:.5rem;background:var(--green);color:#fff;border-radius:4px;padding:1px 4px;margin-left:4px">🔥強勢</span>' : ''}</div>
+      <div class="action-name">${star}${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span><span style="font-size:.58rem;color:var(--brown);background:var(--bg2);border-radius:6px;padding:1px 5px;margin-left:4px">${x.stock.sector || '未分類'}</span>${isHot ? '<span style="font-size:.5rem;background:var(--green);color:#fff;border-radius:4px;padding:1px 4px;margin-left:4px">🔥強勢</span>' : ''}</div>
       <div class="action-theme">${themeHints(x.stock)}</div>
-      <div class="action-meta"><span style="color:${color};font-weight:700">${meta}</span> · ${x.stock.score}分 · 法人 ${x.stock.instNet > 0 ? '+' : ''}${x.stock.instNet}張</div>
+      <div class="action-meta"><span style="color:${color};font-weight:700">${meta}</span> · ${x.stock.score}分 · 法人 ${x.stock.instNet > 0 ? '+' : ''}${x.stock.instNet}張 · RSI ${rsiText} · 當沖 ${dayTradeText}</div>
     </div>`;
   };
   const col = (title, rows, empty, color, renderMeta) => `<div class="action-col">
