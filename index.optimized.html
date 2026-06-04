@@ -3082,6 +3082,7 @@ async function loadBacktest() {
   try {
     const rows = await fetchSheet('訊號歷史');
     const logRows = await fetchSheet('訊號日誌', true).catch(() => []);
+    const openRows = await fetchSheet('開盤確認', true).catch(() => []);
     const logMap = {};
     logRows.forEach(r => {
       const c = r.c;
@@ -3103,6 +3104,21 @@ async function loadBacktest() {
         dayTradeRatio:String(cell(c,34,''))
       };
     });
+    const openMap = {};
+    openRows.forEach(r => {
+      const c = r.c || [];
+      const signalDate = parseDateVal(cell(c,1,''));
+      const code = String(cell(c,3,''));
+      if (!signalDate || !code) return;
+      openMap[signalDate + '_' + code] = {
+        openConfirmDate: parseDateVal(cell(c,0,'')),
+        openGap: num(cell(c,11,0)),
+        liveChange: num(cell(c,12,0)),
+        openLabel: String(cell(c,13,'')),
+        openAdvice: String(cell(c,14,'')),
+        openReason: String(cell(c,15,''))
+      };
+    });
     if (!rows.length) { qs('btContent').innerHTML = '<div class="state">還沒有回測資料</div>'; return; }
     const records = rows.map(r => {
       const base = {
@@ -3112,7 +3128,7 @@ async function loadBacktest() {
         price2:cell(r.c,8,'')===''?null:num(cell(r.c,8,'')), return2:cell(r.c,9,'')===''?null:num(cell(r.c,9,'')),
         price3:cell(r.c,10,'')===''?null:num(cell(r.c,10,'')), return3:cell(r.c,11,'')===''?null:num(cell(r.c,11,''))
       };
-      return Object.assign(base, logMap[base.date + '_' + base.code] || {});
+      return Object.assign(base, logMap[base.date + '_' + base.code] || {}, openMap[base.date + '_' + base.code] || {});
     }).filter(r=>r.code && r.date.length===10);
     renderBacktest(records,0);
   } catch(e) {
@@ -3372,6 +3388,95 @@ function buildBacktestCorrelationCharts(records) {
 function setFactorLineMode(mode) {
   window._factorLineMode = mode;
   renderBacktest(window._btRecords || [], window._btScoreFilter || 0);
+}
+
+function buildOpenConfirmPerformance(records) {
+  const rows = (records || []).filter(r => r.openLabel);
+  if (!rows.length) return '';
+  const avg = arr => arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : null;
+  const retCol = v => v===null || v===undefined ? 'var(--text3)' : v>=0 ? 'var(--red)' : 'var(--blue)';
+  const retTxt = v => v===null || v===undefined ? '—' : `${v>=0?'+':''}${v.toFixed(2)}%`;
+  const pctTxt = v => v===null || v===undefined ? '—' : `${Math.round(v)}%`;
+  const labelRank = label => {
+    if (label.includes('開高續強')) return 1;
+    if (label.includes('小高開')) return 2;
+    if (label.includes('低開承接')) return 3;
+    if (label.includes('平開觀察')) return 4;
+    if (label.includes('高開走弱')) return 5;
+    if (label.includes('平開轉弱')) return 6;
+    if (label.includes('開低續弱')) return 7;
+    if (label.includes('開低失敗')) return 8;
+    return 9;
+  };
+  const labelStyle = label => {
+    if (label.includes('開高續強')) return {bg:'#eaf5ea', col:'var(--green)', note:'隔日資金願意追價，適合續航確認'};
+    if (label.includes('小高開') || label.includes('低開承接')) return {bg:'#fef8ea', col:'var(--yellow)', note:'有買盤但仍需量價確認'};
+    if (label.includes('走弱') || label.includes('轉弱') || label.includes('開低')) return {bg:'#fef0ee', col:'var(--red)', note:'開盤確認失敗，通常應降倉或避開'};
+    return {bg:'var(--bg2)', col:'var(--text2)', note:'方向未明，等第一小時確認'};
+  };
+  const groups = Object.values(rows.reduce((m,r) => {
+    const key = r.openLabel || '未分類';
+    if (!m[key]) m[key] = {label:key, rows:[]};
+    m[key].rows.push(r);
+    return m;
+  }, {})).map(g => {
+    const r1 = g.rows.filter(r => r.return1 !== null && r.return1 !== undefined);
+    const r3 = g.rows.filter(r => r.return3 !== null && r.return3 !== undefined);
+    const best = g.rows.filter(r => r.return3 !== null).sort((a,b)=>b.return3-a.return3)[0] ||
+      g.rows.filter(r => r.return1 !== null).sort((a,b)=>b.return1-a.return1)[0];
+    const worst = g.rows.filter(r => r.return3 !== null).sort((a,b)=>a.return3-b.return3)[0] ||
+      g.rows.filter(r => r.return1 !== null).sort((a,b)=>a.return1-b.return1)[0];
+    return {
+      label:g.label,
+      rows:g.rows,
+      n:g.rows.length,
+      n1:r1.length,
+      win1:r1.length ? r1.filter(r=>r.return1>0).length/r1.length*100 : null,
+      avg1:avg(r1.map(r=>r.return1)),
+      n3:r3.length,
+      win3:r3.length ? r3.filter(r=>r.return3>0).length/r3.length*100 : null,
+      avg3:avg(r3.map(r=>r.return3)),
+      avgOpen:avg(g.rows.map(r=>Number(r.openGap)).filter(v=>!isNaN(v))),
+      best,
+      worst
+    };
+  }).sort((a,b) => labelRank(a.label) - labelRank(b.label));
+  const completedRows = rows.filter(r => r.return1 !== null || r.return3 !== null).length;
+  const bestGroup = groups.filter(g => g.n1 >= 2).sort((a,b) => (b.avg1 ?? -999) - (a.avg1 ?? -999))[0];
+  const weakGroup = groups.filter(g => g.n1 >= 2).sort((a,b) => (a.avg1 ?? 999) - (b.avg1 ?? 999))[0];
+  return `<div class="plain-card" style="margin-bottom:12px;border-left:4px solid var(--brown-light)">
+    <div class="row-between" style="align-items:flex-start;margin-bottom:8px">
+      <div>
+        <div class="section-title" style="margin:0">🚦 開盤確認績效表</div>
+        <div style="font-size:.62rem;color:var(--text3);margin-top:2px">用「開盤確認」分類，回測後續 1日 / 3日報酬</div>
+      </div>
+      <div style="font-size:.62rem;color:var(--text3);text-align:right">分類 ${rows.length} 筆<br>已回測 ${completedRows} 筆</div>
+    </div>
+    ${(bestGroup || weakGroup) ? `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:8px">
+      <div class="mini-stat"><span>目前較強分類</span><strong style="color:${retCol(bestGroup?.avg1)}">${bestGroup ? `${bestGroup.label} ${retTxt(bestGroup.avg1)}` : '—'}</strong></div>
+      <div class="mini-stat"><span>目前較弱分類</span><strong style="color:${retCol(weakGroup?.avg1)}">${weakGroup ? `${weakGroup.label} ${retTxt(weakGroup.avg1)}` : '—'}</strong></div>
+    </div>` : ''}
+    <div class="bt-matrix"><table>
+      <thead><tr><th>開盤分類</th><th>樣本</th><th>平均開盤</th><th>1日勝率</th><th>1日平均</th><th>3日勝率</th><th>3日平均</th><th>代表</th></tr></thead>
+      <tbody>${groups.map(g => {
+        const st = labelStyle(g.label);
+        const rep = g.best || g.worst;
+        return `<tr>
+          <td><span style="display:inline-block;background:${st.bg};color:${st.col};border-radius:999px;padding:2px 8px;font-weight:900;white-space:nowrap">${g.label}</span><div style="font-size:.54rem;color:var(--text3);margin-top:2px">${st.note}</div></td>
+          <td>${g.n}</td>
+          <td style="color:${retCol(g.avgOpen)}">${retTxt(g.avgOpen)}</td>
+          <td>${pctTxt(g.win1)}<div style="font-size:.54rem;color:var(--text3)">${g.n1 ? g.n1 + '筆' : '待報酬'}</div></td>
+          <td style="color:${retCol(g.avg1)};font-weight:800">${retTxt(g.avg1)}</td>
+          <td>${pctTxt(g.win3)}<div style="font-size:.54rem;color:var(--text3)">${g.n3 ? g.n3 + '筆' : '待報酬'}</div></td>
+          <td style="color:${retCol(g.avg3)};font-weight:800">${retTxt(g.avg3)}</td>
+          <td>${rep ? `<span class="compare-stock" onclick="focusStock('${rep.code}')">${rep.name}</span><div style="font-size:.54rem;color:${retCol(rep.return3 ?? rep.return1)}">${retTxt(rep.return3 ?? rep.return1)}</div>` : '—'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+    <div style="font-size:.62rem;color:var(--text3);line-height:1.55;margin-top:7px">
+      解讀：如果「開高續強」長期勝率明顯高於「開低失敗 / 平開轉弱」，就可以把它當成隔天開盤後的二次篩選器，而不是改原本選股邏輯。
+    </div>
+  </div>`;
 }
 
 function buildBacktestStatDashboard(records) {
@@ -3698,6 +3803,7 @@ function renderBacktest(records,scoreFilter) {
   </div>`;
   const byDate = {};
   filtered.sort((a,b)=>b.date.localeCompare(a.date)||b.score-a.score).forEach(r => { (byDate[r.date] ||= []).push(r); });
+  const openConfirmPerfHtml = buildOpenConfirmPerformance(filtered);
   const corrChartsHtml = buildBacktestCorrelationCharts(filtered);
   const statDashboardHtml = buildBacktestStatDashboard(filtered);
   qs('btContent').innerHTML = `<div class="summary">
@@ -3708,6 +3814,7 @@ function renderBacktest(records,scoreFilter) {
   </div>
   ${matrixHtml}
   ${holdingHtml}
+  ${openConfirmPerfHtml}
   ${corrChartsHtml}
   ${statDashboardHtml}
   <div class="control-row">${[{l:'全部',s:0},{l:'8分↑',s:8},{l:'10分↑',s:10}].map(b=>`<button class="filter-btn ${scoreFilter===b.s?'active':''}" onclick="renderBacktest(window._btRecords,${b.s})">${b.l}</button>`).join('')}</div>
