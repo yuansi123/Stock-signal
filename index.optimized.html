@@ -3479,6 +3479,119 @@ function buildOpenConfirmPerformance(records) {
   </div>`;
 }
 
+function buildConditionEdgeBacktest(records) {
+  const rows = (records || []).filter(r => r.return1 !== null && r.return1 !== undefined);
+  if (rows.length < 5) return '';
+  const avg = arr => arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : null;
+  const retCol = v => v === null || v === undefined ? 'var(--text3)' : v >= 0 ? 'var(--red)' : 'var(--blue)';
+  const retTxt = v => v === null || v === undefined ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+  const pctTxt = v => v === null || v === undefined ? '—' : `${Math.round(v)}%`;
+  const metricNum = (raw, opts = {}) => {
+    if (raw === null || raw === undefined || raw === '') return null;
+    const hasPct = String(raw).indexOf('%') !== -1;
+    let n = parseFloat(String(raw).replace('%', '').replace('x', '').trim());
+    if (isNaN(n)) return null;
+    if (opts.percent && !hasPct && Math.abs(n) <= 1) n *= 100;
+    return n;
+  };
+  const stat = arr => {
+    const done3 = arr.filter(r => r.return3 !== null && r.return3 !== undefined);
+    return {
+      n: arr.length,
+      win1: arr.length ? arr.filter(r => r.return1 > 0).length / arr.length * 100 : null,
+      avg1: avg(arr.map(r => r.return1)),
+      n3: done3.length,
+      win3: done3.length ? done3.filter(r => r.return3 > 0).length / done3.length * 100 : null,
+      avg3: done3.length ? avg(done3.map(r => r.return3)) : null
+    };
+  };
+  const base = stat(rows);
+  const sampleNote = s => s.n >= 20 ? '可信較高' : s.n >= 8 ? '可參考' : '樣本偏少';
+  const combos = [
+    {name:'高分 + RSI甜蜜區', desc:'分數>=8 且 RSI 45~65', test:r => r.score >= 8 && metricNum(r.rsi) >= 45 && metricNum(r.rsi) <= 65},
+    {name:'高分 + 集中甜蜜區', desc:'分數>=8 且 五日集中 1~6%', test:r => r.score >= 8 && metricNum(r.conc5,{percent:true}) >= 1 && metricNum(r.conc5,{percent:true}) <= 6},
+    {name:'高分 + 風報比合格', desc:'分數>=8 且 風報比 > 1', test:r => r.score >= 8 && metricNum(r.rr) > 1},
+    {name:'高分 + 當沖不熱', desc:'分數>=8 且 當沖比 < 30%', test:r => r.score >= 8 && metricNum(r.dayTradeRatio,{percent:true}) < 30},
+    {name:'法人同向買超', desc:'外資>=0 且 投信>=0 且 法人合計>0', test:r => (Number(r.foreign)||0) >= 0 && (Number(r.trust)||0) >= 0 && (Number(r.instNet)||0) > 0},
+    {name:'開盤未轉弱', desc:'排除開低失敗/平開轉弱/高開走弱', test:r => !r.openLabel || !/(開低失敗|開低續弱|平開轉弱|高開走弱)/.test(String(r.openLabel))},
+    {name:'強勢確認組合', desc:'高分 + RSI45~65 + 集中1~6% + 當沖<30%', test:r => r.score >= 8 && metricNum(r.rsi) >= 45 && metricNum(r.rsi) <= 65 && metricNum(r.conc5,{percent:true}) >= 1 && metricNum(r.conc5,{percent:true}) <= 6 && metricNum(r.dayTradeRatio,{percent:true}) < 30}
+  ].map(c => {
+    const arr = rows.filter(c.test);
+    const s = stat(arr);
+    return Object.assign({}, c, s, {
+      edge1: s.avg1 !== null && base.avg1 !== null ? s.avg1 - base.avg1 : null,
+      edgeWin: s.win1 !== null && base.win1 !== null ? s.win1 - base.win1 : null
+    });
+  }).filter(c => c.n > 0).sort((a,b) => ((b.edge1 ?? -999) * Math.log1p(b.n)) - ((a.edge1 ?? -999) * Math.log1p(a.n)));
+
+  const warnings = [
+    {name:'外資賣、投信買', desc:r => `外資${r.foreign}張 / 投信${r.trust}張`, test:r => (Number(r.foreign)||0) < 0 && (Number(r.trust)||0) > 0},
+    {name:'當沖比偏高', desc:r => `當沖比${r.dayTradeRatio || '—'}`, test:r => metricNum(r.dayTradeRatio,{percent:true}) >= 30},
+    {name:'集中度過熱', desc:r => `五日集中${r.conc5 || '—'}`, test:r => metricNum(r.conc5,{percent:true}) >= 12},
+    {name:'RSI過熱', desc:r => `RSI ${r.rsi || '—'}`, test:r => metricNum(r.rsi) >= 75},
+    {name:'風報比不足', desc:r => `風報比${r.rr || '—'}`, test:r => metricNum(r.rr) !== null && metricNum(r.rr) <= 0.5},
+    {name:'法人合計賣超', desc:r => `法人${r.instNet}張`, test:r => (Number(r.instNet)||0) < 0},
+    {name:'開盤轉弱', desc:r => r.openLabel || '開盤確認弱', test:r => /(開低失敗|開低續弱|平開轉弱|高開走弱)/.test(String(r.openLabel || ''))}
+  ].map(w => {
+    const arr = rows.filter(w.test);
+    const s = stat(arr);
+    const ex = arr.slice().sort((a,b)=>a.return1-b.return1)[0];
+    return Object.assign({}, w, s, {
+      edge1: s.avg1 !== null && base.avg1 !== null ? s.avg1 - base.avg1 : null,
+      example: ex ? `${ex.name} ${w.desc(ex)}` : ''
+    });
+  }).filter(w => w.n > 0).sort((a,b) => (a.avg1 ?? 999) - (b.avg1 ?? 999));
+
+  const renderCombo = c => {
+    const edgeGood = (c.edge1 ?? 0) >= 0;
+    return `<tr>
+      <td><div style="font-weight:900;color:var(--text)">${c.name}</div><div style="font-size:.54rem;color:var(--text3);margin-top:2px">${c.desc}</div></td>
+      <td>${c.n}<div style="font-size:.54rem;color:var(--text3)">${sampleNote(c)}</div></td>
+      <td>${pctTxt(c.win1)}<div style="font-size:.54rem;color:${retCol(c.edgeWin)}">${c.edgeWin === null ? '—' : `${c.edgeWin >= 0 ? '+' : ''}${c.edgeWin.toFixed(0)}pt`}</div></td>
+      <td style="color:${retCol(c.avg1)};font-weight:900">${retTxt(c.avg1)}<div style="font-size:.54rem;color:${edgeGood?'var(--green)':'var(--red)'}">${c.edge1 === null ? '—' : `${c.edge1 >= 0 ? '+' : ''}${c.edge1.toFixed(2)} vs 全體`}</div></td>
+      <td>${pctTxt(c.win3)}<div style="font-size:.54rem;color:var(--text3)">${c.n3}筆</div></td>
+      <td style="color:${retCol(c.avg3)};font-weight:900">${retTxt(c.avg3)}</td>
+    </tr>`;
+  };
+  const renderWarning = w => `<tr>
+    <td><div style="font-weight:900;color:var(--text)">${w.name}</div><div style="font-size:.54rem;color:var(--text3);margin-top:2px">${w.example || '—'}</div></td>
+    <td>${w.n}<div style="font-size:.54rem;color:var(--text3)">${sampleNote(w)}</div></td>
+    <td>${pctTxt(w.win1)}</td>
+    <td style="color:${retCol(w.avg1)};font-weight:900">${retTxt(w.avg1)}<div style="font-size:.54rem;color:${retCol(w.edge1)}">${w.edge1 === null ? '—' : `${w.edge1 >= 0 ? '+' : ''}${w.edge1.toFixed(2)} vs 全體`}</div></td>
+    <td>${pctTxt(w.win3)}<div style="font-size:.54rem;color:var(--text3)">${w.n3}筆</div></td>
+    <td style="color:${retCol(w.avg3)};font-weight:900">${retTxt(w.avg3)}</td>
+  </tr>`;
+
+  return `<div class="plain-card" style="margin-bottom:12px;border-left:4px solid var(--green)">
+    <div class="row-between" style="align-items:flex-start;margin-bottom:8px">
+      <div>
+        <div class="section-title" style="margin:0">🧮 二次篩選統計</div>
+        <div style="font-size:.62rem;color:var(--text3);margin-top:2px">不改選股邏輯，只檢查哪些附加條件能提高勝率</div>
+      </div>
+      <div style="font-size:.62rem;color:var(--text3);text-align:right">全體 ${rows.length} 筆<br>1日均 ${retTxt(base.avg1)} / 勝率 ${pctTxt(base.win1)}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px">
+      <div>
+        <div style="font-size:.72rem;font-weight:900;color:var(--text);margin-bottom:6px">✅ 條件組合回測</div>
+        <div class="bt-matrix"><table>
+          <thead><tr><th>條件</th><th>樣本</th><th>1日勝率</th><th>1日平均</th><th>3日勝率</th><th>3日平均</th></tr></thead>
+          <tbody>${combos.map(renderCombo).join('')}</tbody>
+        </table></div>
+      </div>
+      <div>
+        <div style="font-size:.72rem;font-weight:900;color:var(--text);margin-bottom:6px">⚠️ 警示因子勝率表</div>
+        <div class="bt-matrix"><table>
+          <thead><tr><th>警示</th><th>樣本</th><th>1日勝率</th><th>1日平均</th><th>3日勝率</th><th>3日平均</th></tr></thead>
+          <tbody>${warnings.map(renderWarning).join('')}</tbody>
+        </table></div>
+      </div>
+    </div>
+    <div style="font-size:.62rem;color:var(--text3);line-height:1.55;margin-top:7px">
+      解讀：條件組合若「1日平均」長期高於全體，代表它適合當隔天人工篩選；警示因子若長期低於全體，看到時就要縮小部位或等開盤確認。
+    </div>
+  </div>`;
+}
+
 function buildBacktestStatDashboard(records) {
   const done = (records || []).filter(r => r.return1 !== null && r.return1 !== undefined);
   if (done.length < 5) return '';
@@ -3804,6 +3917,7 @@ function renderBacktest(records,scoreFilter) {
   const byDate = {};
   filtered.sort((a,b)=>b.date.localeCompare(a.date)||b.score-a.score).forEach(r => { (byDate[r.date] ||= []).push(r); });
   const openConfirmPerfHtml = buildOpenConfirmPerformance(filtered);
+  const conditionEdgeHtml = buildConditionEdgeBacktest(filtered);
   const corrChartsHtml = buildBacktestCorrelationCharts(filtered);
   const statDashboardHtml = buildBacktestStatDashboard(filtered);
   qs('btContent').innerHTML = `<div class="summary">
@@ -3815,6 +3929,7 @@ function renderBacktest(records,scoreFilter) {
   ${matrixHtml}
   ${holdingHtml}
   ${openConfirmPerfHtml}
+  ${conditionEdgeHtml}
   ${corrChartsHtml}
   ${statDashboardHtml}
   <div class="control-row">${[{l:'全部',s:0},{l:'8分↑',s:8},{l:'10分↑',s:10}].map(b=>`<button class="filter-btn ${scoreFilter===b.s?'active':''}" onclick="renderBacktest(window._btRecords,${b.s})">${b.l}</button>`).join('')}</div>
