@@ -384,6 +384,17 @@ button,select,input { font-family:inherit; }
       <div id="briefingCard" class="plain-card"></div>
     </div>
     <div id="marketRadar" class="market-card"><div class="market-loading">載入大盤資料...</div></div>
+    <div id="actionListSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">今日操作清單</div>
+        <div style="display:flex;gap:6px">
+          <button class="ghost-btn" id="toggleAllColsBtn" onclick="toggleAllActionCols()">全部展開</button>
+          <button class="ghost-btn" onclick="copyDailyBrief()">複製簡報</button>
+        </div>
+      </div>
+      <div id="actionFilterRow" class="filters" style="margin-bottom:8px"></div>
+      <div id="actionListCard" class="plain-card"></div>
+    </div>
     <div id="openBiasSection" style="margin-bottom:1rem">
       <div id="openBiasCard" class="plain-card"><div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div></div>
     </div>
@@ -432,18 +443,6 @@ button,select,input { font-family:inherit; }
         </div>
       </div>
       <div id="watchRadarCard" class="plain-card"></div>
-    </div>
-
-    <div id="actionListSection" style="display:none;margin-bottom:1rem">
-      <div class="row-between" style="margin-bottom:8px">
-        <div class="section-title" style="margin:0">今日操作清單</div>
-        <div style="display:flex;gap:6px">
-          <button class="ghost-btn" id="toggleAllColsBtn" onclick="toggleAllActionCols()">全部收起</button>
-          <button class="ghost-btn" onclick="copyDailyBrief()">複製簡報</button>
-        </div>
-      </div>
-      <div id="actionFilterRow" class="filters" style="margin-bottom:8px"></div>
-      <div id="actionListCard" class="plain-card"></div>
     </div>
 
     <div id="dailyNewsSection" style="margin-bottom:1rem">
@@ -767,6 +766,17 @@ function fmtPct(v) {
   const pct = Math.abs(n) > 0 && Math.abs(n) < 1 ? n * 100 : n;
   return pct.toFixed(2) + '%';
 }
+function pctNum(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  const s = String(v).trim();
+  const n = Number(s.replace('%', ''));
+  if (isNaN(n)) return 0;
+  return s.includes('%') ? n : (Math.abs(n) > 0 && Math.abs(n) < 1 ? n * 100 : n);
+}
+function fmtPct1(v) {
+  const n = pctNum(v);
+  return n ? n.toFixed(1) + '%' : '—';
+}
 function fmtPrice(v) {
   if (v === null || v === undefined || v === '') return '—';
   if (String(v).includes('~')) return String(v);
@@ -819,7 +829,7 @@ function getOverheatState(s) {
   if (!isOverheatSignal(s)) return null;
   const rsi = num(s.rsi);
   const conc = num(s.conc5);
-  const dayTradePct = num(s.dayTradeRatio);
+  const dayTradePct = pctNum(s.dayTradeRatio);
   const strongFlow = Number(s.instNet) > 0 && Number(s.score) >= 8;
   const strongTrend = Number(s.momS) >= 2 || Number(s.kdS) > 0 || Number(s.streak) >= 2;
   const danger = Number(s.instNet) < 0 || dayTradePct >= 50 || conc >= 18 || rsi >= 82;
@@ -857,7 +867,7 @@ function getPositionSizing(s) {
   const heat = getOverheatState(s);
   const opClass = getDisplayOpClass(s);
   const rr = parseFloat(s.rr) || 0;
-  const dayTradePct = num(s.dayTradeRatio);
+  const dayTradePct = pctNum(s.dayTradeRatio);
   const entryStatus = getEntryStatus(s);
   const reasons = [];
 
@@ -912,7 +922,7 @@ function getHighScoreContinuationCheck(s, range) {
   const price = Number(s.price);
   const rsi = num(s.rsi);
   const conc = num(s.conc5);
-  const dayTradePct = num(s.dayTradeRatio);
+  const dayTradePct = pctNum(s.dayTradeRatio);
   const rr = parseFloat(s.rr) || 0;
   const tp1 = Number(s.tp1);
   const entryStatus = getEntryStatus(s);
@@ -942,7 +952,7 @@ function getTradeNarrator(s) {
   const opClass = getDisplayOpClass(s);
   const heat = getOverheatState(s);
   const risks = getRiskFactors(s);
-  const dayTradePct = num(s.dayTradeRatio);
+  const dayTradePct = pctNum(s.dayTradeRatio);
   const rr = parseFloat(s.rr) || 0;
   const riskText = getPlainRiskText(risks);
   const why = getInstitutionalWhy(s);
@@ -974,7 +984,7 @@ function getSignalValidity(s) {
   const reasons = parseReasons(s.reasons).join(' ');
   const rsi = num(s.rsi);
   const conc = num(s.conc5);
-  const dayTradePct = num(s.dayTradeRatio);
+  const dayTradePct = pctNum(s.dayTradeRatio);
   const entryStatus = getEntryStatus(s);
   const warn = [];
   const good = [];
@@ -1028,7 +1038,7 @@ function getNextDayFollowup(s) {
   const entryStatus = getEntryStatus(s);
   const opClass = getDisplayOpClass(s);
   const validity = getSignalValidity(s);
-  const dayTradePct = num(s.dayTradeRatio);
+  const dayTradePct = pctNum(s.dayTradeRatio);
 
   if (!price || !range) return '隔日先看資料是否補齊，不要硬追。';
   if (opClass === 'avoid' || opClass === 'bear') return '隔日先避開，除非法人重新轉買且重新站回短線均線。';
@@ -1038,7 +1048,7 @@ function getNextDayFollowup(s) {
   return '隔日可以先小量觀察，等法人續買、量能不縮，再考慮提高部位。';
 }
 function getBuyRiskWarning(s) {
-  const dayTradePct = num(s.dayTradeRatio);
+  const dayTradePct = pctNum(s.dayTradeRatio);
   const rr = parseFloat(s.rr) || 0;
   const conc = num(s.conc5);
   const rsi = num(s.rsi);
@@ -1076,7 +1086,7 @@ function getBacktestReview(r) {
     return {label:'等待回測', color:'var(--text3)', text:'還沒有足夠交易日，暫時不檢討。'};
   }
 
-  const dayTradePct = num(r.dayTradeRatio);
+  const dayTradePct = pctNum(r.dayTradeRatio);
   const rr = parseFloat(r.rr) || 0;
   const conc = num(r.conc5);
   const rsi = num(r.rsi);
@@ -1230,7 +1240,7 @@ function isClassicStrictSignal(s) {
   const reasonText = reasons.join(' ');
   const score = Number(s.score) || 0;
   const rsi = num(s.rsi);
-  const dayTradePct = num(s.dayTradeRatio);
+  const dayTradePct = pctNum(s.dayTradeRatio);
   const hasBreakout = /突破|站上MA5|MA多頭排列|多頭排列/.test(reasonText) || Number(s.momS) >= 2;
   const hasVolume = /量能放大|量創|放量/.test(reasonText) || Number(s.volS) >= 1;
   const classicCore = score >= 10 || (score >= 8 && hasBreakout && hasVolume && Number(s.instNet) > 0);
@@ -1247,7 +1257,7 @@ function getDivergenceSignals(s, reasons) {
   const reasonText = reasons.join(' ');
   const concNum = num(s.conc5);
   const rsiNum = num(s.rsi);
-  const dayTradePct = num(s.dayTradeRatio);
+  const dayTradePct = pctNum(s.dayTradeRatio);
 
   if (s.instNet < 0 && (reasonText.includes('突破') || reasonText.includes('站上') || s.momS >= 2)) {
     list.push({level:'warn', label:'股價強但法人賣', detail:'技術面轉強時法人反向賣超，容易是假突破或短線拉高出貨。'});
@@ -1305,7 +1315,7 @@ function setEntryFilter(value) {
 function getRiskFactors(s) {
   const factors = [];
   const rr = parseFloat(s.rr) || 0;
-  const dayTradePct = num(s.dayTradeRatio);
+  const dayTradePct = pctNum(s.dayTradeRatio);
   const conc = num(s.conc5);
   const rsi = num(s.rsi);
   const entryStatus = getEntryStatus(s);
@@ -1328,7 +1338,7 @@ function getActionMeta(s) {
   const divs = getDivergenceSignals(s, reasons);
   const entry = getEntryPosition(s);
   const warnCount = divs.filter(d => d.level === 'warn').length;
-  const dayTradePct = num(s.dayTradeRatio);
+  const dayTradePct = pctNum(s.dayTradeRatio);
   return {stock:s, divs, entry, entryStatus:getEntryStatus(s), warnCount, dayTradePct};
 }
 function getActionCategory(s) {
@@ -1471,18 +1481,41 @@ function renderActionList() {
     const warn = (Number(stock.score) >= 8 && Number(stock.instNet) < 100) ? ' ⚠️分高法少' : '';
     return base + warn;
   };
+  const businessHint = stock => {
+    if (stock.sector !== '其他電子') return '';
+    const map = {
+      '6485':'高速傳輸晶片設計',
+      '4526':'工具機/PCB設備',
+      '6451':'IC測試介面',
+      '2493':'電子設備/自動化',
+      '2451':'記憶體模組/工控儲存',
+      '2328':'線材/連接器',
+      '6196':'電子零組件通路',
+      '2467':'電源與散熱',
+      '2385':'機殼/機構件',
+      '6278':'材料/散熱元件',
+      '8147':'伺服器機構件',
+      '6218':'系統整合/設備',
+      '4974':'散熱模組',
+      '3545':'光學/檢測設備',
+      '6277':'工業電腦/設備'
+    };
+    return map[String(stock.code)] || '業務分散，建議點 AI 看公司產品';
+  };
   const row = (x, meta, color) => {
     const isHot = x.entryStatus === 'inside' && (Number(x.stock.score) >= 10 || Number(x.stock.instNet) >= 500);
     const star = isStrongConfirmStock(x.stock) ? '⭐ ' : '';
     const rsiText = x.stock.rsi || '—';
-    const dayTradeText = x.stock.dayTradeRatio || '—';
+    const dayTradeText = fmtPct1(x.stock.dayTradeRatio);
+    const business = businessHint(x.stock);
     return `<div class="action-row${isHot ? ' action-row-hot' : ''}" onclick="focusStock('${x.stock.code}')">
       <div class="action-name">${star}${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span><span style="font-size:.58rem;color:var(--brown);background:var(--bg2);border-radius:6px;padding:1px 5px;margin-left:4px">${x.stock.sector || '未分類'}</span>${isHot ? '<span style="font-size:.5rem;background:var(--green);color:#fff;border-radius:4px;padding:1px 4px;margin-left:4px">🔥強勢</span>' : ''}</div>
+      ${business ? `<div style="font-size:.58rem;color:var(--text3);margin-top:1px">${business}</div>` : ''}
       <div class="action-theme">${themeHints(x.stock)}</div>
       <div class="action-meta"><span style="color:${color};font-weight:700">${meta}</span> · ${x.stock.score}分 · 法人 ${x.stock.instNet > 0 ? '+' : ''}${x.stock.instNet}張 · RSI ${rsiText} · 當沖 ${dayTradeText}</div>
     </div>`;
   };
-  const col = (title, rows, empty, color, renderMeta) => `<div class="action-col">
+  const col = (title, rows, empty, color, renderMeta, collapsed) => `<div class="action-col${collapsed ? ' collapsed' : ''}">
     <div class="action-col-header" onclick="this.parentElement.classList.toggle('collapsed')">
       <div class="action-title" style="color:${color}">${title} <span style="font-size:.56rem;color:var(--text3);font-weight:400">${rows.length}檔</span></div>
       <span class="action-col-toggle">▾</span>
@@ -1493,11 +1526,13 @@ function renderActionList() {
   </div>`;
 
   card.innerHTML = `<div class="action-grid">
-    ${col(actionable.length ? '可操作' : '候選可操作', actionable.length ? actionable : candidateActionable, '目前沒有完全落在條件內的標的', actionable.length ? 'var(--green)' : 'var(--brown)', x => actionable.length ? x.entry.label : `${x.entry.label} · ${x.divs[0]?.label || '小量分批'}`)}
-    ${col('等拉回', waitPullback, '目前沒有需要等拉回的買入股', 'var(--yellow)', x => getOverheatState(x.stock)?.plan || (x.entry.label === '高於進場區間' ? '避免追高' : (x.divs[0]?.label || '風險確認')))}
-    ${col('先避開', avoid, '目前沒有明顯避開名單', 'var(--red)', x => x.divs[0]?.label || x.stock.op)}
+    ${col(actionable.length ? '可操作' : '候選可操作', actionable.length ? actionable : candidateActionable, '目前沒有完全落在條件內的標的', actionable.length ? 'var(--green)' : 'var(--brown)', x => actionable.length ? x.entry.label : `${x.entry.label} · ${x.divs[0]?.label || '小量分批'}`, false)}
+    ${col('等拉回', waitPullback, '目前沒有需要等拉回的買入股', 'var(--yellow)', x => getOverheatState(x.stock)?.plan || (x.entry.label === '高於進場區間' ? '避免追高' : (x.divs[0]?.label || '風險確認')), true)}
+    ${col('先避開', avoid, '目前沒有明顯避開名單', 'var(--red)', x => x.divs[0]?.label || x.stock.op, true)}
   </div>`;
   renderActionFilterButtons();
+  const toggleBtn = qs('toggleAllColsBtn');
+  if (toggleBtn) toggleBtn.textContent = '全部展開';
   section.style.display = '';
 }
 function renderMarketBreadth() {
@@ -1732,7 +1767,7 @@ function getContinuationProfile(s) {
   const displayClass = getDisplayOpClass(s);
   const rsi = num(s.rsi);
   const conc = num(s.conc5);
-  const dayTradePct = num(s.dayTradeRatio);
+  const dayTradePct = pctNum(s.dayTradeRatio);
   if (['avoid','bear'].includes(displayClass)) return null;
   if (Number(s.score) < 7 || Number(s.instNet) <= 0) return null;
 
@@ -2220,10 +2255,10 @@ async function loadUsSectors() {
 }
 function toggleAllActionCols() {
   const cols = document.querySelectorAll('#actionListCard .action-col');
-  const anyExpanded = [...cols].some(c => !c.classList.contains('collapsed'));
-  cols.forEach(c => c.classList.toggle('collapsed', anyExpanded));
+  const anyCollapsed = [...cols].some(c => c.classList.contains('collapsed'));
+  cols.forEach(c => c.classList.toggle('collapsed', !anyCollapsed));
   const btn = document.getElementById('toggleAllColsBtn');
-  if (btn) btn.textContent = anyExpanded ? '全部展開' : '全部收起';
+  if (btn) btn.textContent = anyCollapsed ? '全部收起' : '全部展開';
 }
 async function copyDailyBrief() {
   const text = buildDailyBrief();
@@ -2610,13 +2645,13 @@ function isStrongConfirmStock(s) {
   return getDisplayOpClass(s) === 'buy' && Number(s.score) >= 8 &&
     num(s.rsi) >= 45 && num(s.rsi) <= 65 &&
     num(s.conc5) >= 1 && num(s.conc5) <= 6 &&
-    num(s.dayTradeRatio) < 30;
+    pctNum(s.dayTradeRatio) < 30;
 }
 
 // 勝率體質檢查：把回測頁的「正期望組合 / 警示清單」邏輯搬到卡片上
 // ⚠️ 純顯示用，不影響 score / op / 排序 / 篩選，完全不動選股邏輯
 function getWinRateFactors(s) {
-  const rsi = num(s.rsi), conc = num(s.conc5), rr = num(s.rr), dt = num(s.dayTradeRatio);
+  const rsi = num(s.rsi), conc = num(s.conc5), rr = num(s.rr), dt = pctNum(s.dayTradeRatio);
   const f = Number(s.foreign) || 0, t = Number(s.trust) || 0, net = Number(s.instNet) || 0;
   const mBal = Number(s.marginBal) || 0, mChg = Number(s.marginChg) || 0;
   const good = [], warn = [];
@@ -2667,7 +2702,7 @@ function renderCards() {
     if (sortMode === 'streak') return b.streak - a.streak;
     if (sortMode === 'vol') return b.vol - a.vol;
     if (sortMode === 'rr') return (parseFloat(b.rr)||0) - (parseFloat(a.rr)||0);
-    if (sortMode === 'dayTradeLow') return num(a.dayTradeRatio) - num(b.dayTradeRatio);
+    if (sortMode === 'dayTradeLow') return pctNum(a.dayTradeRatio) - pctNum(b.dayTradeRatio);
     return b.score - a.score || b.instNet - a.instNet;
   });
   const countEl = qs('resultCount');
@@ -2693,7 +2728,7 @@ function renderCards() {
     const sizing = getPositionSizing(s);
     const pos = s.instNet > 0, reasons = parseReasons(s.reasons);
     const pips = pipDefs.map(p => `<span class="pip ${s[p.key] > 0 ? 'on' : ''}">${p.label} ${s[p.key]}/${p.max}</span>`).join('');
-    const dayTradePct = num(s.dayTradeRatio), dayTradeWarn = dayTradePct >= 30;
+    const dayTradePct = pctNum(s.dayTradeRatio), dayTradeWarn = dayTradePct >= 30;
     const divergences = getDivergenceSignals(s, reasons);
     const entryPosition = getEntryPosition(s);
     const rrDistance = getRiskRewardDistance(s);
@@ -2749,7 +2784,7 @@ function renderCards() {
           <div class="detail-cell"><div class="detail-label">${planLabels.entry}</div><div class="detail-val">$${fmtPrice(s.entry)}</div></div>
           <div class="detail-cell"><div class="detail-label">${planLabels.stop}</div><div class="detail-val red">$${fmtPrice(s.stop)}</div></div>
           <div class="detail-cell"><div class="detail-label">${planLabels.tp1}</div><div class="detail-val green">$${fmtPrice(s.tp1)}</div></div>
-          <div class="detail-cell"><div class="detail-label">風報比 / 當沖</div><div class="detail-val">${s.rr || '—'} · <span style="color:${dayTradeWarn?'var(--yellow)':'var(--text)'}">${s.dayTradeRatio || '—'}</span></div></div>
+          <div class="detail-cell"><div class="detail-label">風報比 / 當沖</div><div class="detail-val">${s.rr || '—'} · <span style="color:${dayTradeWarn?'var(--yellow)':'var(--text)'}">${fmtPct1(s.dayTradeRatio)}</span></div></div>
           <div class="detail-cell"><div class="detail-label">倉位建議</div><div class="detail-val" style="color:${sizing.color}">${sizing.label} <span style="font-size:.68rem;color:var(--text3)">(${sizing.pct})</span></div></div>
           <div class="detail-cell"><div class="detail-label">倉位原因</div><div class="detail-val" style="font-size:.75rem;color:var(--text2)">${sizing.reason}</div></div>
           <div class="detail-cell" style="grid-column:1/-1"><div class="detail-label">${planLabels.position}</div><div class="detail-val" style="color:${entryPosition.color}">${planLabels.note || entryPosition.label}</div></div>
@@ -5325,3 +5360,4 @@ if (!window.navigator.standalone && !localStorage.getItem('pwa-dismissed')) {
 </script>
 </body>
 </html>
+
