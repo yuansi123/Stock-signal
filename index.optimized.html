@@ -280,6 +280,9 @@ button,select,input { font-family:inherit; }
 .error-box { background:#fff5f5; border:1.5px solid #f0c0b8; border-radius:12px; padding:.9rem 1rem; color:var(--red); font-size:.8rem; margin-bottom:1rem; line-height:1.6; display:none; }
 .section-title { font-size:.82rem; font-weight:700; color:var(--text); margin-bottom:8px; }
 .plain-card { background:var(--card); border-radius:16px; padding:1rem 1.1rem; box-shadow:0 2px 12px var(--shadow); font-size:.82rem; line-height:1.75; color:var(--text2); }
+.mini-stat { background:var(--card2); border:1px solid var(--border); border-radius:10px; padding:.45rem .55rem; line-height:1.3; }
+.mini-stat span { display:block; font-size:.58rem; color:var(--text3); margin-bottom:2px; }
+.mini-stat strong { display:block; font-size:.82rem; color:var(--text); }
 .sector-card { padding:1rem 1.2rem; margin-bottom:8px; border-left:4px solid transparent; }
 .sector-card.hot { border-left-color:var(--red); } .sector-card.up { border-left-color:var(--green); }
 .sector-card.down { border-left-color:var(--blue); } .sector-card.neutral { border-left-color:var(--text3); }
@@ -375,6 +378,9 @@ button,select,input { font-family:inherit; }
 
     <div id="riskAlert" class="risk-alert"></div>
     <div id="marketRadar" class="market-card"><div class="market-loading">載入大盤資料...</div></div>
+    <div id="openBiasSection" style="margin-bottom:1rem">
+      <div id="openBiasCard" class="plain-card"><div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div></div>
+    </div>
     <div id="scanControl" class="plain-card scan-card">
       <div class="row-between" style="align-items:flex-start">
         <div>
@@ -2812,6 +2818,112 @@ async function loadMarket() {
   }
 }
 
+function buildLocalOpenBiasFallback() {
+  const stocks = allStocks || [];
+  const buy = stocks.filter(s => getDisplayOpClass(s) === 'buy').length;
+  const high = stocks.filter(s => Number(s.score) >= 8).length;
+  const totalNet = stocks.reduce((sum, s) => sum + (Number(s.instNet) || 0), 0);
+  const avgScore = stocks.length ? stocks.reduce((sum, s) => sum + (Number(s.score) || 0), 0) / stocks.length : 0;
+  let score = 50;
+  if (buy >= 12) score += 8;
+  else if (buy >= 6) score += 4;
+  if (high >= 30) score += 7;
+  else if (high >= 12) score += 3;
+  if (totalNet > 50000) score += 8;
+  else if (totalNet < -50000) score -= 8;
+  if (avgScore >= 5.5) score += 4;
+  score = Math.max(20, Math.min(80, score));
+  const bias = score >= 58 ? '偏高開或開平走強' : score <= 42 ? '偏低開或開低震盪' : '平開震盪';
+  return {
+    ok: true,
+    source: 'local',
+    bias,
+    confidence: Math.round(Math.abs(score - 50) * 1.4 + 48),
+    directionScore: Math.round(score),
+    reasons: [
+      `買入訊號 ${buy} 檔、8分以上 ${high} 檔`,
+      `掃描池法人合計 ${totalNet >= 0 ? '+' : ''}${totalNet.toLocaleString('zh-TW')} 張`,
+      `平均分數 ${avgScore.toFixed(1)}，代表盤面強股集中度`
+    ],
+    playbook: score >= 58
+      ? '若開高但量不足，先看 9:30 前是否守住開盤價；只追法人連買且仍在進場區間的標的。'
+      : score <= 42
+        ? '若開低，先不要急著接，等第一小時止跌且強勢股翻紅；沒有量價確認就縮小部位。'
+        : '平開機率較高，先看量能和強股續航，不要因單一跳空就追價。'
+  };
+}
+
+async function loadOpenBias() {
+  const sec = qs('openBiasSection');
+  if (sec) sec.style.display = '';
+  const card = qs('openBiasCard');
+  if (!card) return;
+  card.innerHTML = '<div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div>';
+  try {
+    const date = qs('dateTag')?.textContent || '';
+    const buyCount = (allStocks || []).filter(s => getDisplayOpClass(s) === 'buy').length;
+    const highScoreCount = (allStocks || []).filter(s => Number(s.score) >= 8).length;
+    const totalInstNet = (allStocks || []).reduce((sum, s) => sum + (Number(s.instNet) || 0), 0);
+    const signalAvgScore = allStocks.length
+      ? (allStocks.reduce((sum, s) => sum + (Number(s.score) || 0), 0) / allStocks.length).toFixed(2)
+      : '0';
+    const params = new URLSearchParams({
+      action: 'openBias',
+      date,
+      buyCount: String(buyCount),
+      highScoreCount: String(highScoreCount),
+      totalInstNet: String(totalInstNet),
+      signalAvgScore,
+      ts: String(Date.now())
+    });
+    const res = await fetch(`${WEB_APP_URL}?${params.toString()}`, {cache:'no-store'});
+    const data = await res.json();
+    renderOpenBias(data && data.ok ? data : buildLocalOpenBiasFallback());
+  } catch(e) {
+    renderOpenBias(buildLocalOpenBiasFallback());
+  }
+}
+
+function renderOpenBias(data) {
+  const card = qs('openBiasCard');
+  if (!card) return;
+  const score = Number(data.directionScore || 50);
+  const conf = Math.max(0, Math.min(95, Number(data.confidence || 50)));
+  const col = score >= 58 ? 'var(--red)' : score <= 42 ? 'var(--blue)' : 'var(--yellow)';
+  const icon = score >= 58 ? '↗' : score <= 42 ? '↘' : '↔';
+  const barLeft = Math.max(4, Math.min(96, score));
+  const reasons = Array.isArray(data.reasons) ? data.reasons : [];
+  card.innerHTML = `
+    <div class="row-between" style="align-items:flex-start;margin-bottom:8px">
+      <div>
+        <div class="section-title" style="margin:0">隔日開盤傾向雷達</div>
+        <div style="font-size:.62rem;color:var(--text3);margin-top:2px">${data.asOf || ''}${data.source ? ' · ' + data.source : ''}</div>
+      </div>
+      <button class="ghost-btn" onclick="loadOpenBias()">重新估算</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="width:42px;height:42px;border-radius:14px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:900;color:${col}">${icon}</div>
+      <div style="flex:1">
+        <div style="font-size:1rem;font-weight:900;color:${col}">${data.bias || '平開震盪'}</div>
+        <div style="font-size:.68rem;color:var(--text3);margin-top:2px">信心 ${conf.toFixed(0)}% · 方向分 ${score.toFixed(0)}/100</div>
+      </div>
+    </div>
+    <div style="position:relative;height:8px;background:linear-gradient(90deg,var(--blue),var(--bg2),var(--red));border-radius:999px;margin:8px 0 10px">
+      <div style="position:absolute;left:${barLeft}%;top:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:${col};border:3px solid var(--card);box-shadow:0 1px 5px var(--shadow)"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">
+      <div class="mini-stat"><span>美股分</span><strong>${data.usScore ?? '—'}</strong></div>
+      <div class="mini-stat"><span>風險分</span><strong>${data.riskScore ?? '—'}</strong></div>
+      <div class="mini-stat"><span>訊號分</span><strong>${data.signalScore ?? '—'}</strong></div>
+    </div>
+    ${reasons.length ? `<div style="font-size:.7rem;line-height:1.55;color:var(--text2);margin-bottom:8px">${reasons.map(r => '• ' + r).join('<br>')}</div>` : ''}
+    <div style="font-size:.74rem;line-height:1.6;color:var(--text);background:var(--bg2);border-radius:10px;padding:8px 10px;border-left:4px solid ${col}">
+      ${data.playbook || '先看開盤後第一小時量價，強勢股續航再動作。'}
+    </div>
+    <div style="font-size:.58rem;color:var(--text3);margin-top:7px">這是開盤劇本，不是買賣訊號；選股邏輯未改變。</div>
+  `;
+}
+
 async function loadNews() {
   const el = qs('newsContent');
   try {
@@ -4645,6 +4757,7 @@ function clearPreset() {
 
 // ── Settings panel ────────────────────────────────────────
 const DS = [
+  {key:'openBias', icon:'🧭', label:'隔日開盤傾向', desc:'用美股、風險與訊號強度估明日開盤劇本'},
   {key:'news',     icon:'📰', label:'每日科技要聞', desc:'新聞摘要，關閉可加快啟動'},
   {key:'ai',       icon:'🤖', label:'AI 分析',      desc:'個股 AI 報告（每次直連 Sheet）'},
   {key:'sector',   icon:'🏭', label:'板塊資料',      desc:'板塊熱力圖與 5 日趨勢'},
@@ -4761,6 +4874,11 @@ async function loadAll(force = false) {
   const tasks = [loadData(), loadMarket()];
   if (dsEnabled('news')) tasks.push(loadNews());
   await Promise.allSettled(tasks);
+  if (dsEnabled('openBias')) loadOpenBias();
+  else {
+    const sec = qs('openBiasSection');
+    if (sec) sec.style.display = 'none';
+  }
 }
 
 document.addEventListener('keydown', e => {
