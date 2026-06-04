@@ -377,6 +377,12 @@ button,select,input { font-family:inherit; }
     </header>
 
     <div id="riskAlert" class="risk-alert"></div>
+    <div id="briefingSection" style="display:none;margin-bottom:1rem">
+      <div class="row-between" style="margin-bottom:8px">
+        <div class="section-title" style="margin:0">🌅 晨間簡報</div>
+      </div>
+      <div id="briefingCard" class="plain-card"></div>
+    </div>
     <div id="marketRadar" class="market-card"><div class="market-loading">載入大盤資料...</div></div>
     <div id="openBiasSection" style="margin-bottom:1rem">
       <div id="openBiasCard" class="plain-card"><div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div></div>
@@ -2508,6 +2514,7 @@ async function loadData() {
     renderCards();
     checkWatchlistAlerts();
     generateDailySummary();
+    renderBriefing();
   } catch(e) {
     showError('載入失敗：' + e.message + '（請確認 Google Sheet 已設為公開）');
   }
@@ -2595,6 +2602,14 @@ function hlMatch(text, q) {
   const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
   return text.replace(re, '<mark style="background:var(--yellow);color:var(--text);border-radius:2px;padding:0 1px">$1</mark>');
 }
+// 強勢確認組合判斷（與回測頁同條件），供卡片 ⭐ 與晨間簡報共用
+function isStrongConfirmStock(s) {
+  return getDisplayOpClass(s) === 'buy' && Number(s.score) >= 8 &&
+    num(s.rsi) >= 45 && num(s.rsi) <= 65 &&
+    num(s.conc5) >= 1 && num(s.conc5) <= 6 &&
+    num(s.dayTradeRatio) < 30;
+}
+
 // 勝率體質檢查：把回測頁的「正期望組合 / 警示清單」邏輯搬到卡片上
 // ⚠️ 純顯示用，不影響 score / op / 排序 / 篩選，完全不動選股邏輯
 function getWinRateFactors(s) {
@@ -2684,7 +2699,7 @@ function renderCards() {
     const nextDayFollowup = getNextDayFollowup(s);
     const buyRisk = getBuyRiskWarning(s);
     const fourCond = reasons.some(r => r.includes('四大條件'));
-    const isStrongConfirm = opClass === 'buy' && s.score >= 8 && num(s.rsi) >= 45 && num(s.rsi) <= 65 && num(s.conc5) >= 1 && num(s.conc5) <= 6 && num(s.dayTradeRatio) < 30;
+    const isStrongConfirm = isStrongConfirmStock(s);
     const fColor = s.foreign > 0 ? 'color:var(--red)' : s.foreign < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
     const tColor = s.trust > 0 ? 'color:var(--red)' : s.trust < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
     const dColor = s.dealer > 0 ? 'color:var(--red)' : s.dealer < 0 ? 'color:var(--blue)' : 'color:var(--text2)';
@@ -2845,6 +2860,94 @@ function buildStaticSummary(sectors,cntBuy,streak,date) {
   return text;
 }
 
+// 🌅 晨間簡報：大盤狀態／今日最強／板塊流向／昨日戰績，濃縮成開場儀表板
+// ⚠️ 純彙整現有資料的顯示層，不影響 score / op / 選股邏輯
+function renderBriefing() {
+  const section = qs('briefingSection'), card = qs('briefingCard');
+  if (!section || !card || !allStocks.length) return;
+
+  const block = (icon, title, bodyHtml, color, onclick) =>
+    `<div ${onclick?`onclick="${onclick}"`:''} style="padding:.55rem .7rem;border-radius:12px;background:var(--card2);border:1px solid var(--border);border-left:4px solid ${color};${onclick?'cursor:pointer':''}">
+      <div style="font-size:.62rem;color:var(--text3);font-weight:700;margin-bottom:3px">${icon} ${title}</div>
+      <div style="font-size:.76rem;line-height:1.55;color:var(--text2)">${bodyHtml}</div>
+    </div>`;
+
+  const blocks = [];
+
+  // ① 大盤狀態
+  const m = window._marketSummary;
+  if (m) {
+    const chgCol = m.twiiChange >= 0 ? 'var(--red)' : 'var(--blue)';
+    const lampCol = String(m.status).includes('🔴') ? 'var(--red)' : String(m.status).includes('🟡') ? 'var(--yellow)' : 'var(--green)';
+    blocks.push(block('🌡️', '大盤狀態',
+      `<span style="font-weight:700;color:${lampCol}">${m.status || '—'}</span>　台股 <span style="color:${chgCol};font-weight:700">${m.twiiChange>=0?'+':''}${Number(m.twiiChange).toFixed(2)}%</span>　VIX ${Number(m.vix).toFixed(1)}`,
+      lampCol, "document.getElementById('marketRadar').scrollIntoView({behavior:'smooth'})"));
+  }
+
+  // ② 今日最強訊號（前3）
+  const tops = allStocks.filter(s => getDisplayOpClass(s) === 'buy')
+    .sort((a,b) => b.score - a.score || b.instNet - a.instNet).slice(0,3);
+  if (tops.length) {
+    const chips = tops.map(s => {
+      const star = isStrongConfirmStock(s) ? '⭐' : '';
+      return `<span onclick="event.stopPropagation();focusStock('${s.code}')" style="display:inline-block;cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:2px 7px;margin:2px 4px 0 0;font-size:.72rem">${star}<strong>${s.name}</strong> <span style="color:var(--brown)">${s.score}分</span> <span style="color:${s.instNet>=0?'var(--red)':'var(--blue)'}">${s.instNet>=0?'+':''}${s.instNet}</span></span>`;
+    }).join('');
+    blocks.push(block('⭐', '今日最強訊號', chips, 'var(--green)'));
+  } else {
+    blocks.push(block('⭐', '今日最強訊號', '今日無買入訊號，盤面偏保守', 'var(--text3)'));
+  }
+
+  // ③ 板塊資金流向（複用輪動算法）
+  const secMap = {};
+  allStocks.forEach(s => {
+    const sec = s.sector || '其他電子';
+    if (!secMap[sec]) secMap[sec] = {net:0, count:0};
+    secMap[sec].net += Number(s.instNet)||0; secMap[sec].count++;
+  });
+  const secArr = Object.entries(secMap).map(([name,d]) => ({name, avg: Math.round(d.net/d.count)})).sort((a,b)=>b.avg-a.avg);
+  if (secArr.length) {
+    const inflow = secArr.filter(s=>s.avg>0).slice(0,2);
+    const outflow = secArr.filter(s=>s.avg<0).slice(-1);
+    const chip = (s,pos) => `<span onclick="event.stopPropagation();setSectorFilter('${s.name.replace(/'/g,"\\'")}')" style="cursor:pointer;color:${pos?'var(--red)':'var(--blue)'};font-weight:700">${s.name.split('/')[0]} ${pos?'+':''}${s.avg}</span>`;
+    const inHtml = inflow.length ? inflow.map(s=>chip(s,true)).join('、') : '無明顯流入';
+    const outHtml = outflow.length ? outflow.map(s=>chip(s,false)).join('') : '無明顯流出';
+    blocks.push(block('🏭', '板塊資金流向（張/檔）', `流入 ${inHtml}　｜　流出 ${outHtml}`, 'var(--brown)'));
+  }
+
+  // ④ 昨日訊號戰績（昨日🟢今日漲跌）
+  const review = computeBriefingReview();
+  if (review) {
+    const col = review.avgChg >= 0 ? 'var(--red)' : 'var(--blue)';
+    blocks.push(block('📊', '昨日訊號戰績',
+      `昨日 <strong>${review.n}</strong> 檔買入訊號，今日命中（上漲）<strong style="color:var(--red)">${review.hit}</strong> 檔（${Math.round(review.hit/review.n*100)}%），平均 <strong style="color:${col}">${review.avgChg>=0?'+':''}${review.avgChg.toFixed(2)}%</strong>`,
+      col, "showPage('backtest')"));
+  }
+
+  card.innerHTML = `<div style="display:flex;flex-direction:column;gap:7px">${blocks.join('')}</div>`;
+  section.style.display = '';
+}
+
+// 昨日買入訊號的今日表現（純讀現有快取，不影響選股）
+function computeBriefingReview() {
+  if (!allRowsCache || !allRowsCache.length) return null;
+  const dates = [...new Set(allRowsCache.map(r => parseDateVal(cell(r.c,0,''))).filter(d => d.length===10))].sort().reverse();
+  if (dates.length < 2) return null;
+  const mapped = allRowsCache.map(mapSignalRow);
+  const cur = {}, prev = [];
+  mapped.forEach(s => { if (s.date === dates[0] && s.code) cur[s.code] = s; });
+  mapped.forEach(s => { if (s.date === dates[1] && s.code && s.op.includes('🟢')) prev.push(s); });
+  let n = 0, hit = 0, sum = 0;
+  prev.forEach(p => {
+    const c = cur[p.code];
+    if (!c || !(Number(c.price) > 0) || !(Number(p.price) > 0)) return;
+    const chg = (Number(c.price) - Number(p.price)) / Number(p.price) * 100;
+    if (isNaN(chg)) return;
+    n++; sum += chg; if (chg > 0) hit++;
+  });
+  if (!n) return null;
+  return {n, hit, avgChg: sum / n};
+}
+
 async function loadMarket() {
   const radar = qs('marketRadar'), alert = qs('riskAlert');
   try {
@@ -2879,6 +2982,8 @@ async function loadMarket() {
       alert.style.display = 'none';
       alert.innerHTML = '';
     }
+    window._marketSummary = {status, twiiChange, vix, riskScore, crashRisk};
+    renderBriefing();
   } catch(e) {
     alert.style.display = 'none';
     radar.innerHTML = '<div class="market-loading">大盤資料載入失敗</div>';
@@ -5118,6 +5223,7 @@ function applyTheme() {
 
 // ── Collapsible sections ───────────────────────────────────
 const COLLAPSIBLE = [
+  {id:'briefing',     sec:'briefingSection'},
   {id:'dailySummary', sec:'dailySummarySection'},
   {id:'watchRadar',   sec:'watchRadarSection'},
   {id:'actionList',   sec:'actionListSection'},
