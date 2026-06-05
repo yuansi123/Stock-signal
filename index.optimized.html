@@ -652,6 +652,7 @@ const FINMIND_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoieXVh
 const CACHE_TTL = 30 * 60 * 1000;
 let allStocks = [], currentFilter = 'all', actionFilter = '', entryFilter = '', riskFilter = '', watchOnly = false, allRowsCache = [], newsExpanded = false, trendRowsCache = null, newsRowsCache = null, themeFilter = '';
 let stockInfoCache = null, stockLookupCache = {}, stockLookupPending = {};
+let influencerSignals = null, influencerSignalsAt = 0;
 let scanStatusTimer = null, lastScanStatus = null, scanAutoRefreshKey = '';
 
 const COL = {
@@ -1479,7 +1480,9 @@ function renderActionList() {
     });
     const base = hints.length ? hints.join(' · ') : (stock.sector || '');
     const warn = (Number(stock.score) >= 8 && Number(stock.instNet) < 100) ? ' ⚠️分高法少' : '';
-    return base + warn;
+    const influencer = getInfluencerMatches(stock);
+    const inf = influencer.length ? ' · 🧵' + influencer.map(m => m.label).join('/') : '';
+    return base + warn + inf;
   };
   const businessHint = stock => {
     if (stock.sector !== '其他電子') return '';
@@ -2513,6 +2516,7 @@ async function loadData() {
   qs('content').innerHTML = '<div class="state"><div class="spinner"></div><div>載入資料中...</div></div>';
   qs('errorBox').style.display = 'none';
   try {
+    await loadInfluencerSignals();
     const rows = await loadSignalRows();
     if (!rows.length) { showError('Google Sheet 沒有資料，請先執行 Apps Script'); return; }
     allRowsCache = rows;
@@ -2667,6 +2671,82 @@ function getThemeTag(s) {
   ).join('');
 }
 
+async function loadInfluencerSignals(force = false) {
+  const now = Date.now();
+  if (!force && influencerSignals && now - influencerSignalsAt < 30 * 60 * 1000) return influencerSignals;
+  if (location.protocol === 'file:') {
+    influencerSignals = {ok:false, message:'本機 file 模式不啟用 Threads 代理，部署到 Vercel 後會自動啟用。', posts:[], stockCodes:[], sectorMentions:[], topics:[]};
+    influencerSignalsAt = now;
+    return influencerSignals;
+  }
+  try {
+    const res = await fetch('/api/threads-signal?account=x.stock_men&ts=' + now, {cache:'no-store'});
+    influencerSignals = await res.json();
+  } catch(e) {
+    influencerSignals = {ok:false, message:e.message, posts:[], stockCodes:[], sectorMentions:[], topics:[]};
+  }
+  influencerSignalsAt = now;
+  return influencerSignals;
+}
+
+function influencerTextPool() {
+  if (!influencerSignals || !Array.isArray(influencerSignals.posts)) return '';
+  return influencerSignals.posts.map(p => p.text || '').join('\n');
+}
+
+function getInfluencerMatches(stock) {
+  if (!influencerSignals) return [];
+  const pool = influencerTextPool();
+  const out = [];
+  const code = String(stock.code || '');
+  const name = String(stock.name || '');
+  if (code && ((influencerSignals.stockCodes || []).includes(code) || pool.includes(code))) {
+    out.push({type:'stock', label:'Threads提及', detail:`@x.stock_men 內容提到 ${name || code}`});
+  } else if (name && pool.includes(name)) {
+    out.push({type:'stock', label:'Threads提及', detail:`@x.stock_men 內容提到 ${name}`});
+  }
+  (influencerSignals.sectorMentions || []).forEach(sec => {
+    const kws = sec.keywords || [];
+    const hitSector = stock.sector && (String(stock.sector).includes(sec.name) || kws.some(k => String(stock.sector).includes(k)));
+    const hitReason = kws.some(k => String(stock.reasons || '').includes(k));
+    const hitTheme = getStockThemes(stock.code).some(t => t.name.includes(sec.name) || kws.some(k => t.note.includes(k) || t.name.includes(k)));
+    if (hitSector || hitReason || hitTheme) {
+      out.push({type:'sector', label:sec.name, detail:`@x.stock_men 提到 ${sec.name}：${kws.slice(0,4).join('、')}`});
+    }
+  });
+  const seen = {};
+  return out.filter(m => {
+    const key = m.type + '_' + m.label;
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  }).slice(0, 3);
+}
+
+function getInfluencerTag(stock) {
+  const matches = getInfluencerMatches(stock);
+  if (!matches.length) return '';
+  const hasStock = matches.some(m => m.type === 'stock');
+  const title = matches.map(m => m.detail).join('；').replace(/"/g, '&quot;');
+  return `<span class="signal-tag" style="background:#f1e7fb;color:#7b4eb0" title="${title}">🧵 ${hasStock ? '提及' : '題材'}</span>`;
+}
+
+function buildInfluencerContextForPrompt() {
+  if (!influencerSignals || !influencerSignals.ok) return '';
+  const topics = (influencerSignals.topics || []).slice(0, 10).join('、');
+  const sectors = (influencerSignals.sectorMentions || []).map(s => `${s.name}(${(s.keywords || []).slice(0,4).join('、')})`).join('；');
+  const codes = (influencerSignals.stockCodes || []).slice(0, 12).join('、');
+  const posts = (influencerSignals.posts || []).slice(0, 3).map(p => p.text).join('\n');
+  return `\n\n【@x.stock_men 今日公開Threads觀察】\n主題：${topics || '未解析到明確主題'}\n板塊：${sectors || '未解析到明確板塊'}\n股票代號：${codes || '未解析到明確代號'}\n原文摘錄：\n${posts}\n\n請把這些只當作題材催化參考，不要改變原本量化選股分數；若訊號股剛好命中上述板塊或代號，請在總結中特別提示。`;
+}
+
+function buildInfluencerContextForStock(stock) {
+  const matches = getInfluencerMatches(stock);
+  if (!matches.length || !influencerSignals) return '';
+  const posts = (influencerSignals.posts || []).slice(0, 5).map(p => p.text).join('\n');
+  return `\n\n【@x.stock_men 相關題材線索】\n命中：${matches.map(m => m.label).join('、')}\n說明：${matches.map(m => m.detail).join('；')}\n原文摘錄：\n${posts}\n\n請把這段當作消息面/題材面線索，回答這家公司可能被市場或法人關注的原因；如果只是同板塊題材，請明確說「不是直接點名個股」。`;
+}
+
 // 強勢確認組合判斷（與回測頁同條件），供卡片 ⭐ 與晨間簡報共用
 function isStrongConfirmStock(s) {
   return getDisplayOpClass(s) === 'buy' && Number(s.score) >= 8 &&
@@ -2788,7 +2868,7 @@ function renderCards() {
     return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*.035,.5)}s">
       <div class="card-header">
         <div>
-          <div class="stock-name">${isStrongConfirm?'⭐ ':''}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getThemeTag(s)}</div>
+          <div class="stock-name">${isStrongConfirm?'⭐ ':''}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getThemeTag(s)}${getInfluencerTag(s)}</div>
           <div class="stock-code">${hlMatch(s.code,q)}${s.sector ? ` · <span onclick="setSectorFilter('${s.sector.replace(/'/g,"\\'")}');event.stopPropagation()" style="cursor:pointer;color:var(--brown)">${s.sector}</span>` : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
@@ -2914,7 +2994,7 @@ async function generateDailySummary() {
   const date = qs('dateTag').textContent || '';
   const prompt = `你是台股法人籌碼分析師。請用繁體中文、自然口語、約100字，寫一段今日盤後總結評論。\n\n今日（${date}）掃描 ${allStocks.length} 檔電子科技股：\n- 買入訊號 ${cntBuy} 檔，觀察 ${cntWatch} 檔\n- 法人每檔平均買超最多板塊：${top}\n- 法人流出板塊：${weak}\n- 連續買超3天以上個股：${streak}\n\n請直接輸出評論文字，不要加標題。`;
   try {
-    const res = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt})});
+    const res = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt: prompt + buildInfluencerContextForPrompt()})});
     const data = await res.json();
     card.innerHTML = String(data.text || '').replace(/\n/g,'<br>') || buildStaticSummary(sectors,cntBuy,streak,date);
   } catch(e) {
@@ -4418,7 +4498,7 @@ async function askCatalyst(code, event) {
 新聞摘要：
 ${news.text}`;
   try {
-    const res = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt})});
+    const res = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt: prompt + buildInfluencerContextForStock(s)})});
     const data = await res.json();
     const text = String(data.text || '').trim() || 'AI 沒有產生明確消息面判斷。';
     box.innerHTML = `<div class="detail-panel" style="border-left:4px solid var(--brown-light);margin-top:8px">
@@ -5379,7 +5459,7 @@ window.addEventListener('scroll', () => {
   if (btn) btn.style.display = window.scrollY > 320 ? 'flex' : 'none';
 }, {passive: true});
 async function loadAll(force = false) {
-  if (force) { clearCache(); trendRowsCache = null; }
+  if (force) { clearCache(); trendRowsCache = null; influencerSignals = null; influencerSignalsAt = 0; }
   const tasks = [loadData(), loadMarket()];
   if (dsEnabled('news')) tasks.push(loadNews());
   await Promise.allSettled(tasks);
