@@ -507,7 +507,7 @@ button,select,input { font-family:inherit; }
       <button class="filter-btn" onclick="setFilter('watch',this)">🟡 觀察</button>
       <button class="filter-btn" onclick="setFilter('avoid',this)">🔴 避開</button>
       <button class="filter-btn" onclick="setFilter('bear',this)">⬇️ 空頭</button>
-      <button class="filter-btn" onclick="setFilter('bull',this)">⭐⭐ 大盤強勢</button>
+      <button class="filter-btn" onclick="setFilter('bull',this)">⭐ 大盤強勢</button>
     </div>
     <div class="control-row" id="presetRow" style="margin-bottom:.5rem">
       <button class="preset-btn" onclick="applyPreset('gold')">🏆 黃金標的</button>
@@ -526,7 +526,7 @@ button,select,input { font-family:inherit; }
         <option value="dayTradeLow">當沖比最低</option>
         <option value="dayTradeActive">🎯 當沖活躍（量+當沖）</option>
       </select>
-      <button class="filter-btn" id="watchOnlyBtn" onclick="toggleWatchOnly(this)">⭐ 自選股</button>
+      <button class="filter-btn" id="watchOnlyBtn" onclick="toggleWatchOnly(this)">📌 自選股</button>
       <button class="filter-btn" onclick="exportCSV()" title="匯出目前篩選結果">⬇️ CSV</button>
     </div>
 
@@ -1209,7 +1209,7 @@ function updateWatchButton() {
   const btn = qs('watchOnlyBtn');
   if (!btn) return;
   const count = watchList().length;
-  btn.textContent = count ? `⭐ 自選股 ${count}` : '⭐ 自選股';
+  btn.textContent = count ? `📌 自選股 ${count}` : '📌 自選股';
   btn.classList.toggle('active', watchOnly);
 }
 function toggleWatch(code) {
@@ -2480,7 +2480,7 @@ function renderUniversalSearch(q) {
         旁白：這檔目前沒有出現在今日訊號名單，所以不要把它當成系統買入訊號。你可以先問 AI 做基本面/消息面判讀，或等它之後進入訊號看板再操作。
       </div>
       <div class="stock-actions">
-        <button class="mini-btn ${isWatched(item.code)?'active':''}" onclick="addLookupToWatch('${item.code}')">${isWatched(item.code)?'⭐ 已追蹤':'☆ 加入追蹤'}</button>
+        <button class="mini-btn ${isWatched(item.code)?'active':''}" onclick="addLookupToWatch('${item.code}')">${isWatched(item.code)?'📌 已追蹤':'＋ 加入追蹤'}</button>
         <button class="mini-btn" onclick="askAnyStock('${item.code}','${String(item.name || '').replace(/'/g, "\\'")}')">問 AI</button>
       </div>
     </div>`).join('')}
@@ -2883,7 +2883,7 @@ function isBullStrongPick(s) {
 }
 function getBullPickTag(s) {
   if (!isBullStrongPick(s) || isStrongConfirmStock(s)) return '';
-  return `<span class="signal-tag" style="background:#c0503a1f;color:#c0503a" title="大盤強勢買點(放寬版)：🟢買入+分數≥8+RSI45~78+集中1~10%+當沖<50%+法人買超。比強勢確認積極，適合大盤大漲時參考">⭐⭐大盤強勢</span>`;
+  return `<span class="signal-tag" style="background:#c0503a1f;color:#c0503a" title="大盤強勢買點(放寬版)：🟢買入+分數≥8+RSI45~78+集中1~10%+當沖<50%+法人買超。比強勢確認積極，適合大盤大漲時參考">⭐大盤強勢</span>`;
 }
 
 // 勝率體質檢查：把回測頁的「正期望組合 / 警示清單」邏輯搬到卡片上
@@ -3071,7 +3071,7 @@ function renderCards() {
       ${renderDivergenceBox(divergences)}
       ${(()=>{ const cs = compareStocks[s.code]; if (!cs||!compareDate) return ''; const sd=s.score-cs.score, nd=s.instNet-cs.instNet; const sc=sd>0?'var(--green)':sd<0?'var(--red)':'var(--text3)'; const nc=nd>0?'var(--red)':nd<0?'var(--blue)':'var(--text3)'; return `<div style="font-size:.62rem;color:var(--text3);padding:3px 7px;background:var(--bg2);border-radius:6px;margin-top:4px">vs ${compareDate}：分數 <span style="color:${sc}">${sd>=0?'+':''}${sd}</span> · 法人 <span style="color:${nc}">${nd>=0?'+':''}${nd}張</span> · 前收 $${cs.price}</div>`; })()}
       <div class="stock-actions">
-        <button class="mini-btn ${isWatched(s.code)?'active':''}" onclick="toggleWatch('${s.code}')">${isWatched(s.code)?'⭐ 已追蹤':'☆ 加入追蹤'}</button>
+        <button class="mini-btn ${isWatched(s.code)?'active':''}" onclick="toggleWatch('${s.code}')">${isWatched(s.code)?'📌 已追蹤':'＋ 加入追蹤'}</button>
         <button class="mini-btn" onclick="toggleDetail('${s.code}')">單檔詳情</button>
         <button class="mini-btn" onclick="toggleKBar('${s.code}','${s.date}')">📈 K棒</button>
         <button class="mini-btn" onclick="toggleInstAccum('${s.code}','${s.date}')">📊 法人趨勢</button>
