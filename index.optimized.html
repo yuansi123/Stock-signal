@@ -1444,7 +1444,7 @@ function renderActionList() {
     .filter(x => getActionCategory(x.stock) === 'actionable')
     .sort((a,b) => b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet)
     .slice(0, 20);
-  const candidateActionable = actionable.length ? [] : enriched
+  const candidateActionable = enriched
     .filter(x => {
       const opClass = getDisplayOpClass(x.stock);
       return (opClass === 'buy' || opClass === 'hot')
@@ -1452,6 +1452,7 @@ function renderActionList() {
         && x.warnCount <= 1
         && Number(x.stock.score) >= 8;
     })
+    .filter(x => !actionable.some(a => a.stock.code === x.stock.code))
     .sort((a,b) => b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet)
     .slice(0, 20);
   const waitPullback = enriched
@@ -1531,7 +1532,8 @@ function renderActionList() {
   </div>`;
 
   card.innerHTML = `<div class="action-grid">
-    ${col(actionable.length ? '可操作' : '候選可操作', actionable.length ? actionable : candidateActionable, '目前沒有完全落在條件內的標的', actionable.length ? 'var(--green)' : 'var(--brown)', x => actionable.length ? x.entry.label : `${x.entry.label} · ${x.divs[0]?.label || '小量分批'}`, false)}
+    ${col('可操作', actionable, '目前沒有完全落在條件內的標的', 'var(--green)', x => x.entry.label, false)}
+    ${col('候選觀察', candidateActionable, '目前沒有候選觀察標的', 'var(--brown)', x => `${x.entry.label} · ${x.divs[0]?.label || '小量分批'}`, false)}
     ${col('等拉回', waitPullback, '目前沒有需要等拉回的買入股', 'var(--yellow)', x => getOverheatState(x.stock)?.plan || (x.entry.label === '高於進場區間' ? '避免追高' : (x.divs[0]?.label || '風險確認')), true)}
     ${col('先避開', avoid, '目前沒有明顯避開名單', 'var(--red)', x => x.divs[0]?.label || x.stock.op, true)}
   </div>`;
@@ -2157,7 +2159,7 @@ function buildActionBuckets() {
   const actionable = enriched
     .filter(x => getActionCategory(x.stock) === 'actionable')
     .sort((a,b) => b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet);
-  const candidateActionable = actionable.length ? [] : enriched
+  const candidateActionable = enriched
     .filter(x => {
       const opClass = getDisplayOpClass(x.stock);
       const rr = parseFloat(x.stock.rr) || 0;
@@ -2168,6 +2170,7 @@ function buildActionBuckets() {
         && Number(x.stock.score) >= 8
         && (rr === 0 || rr >= 1.0);
     })
+    .filter(x => !actionable.some(a => a.stock.code === x.stock.code))
     .sort((a,b) => b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet);
   return {
     actionable: actionable.slice(0, 20),
@@ -2215,7 +2218,10 @@ function buildDailyBrief() {
 強勢板塊：${sectorText}
 
 ✅ 可操作
-${fmtList(buckets.actionable.length ? buckets.actionable : buckets.candidateActionable)}
+${fmtList(buckets.actionable)}
+
+候選觀察
+${fmtList(buckets.candidateActionable)}
 
 ⏳ 等拉回
 ${fmtList(buckets.waitPullback)}
