@@ -159,6 +159,7 @@ button,select,input { font-family:inherit; }
 .price { font-size:1.1rem; font-weight:700; color:var(--brown-dark); white-space:nowrap; }
 .op-badge,.signal-tag {
   display:inline-flex; align-items:center; font-size:.72rem; font-weight:600; padding:.22rem .65rem; border-radius:20px; margin-bottom:10px;
+  max-width:100%; white-space:normal; line-height:1.35;
 }
 .op-badge.buy,.signal-tag.new { background:#eaf5ea; color:var(--green); }
 .op-badge.watch,.signal-tag.cont { background:#fef8ea; color:var(--yellow); }
@@ -861,6 +862,8 @@ function getOpClass(op) {
 }
 function getDisplayOp(s) {
   const heat = getOverheatState(s);
+  const strong = getStrongConfirmProfile(s);
+  if (!heat && strong?.kind === 'caution') return '🟢 ' + strong.label;
   return heat ? heat.label : (s.op || '－');
 }
 function getDisplayOpClass(s) {
@@ -2812,18 +2815,32 @@ function getStrongConfirmProfile(s) {
   const rr = metricNum(s.rr);
   const score = Number(s.score) || 0;
   const chaseReasons = [];
-  if (conc >= 4.8) chaseReasons.push('集中接近上緣' + conc.toFixed(1) + '%');
-  if (rsi >= 62) chaseReasons.push('RSI偏高' + rsi.toFixed(0));
-  if (score === 8) chaseReasons.push('剛達買入門檻8分');
-  if (dt >= 20 && dt < 30) chaseReasons.push('當沖略熱' + dt.toFixed(1) + '%');
+  const chaseShort = [];
+  if (conc >= 4.8) {
+    chaseReasons.push('集中度 ' + conc.toFixed(1) + '% >= 4.8%，籌碼已接近甜蜜區上緣');
+    chaseShort.push('集中' + conc.toFixed(1) + '%');
+  }
+  if (rsi >= 62) {
+    chaseReasons.push('RSI ' + rsi.toFixed(0) + ' >= 62，短線動能偏熱');
+    chaseShort.push('RSI' + rsi.toFixed(0));
+  }
+  if (score === 8) {
+    chaseReasons.push('分數剛好 8 分，只是剛達高分門檻');
+    chaseShort.push('8分邊緣');
+  }
+  if (dt >= 20 && dt < 30) {
+    chaseReasons.push('當沖比 ' + dt.toFixed(1) + '% 落在 20~30%，短線資金略熱');
+    chaseShort.push('當沖' + dt.toFixed(1) + '%');
+  }
 
   if (chaseReasons.length) {
     return {
       kind: 'caution',
-      label: '⭐強勢但追價小心',
+      label: '⭐追價小心：' + chaseShort.join('、'),
       color: 'var(--yellow)',
       bg: '#fef8ea',
-      title: chaseReasons.join('、')
+      title: chaseReasons.join('；'),
+      detail: chaseReasons.join('；')
     };
   }
   if ((Number(s.instNet) || 0) >= 200 && rr >= 1.3 && dt < 30) {
@@ -2832,7 +2849,8 @@ function getStrongConfirmProfile(s) {
       label: '⭐高勝率買點',
       color: 'var(--green)',
       bg: '#eaf5ea',
-      title: '法人買超、風報比合格、當沖不熱'
+      title: '強勢確認的進階版：法人買超>=200張、風報比>=1.3、當沖<30%，且沒有追價警示',
+      detail: '強勢確認 + 法人買超>=200張 + 風報比>=1.3 + 沒有追價警示'
     };
   }
   return {
@@ -2840,7 +2858,8 @@ function getStrongConfirmProfile(s) {
     label: '⭐強勢確認',
     color: 'var(--green)',
     bg: '#eaf5ea',
-    title: '高分 + RSI45~65 + 集中1~6% + 當沖<30%'
+    title: '基本高勝率組合：分數>=8、RSI45~65、五日集中1~6%、當沖<30%',
+    detail: '分數>=8 + RSI45~65 + 五日集中1~6% + 當沖<30%'
   };
 }
 
