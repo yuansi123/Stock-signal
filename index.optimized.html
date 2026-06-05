@@ -775,6 +775,14 @@ function pctNum(v) {
   if (isNaN(n)) return 0;
   return s.includes('%') ? n : (Math.abs(n) > 0 && Math.abs(n) < 1 ? n * 100 : n);
 }
+function metricNum(raw, opts = {}) {
+  if (raw === null || raw === undefined || raw === '') return 0;
+  const hasPct = String(raw).indexOf('%') !== -1;
+  let n = parseFloat(String(raw).replace('%', '').replace('x', '').trim());
+  if (isNaN(n)) return 0;
+  if (opts.percent && !hasPct && Math.abs(n) <= 1) n *= 100;
+  return n;
+}
 function fmtPct1(v) {
   const n = pctNum(v);
   return n ? n.toFixed(1) + '%' : '—';
@@ -2782,9 +2790,9 @@ function buildInfluencerContextForStock(stock) {
 // 強勢確認組合判斷（與回測頁同條件），供卡片 ⭐ 與晨間簡報共用
 function isStrongConfirmStock(s) {
   return Number(s.score) >= 8 &&
-    num(s.rsi) >= 45 && num(s.rsi) <= 65 &&
-    num(s.conc5) >= 1 && num(s.conc5) <= 6 &&
-    pctNum(s.dayTradeRatio ?? s.dayTrade) < 30;
+    metricNum(s.rsi) >= 45 && metricNum(s.rsi) <= 65 &&
+    metricNum(s.conc5, {percent:true}) >= 1 && metricNum(s.conc5, {percent:true}) <= 6 &&
+    metricNum(s.dayTradeRatio ?? s.dayTrade, {percent:true}) < 30;
 }
 
 function strongConfirmPrefix(s) {
