@@ -2801,7 +2801,8 @@ function isStrongConfirmStock(s) {
 
 function strongConfirmPrefix(s) {
   if (!s) return '';
-  return isStrongConfirmStock(s) ? '⭐⭐⭐ ' : '';
+  const p = getStrongConfirmProfile(s);
+  return p ? (p.kind === 'caution' ? '⭐⭐ ' : '⭐⭐⭐ ') : '';
 }
 
 function displayStockName(s) {
@@ -2837,7 +2838,7 @@ function getStrongConfirmProfile(s) {
   if (chaseReasons.length) {
     return {
       kind: 'caution',
-      label: '⭐⭐⭐追價小心：' + chaseShort.join('、'),
+      label: '⭐⭐追價小心：' + chaseShort.join('、'),
       color: 'var(--yellow)',
       bg: '#fef8ea',
       title: chaseReasons.join('；'),
@@ -3001,7 +3002,7 @@ function renderCards() {
     return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*.035,.5)}s">
       <div class="card-header">
         <div>
-          <div class="stock-name">${isStrongConfirm?'⭐⭐⭐ ':''}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getThemeTag(s)}${getInfluencerTag(s)}${getDayTradeTag(s)}${getBullPickTag(s)}</div>
+          <div class="stock-name">${strongConfirmPrefix(s)}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getThemeTag(s)}${getInfluencerTag(s)}${getDayTradeTag(s)}${getBullPickTag(s)}</div>
           <div class="stock-code">${hlMatch(s.code,q)}${s.sector ? ` · <span onclick="setSectorFilter('${s.sector.replace(/'/g,"\\'")}');event.stopPropagation()" style="cursor:pointer;color:var(--brown)">${s.sector}</span>` : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
@@ -3174,7 +3175,7 @@ function renderBriefing() {
     .sort((a,b) => b.score - a.score || b.instNet - a.instNet).slice(0,3);
   if (tops.length) {
     const chips = tops.map(s => {
-      const star = isStrongConfirmStock(s) ? '⭐⭐⭐' : '';
+      const star = strongConfirmPrefix(s).trim();
       return `<span onclick="event.stopPropagation();focusStock('${s.code}')" style="display:inline-block;cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:2px 7px;margin:2px 4px 0 0;font-size:.72rem">${star}<strong>${s.name}</strong> <span style="color:var(--brown)">${s.score}分</span> <span style="color:${s.instNet>=0?'var(--red)':'var(--blue)'}">${s.instNet>=0?'+':''}${s.instNet}</span></span>`;
     }).join('');
     blocks.push(block('⭐', '今日最強訊號', chips, 'var(--green)'));
