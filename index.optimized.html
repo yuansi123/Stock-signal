@@ -2804,6 +2804,52 @@ function displayStockName(s) {
   return strongConfirmPrefix(s) + (s?.name || '');
 }
 
+function getStrongConfirmProfile(s) {
+  if (!isStrongConfirmStock(s)) return null;
+  const rsi = metricNum(s.rsi);
+  const conc = metricNum(s.conc5, {percent:true});
+  const dt = metricNum(s.dayTradeRatio ?? s.dayTrade, {percent:true});
+  const rr = metricNum(s.rr);
+  const score = Number(s.score) || 0;
+  const chaseReasons = [];
+  if (conc >= 4.8) chaseReasons.push('集中接近上緣' + conc.toFixed(1) + '%');
+  if (rsi >= 62) chaseReasons.push('RSI偏高' + rsi.toFixed(0));
+  if (score === 8) chaseReasons.push('剛達買入門檻8分');
+  if (dt >= 20 && dt < 30) chaseReasons.push('當沖略熱' + dt.toFixed(1) + '%');
+
+  if (chaseReasons.length) {
+    return {
+      kind: 'caution',
+      label: '⭐強勢但追價小心',
+      color: 'var(--yellow)',
+      bg: '#fef8ea',
+      title: chaseReasons.join('、')
+    };
+  }
+  if ((Number(s.instNet) || 0) >= 200 && rr >= 1.3 && dt < 30) {
+    return {
+      kind: 'premium',
+      label: '⭐高勝率買點',
+      color: 'var(--green)',
+      bg: '#eaf5ea',
+      title: '法人買超、風報比合格、當沖不熱'
+    };
+  }
+  return {
+    kind: 'strong',
+    label: '⭐強勢確認',
+    color: 'var(--green)',
+    bg: '#eaf5ea',
+    title: '高分 + RSI45~65 + 集中1~6% + 當沖<30%'
+  };
+}
+
+function getStrongConfirmTag(s) {
+  const p = getStrongConfirmProfile(s);
+  if (!p) return '';
+  return `<span class="signal-tag" style="background:${p.bg};color:${p.color}" title="${p.title}">${p.label}</span>`;
+}
+
 // 勝率體質檢查：把回測頁的「正期望組合 / 警示清單」邏輯搬到卡片上
 // ⚠️ 純顯示用，不影響 score / op / 排序 / 篩選，完全不動選股邏輯
 function getWinRateFactors(s) {
@@ -4362,7 +4408,7 @@ function renderBacktest(records,scoreFilter) {
       const review = getBacktestReview(r);
       return `<div style="background:var(--bg2);border-radius:8px;padding:7px 10px;margin-bottom:5px">
         <div class="row-between">
-          <div><span style="font-size:.82rem;font-weight:700">${displayStockName(r)}</span> <span style="font-size:.62rem;color:var(--text3)">${r.code}</span> <span style="font-size:.62rem;background:var(--card);padding:1px 6px;border-radius:6px">${r.score}分</span>${r.sector ? `<span style="font-size:.58rem;color:var(--brown);margin-left:4px">${r.sector}</span>` : ''}</div>
+          <div><span style="font-size:.82rem;font-weight:700">${displayStockName(r)}</span> <span style="font-size:.62rem;color:var(--text3)">${r.code}</span> <span style="font-size:.62rem;background:var(--card);padding:1px 6px;border-radius:6px">${r.score}分</span>${getStrongConfirmTag(r)}${r.sector ? `<span style="font-size:.58rem;color:var(--brown);margin-left:4px">${r.sector}</span>` : ''}</div>
           <div style="text-align:right;color:${retCol(main)};font-weight:700">${main===null?'等待中':`${main>=0?'+':''}${main.toFixed(2)}%`}<div style="font-size:.58rem;color:var(--text3);font-weight:400">${label}</div></div>
         </div>
         <div style="margin-top:5px;font-size:.66rem;line-height:1.5;color:var(--text2);border-left:3px solid ${review.color};padding-left:7px">
