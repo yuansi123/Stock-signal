@@ -1480,9 +1480,11 @@ function renderActionList() {
     });
     const base = hints.length ? hints.join(' · ') : (stock.sector || '');
     const warn = (Number(stock.score) >= 8 && Number(stock.instNet) < 100) ? ' ⚠️分高法少' : '';
+    const historical = getStockThemes(stock.code).map(t => t.short).join('/');
+    const hist = historical ? ' · 5-6月題材:' + historical : '';
     const influencer = getInfluencerMatches(stock);
     const inf = influencer.length ? ' · 🧵' + influencer.map(m => m.label).join('/') : '';
-    return base + warn + inf;
+    return base + warn + hist + inf;
   };
   const businessHint = stock => {
     if (stock.sector !== '其他電子') return '';
@@ -2657,6 +2659,9 @@ const THEME_MAP = [
   { key:'sicap', icon:'🟣', name:'SiCap 矽電容', short:'SiCap', color:'#8060a0',
     note:'GPU/HBM 穩壓新需求；華邦電以晶圓製程切入、國巨找國際夥伴',
     codes:['2344','2327','4919'] },
+  { key:'advanced_process', icon:'⚙️', name:'先進製程耗材/檢測', short:'先進製程', color:'#7a5830',
+    note:'5-6月歷史題材：先進製程代表鏈包含再生晶圓、鑽石碟、清洗、封裝、檢測。對應昇陽半、中砂、世禾、萬潤、京元電等，屬台積先進製程擴產受惠支線。',
+    codes:['8028','1560','3551','6187','2449'] },
   { key:'substrate', icon:'🟠', name:'AI 載板 / CCL', short:'載板/CCL', color:'#c08830',
     note:'M8/M9 升級；ABF膜與T布缺貨漲價；VR200 拉貨',
     codes:['2383','6274'] }
@@ -2669,6 +2674,12 @@ function getThemeTag(s) {
   return getStockThemes(s.code).map(t =>
     `<span class="signal-tag" style="background:${t.color}1f;color:${t.color}" title="${t.note}">${t.icon}${t.short}</span>`
   ).join('');
+}
+
+function buildHistoricalThemeContextForStock(stock) {
+  const themes = getStockThemes(stock.code);
+  if (!themes.length) return '';
+  return `\n\n【5-6月歷史題材知識庫】\n${themes.map(t => `- ${t.name}：${t.note}`).join('\n')}\n\n請把這段當作中期題材背景，只用來解釋市場可能關注原因，不要把它當成買入保證。`;
 }
 
 async function loadInfluencerSignals(force = false) {
@@ -4498,7 +4509,7 @@ async function askCatalyst(code, event) {
 新聞摘要：
 ${news.text}`;
   try {
-    const res = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt: prompt + buildInfluencerContextForStock(s)})});
+    const res = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt: prompt + buildHistoricalThemeContextForStock(s) + buildInfluencerContextForStock(s)})});
     const data = await res.json();
     const text = String(data.text || '').trim() || 'AI 沒有產生明確消息面判斷。';
     box.innerHTML = `<div class="detail-panel" style="border-left:4px solid var(--brown-light);margin-top:8px">
@@ -4514,7 +4525,7 @@ async function sendAIChat() {
   if (!q) return;
   result.innerHTML = '<div class="state" style="padding:1rem 0"><div class="spinner" style="width:20px;height:20px"></div><div>AI分析中...</div></div>';
   const target = allStocks.find(s => s.code === q || s.name.includes(q));
-  const prompt = buildAIPrompt(q, target);
+  const prompt = buildAIPrompt(q, target) + (target ? buildHistoricalThemeContextForStock(target) + buildInfluencerContextForStock(target) : '');
   try {
     const res = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt})});
     const data = await res.json();
