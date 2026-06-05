@@ -522,6 +522,7 @@ button,select,input { font-family:inherit; }
         <option value="vol">成交量最大</option>
         <option value="rr">風險報酬比最高</option>
         <option value="dayTradeLow">當沖比最低</option>
+        <option value="dayTradeActive">🎯 當沖活躍（量+當沖）</option>
       </select>
       <button class="filter-btn" id="watchOnlyBtn" onclick="toggleWatchOnly(this)">⭐ 自選股</button>
       <button class="filter-btn" onclick="exportCSV()" title="匯出目前篩選結果">⬇️ CSV</button>
@@ -2676,6 +2677,21 @@ function getThemeTag(s) {
   ).join('');
 }
 
+// 🎯 當沖視角（與波段相反）：當沖比高+量大 = 盤中活躍、好進出
+// ⚠️ 純「熱度+流動性」，不含盤中振幅；完全不影響波段 score / op
+function getDayTradeActivity(s) {
+  const dt = pctNum(s.dayTradeRatio), vol = Number(s.vol) || 0;
+  if (dt < 25 || vol < 2000) return {active:false, score:0};
+  const level = dt >= 45 ? '高週轉' : dt >= 35 ? '活躍' : '溫熱';
+  const score = dt + Math.min(vol/1000, 40) * 0.3;
+  return {active:true, level, score, dt, vol};
+}
+function getDayTradeTag(s) {
+  const a = getDayTradeActivity(s);
+  if (!a.active) return '';
+  return `<span class="signal-tag" style="background:#2f8f8f1f;color:#2f8f8f" title="當沖比${s.dayTradeRatio||'—'}、量${(Number(s.vol)||0).toLocaleString('zh-TW')}張（盤中熱度+流動性，不含振幅）">🎯當沖${a.level}</span>`;
+}
+
 function buildHistoricalThemeContextForStock(stock) {
   const themes = getStockThemes(stock.code);
   if (!themes.length) return '';
@@ -2826,6 +2842,7 @@ function renderCards() {
     if (sortMode === 'vol') return b.vol - a.vol;
     if (sortMode === 'rr') return (parseFloat(b.rr)||0) - (parseFloat(a.rr)||0);
     if (sortMode === 'dayTradeLow') return pctNum(a.dayTradeRatio) - pctNum(b.dayTradeRatio);
+    if (sortMode === 'dayTradeActive') return getDayTradeActivity(b).score - getDayTradeActivity(a).score;
     return b.score - a.score || b.instNet - a.instNet;
   });
   const countEl = qs('resultCount');
@@ -2880,7 +2897,7 @@ function renderCards() {
     return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*.035,.5)}s">
       <div class="card-header">
         <div>
-          <div class="stock-name">${isStrongConfirm?'⭐ ':''}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getThemeTag(s)}${getInfluencerTag(s)}</div>
+          <div class="stock-name">${isStrongConfirm?'⭐ ':''}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getThemeTag(s)}${getInfluencerTag(s)}${getDayTradeTag(s)}</div>
           <div class="stock-code">${hlMatch(s.code,q)}${s.sector ? ` · <span onclick="setSectorFilter('${s.sector.replace(/'/g,"\\'")}');event.stopPropagation()" style="cursor:pointer;color:var(--brown)">${s.sector}</span>` : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
