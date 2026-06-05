@@ -507,6 +507,7 @@ button,select,input { font-family:inherit; }
       <button class="filter-btn" onclick="setFilter('watch',this)">🟡 觀察</button>
       <button class="filter-btn" onclick="setFilter('avoid',this)">🔴 避開</button>
       <button class="filter-btn" onclick="setFilter('bear',this)">⬇️ 空頭</button>
+      <button class="filter-btn" onclick="setFilter('bull',this)">🚀 大盤強勢</button>
     </div>
     <div class="control-row" id="presetRow" style="margin-bottom:.5rem">
       <button class="preset-btn" onclick="applyPreset('gold')">🏆 黃金標的</button>
@@ -2869,10 +2870,25 @@ function getStrongConfirmTag(s) {
   return `<span class="signal-tag" style="background:${p.bg};color:${p.color}" title="${p.title}">${p.label}</span>`;
 }
 
+// 🚀 大盤強勢買點（放寬版）：在🟢買入基礎上放寬過熱限制，補強勢確認在多頭的踏空
+// ⚠️ 純顯示/篩選，不影響 score / op / 選股評分
+function isBullStrongPick(s) {
+  if (getDisplayOpClass(s) !== 'buy') return false;
+  const rsi = metricNum(s.rsi);
+  const conc = metricNum(s.conc5, {percent:true});
+  const dt = metricNum(s.dayTradeRatio ?? s.dayTrade, {percent:true});
+  return Number(s.score) >= 8 && rsi >= 45 && rsi <= 78 &&
+    conc >= 1 && conc <= 10 && dt < 50 && (Number(s.instNet) || 0) > 0;
+}
+function getBullPickTag(s) {
+  if (!isBullStrongPick(s) || isStrongConfirmStock(s)) return '';
+  return `<span class="signal-tag" style="background:#c0503a1f;color:#c0503a" title="大盤強勢買點(放寬版)：🟢買入+分數≥8+RSI45~78+集中1~10%+當沖<50%+法人買超。比強勢確認積極，適合大盤大漲時參考">🚀大盤強勢</span>`;
+}
+
 // 勝率體質檢查：把回測頁的「正期望組合 / 警示清單」邏輯搬到卡片上
 // ⚠️ 純顯示用，不影響 score / op / 排序 / 篩選，完全不動選股邏輯
 function getWinRateFactors(s) {
-  const rsi = num(s.rsi), conc = num(s.conc5), rr = num(s.rr), dt = pctNum(s.dayTradeRatio);
+  const rsi = metricNum(s.rsi), conc = metricNum(s.conc5, {percent:true}), rr = metricNum(s.rr), dt = metricNum(s.dayTradeRatio ?? s.dayTrade, {percent:true});
   const f = Number(s.foreign) || 0, t = Number(s.trust) || 0, net = Number(s.instNet) || 0;
   const mBal = Number(s.marginBal) || 0, mChg = Number(s.marginChg) || 0;
   const good = [], warn = [];
@@ -2919,6 +2935,7 @@ function renderCards() {
       if (currentFilter === 'watch') return ['watch','hot'].includes(getDisplayOpClass(s));
       if (currentFilter === 'avoid') return getDisplayOpClass(s) === 'avoid';
       if (currentFilter === 'bear') return getDisplayOpClass(s) === 'bear';
+      if (currentFilter === 'bull') return isBullStrongPick(s);
     }
     return true;
   });
@@ -2984,7 +3001,7 @@ function renderCards() {
     return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*.035,.5)}s">
       <div class="card-header">
         <div>
-          <div class="stock-name">${isStrongConfirm?'⭐ ':''}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getThemeTag(s)}${getInfluencerTag(s)}${getDayTradeTag(s)}</div>
+          <div class="stock-name">${isStrongConfirm?'⭐ ':''}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getThemeTag(s)}${getInfluencerTag(s)}${getDayTradeTag(s)}${getBullPickTag(s)}</div>
           <div class="stock-code">${hlMatch(s.code,q)}${s.sector ? ` · <span onclick="setSectorFilter('${s.sector.replace(/'/g,"\\'")}');event.stopPropagation()" style="cursor:pointer;color:var(--brown)">${s.sector}</span>` : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
@@ -3982,7 +3999,8 @@ function buildConditionEdgeBacktest(records) {
     {name:'高分 + 當沖不熱', desc:'分數>=8 且 當沖比 < 30%', test:r => r.score >= 8 && metricNum(r.dayTradeRatio,{percent:true}) < 30},
     {name:'法人同向買超', desc:'外資>=0 且 投信>=0 且 法人合計>0', test:r => (Number(r.foreign)||0) >= 0 && (Number(r.trust)||0) >= 0 && (Number(r.instNet)||0) > 0},
     {name:'開盤未轉弱', desc:'排除開低失敗/平開轉弱/高開走弱', test:r => !r.openLabel || !/(開低失敗|開低續弱|平開轉弱|高開走弱)/.test(String(r.openLabel))},
-    {name:'強勢確認組合', desc:'高分 + RSI45~65 + 集中1~6% + 當沖<30%', test:r => r.score >= 8 && metricNum(r.rsi) >= 45 && metricNum(r.rsi) <= 65 && metricNum(r.conc5,{percent:true}) >= 1 && metricNum(r.conc5,{percent:true}) <= 6 && metricNum(r.dayTradeRatio,{percent:true}) < 30}
+    {name:'強勢確認組合', desc:'高分 + RSI45~65 + 集中1~6% + 當沖<30%', test:r => r.score >= 8 && metricNum(r.rsi) >= 45 && metricNum(r.rsi) <= 65 && metricNum(r.conc5,{percent:true}) >= 1 && metricNum(r.conc5,{percent:true}) <= 6 && metricNum(r.dayTradeRatio,{percent:true}) < 30},
+    {name:'大盤強勢版(放寬)', desc:'高分 + RSI45~78 + 集中1~10% + 當沖<50% + 法人買超（多頭用）', test:r => r.score >= 8 && metricNum(r.rsi) >= 45 && metricNum(r.rsi) <= 78 && metricNum(r.conc5,{percent:true}) >= 1 && metricNum(r.conc5,{percent:true}) <= 10 && metricNum(r.dayTradeRatio,{percent:true}) < 50 && (Number(r.instNet)||0) > 0}
   ].map(c => {
     const arr = rows.filter(c.test);
     const s = stat(arr);
@@ -5168,6 +5186,7 @@ function exportCSV() {
       if (currentFilter==='watch') return ['watch','hot'].includes(getDisplayOpClass(s));
       if (currentFilter==='avoid') return getDisplayOpClass(s)==='avoid';
       if (currentFilter==='bear') return getDisplayOpClass(s)==='bear';
+      if (currentFilter==='bull') return isBullStrongPick(s);
     }
     return true;
   });
