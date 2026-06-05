@@ -2781,10 +2781,10 @@ function buildInfluencerContextForStock(stock) {
 
 // 強勢確認組合判斷（與回測頁同條件），供卡片 ⭐ 與晨間簡報共用
 function isStrongConfirmStock(s) {
-  return getDisplayOpClass(s) === 'buy' && Number(s.score) >= 8 &&
+  return Number(s.score) >= 8 &&
     num(s.rsi) >= 45 && num(s.rsi) <= 65 &&
     num(s.conc5) >= 1 && num(s.conc5) <= 6 &&
-    pctNum(s.dayTradeRatio) < 30;
+    pctNum(s.dayTradeRatio ?? s.dayTrade) < 30;
 }
 
 function strongConfirmPrefix(s) {
