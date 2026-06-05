@@ -3887,6 +3887,7 @@ function buildConditionEdgeBacktest(records) {
   const warnings = [
     {name:'外資賣、投信買', desc:r => `外資${r.foreign}張 / 投信${r.trust}張`, test:r => (Number(r.foreign)||0) < 0 && (Number(r.trust)||0) > 0},
     {name:'當沖比偏高', desc:r => `當沖比${r.dayTradeRatio || '—'}`, test:r => metricNum(r.dayTradeRatio,{percent:true}) >= 30},
+    {name:'量能虛胖（當沖灌量）', desc:r => `量能放大但當沖${r.dayTradeRatio || '—'}`, test:r => /量能放大/.test(String(r.reasons||'')) && metricNum(r.dayTradeRatio,{percent:true}) >= 40},
     {name:'集中度過熱', desc:r => `五日集中${r.conc5 || '—'}`, test:r => metricNum(r.conc5,{percent:true}) >= 12},
     {name:'RSI過熱', desc:r => `RSI ${r.rsi || '—'}`, test:r => metricNum(r.rsi) >= 75},
     {name:'風報比不足', desc:r => `風報比${r.rr || '—'}`, test:r => metricNum(r.rr) !== null && metricNum(r.rr) <= 0.5},
