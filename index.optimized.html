@@ -1456,7 +1456,7 @@ function renderActionList() {
     .sort((a,b) => b.stock.score - a.stock.score || b.stock.instNet - a.stock.instNet)
     .slice(0, 20);
   const waitPullback = enriched
-    .filter(x => getActionCategory(x.stock) === 'wait')
+    .filter(x => getActionCategory(x.stock) === 'wait' && !candidateActionable.some(c => c.stock.code === x.stock.code))
     .sort((a,b) => b.stock.score - a.stock.score)
     .slice(0, 20);
   const avoid = enriched
@@ -2176,7 +2176,7 @@ function buildActionBuckets() {
     actionable: actionable.slice(0, 20),
     candidateActionable: candidateActionable.slice(0, 20),
     waitPullback: enriched
-      .filter(x => getActionCategory(x.stock) === 'wait')
+      .filter(x => getActionCategory(x.stock) === 'wait' && !candidateActionable.some(c => c.stock.code === x.stock.code))
       .sort((a,b) => b.stock.score - a.stock.score)
       .slice(0, 20),
     avoid: enriched
