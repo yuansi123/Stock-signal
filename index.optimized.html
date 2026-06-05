@@ -2681,10 +2681,10 @@ function getThemeTag(s) {
 // ⚠️ 純「熱度+流動性」，不含盤中振幅；完全不影響波段 score / op
 function getDayTradeActivity(s) {
   const dt = pctNum(s.dayTradeRatio), vol = Number(s.vol) || 0;
-  if (dt < 25 || vol < 2000) return {active:false, score:0};
-  const level = dt >= 45 ? '高週轉' : dt >= 35 ? '活躍' : '溫熱';
-  const score = dt + Math.min(vol/1000, 40) * 0.3;
-  return {active:true, level, score, dt, vol};
+  // 門檻依實際分布校正（台股 median 當沖≈41%）：≥50% 前24%、≥60% 前9%、≥65% 前4%
+  if (dt < 50) return {active:false, score:0};
+  const level = dt >= 65 ? '高週轉' : dt >= 60 ? '活躍' : '溫熱';
+  return {active:true, level, score: dt, dt, vol};
 }
 function getDayTradeTag(s) {
   const a = getDayTradeActivity(s);
