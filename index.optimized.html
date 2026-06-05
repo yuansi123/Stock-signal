@@ -1506,7 +1506,7 @@ function renderActionList() {
       '3545':'光學/檢測設備',
       '6277':'工業電腦/設備'
     };
-    return map[String(stock.code)] || '業務分散，建議點 AI 看公司產品';
+    return map[String(stock.code)] || '';
   };
   const row = (x, meta, color) => {
     const isHot = x.entryStatus === 'inside' && (Number(x.stock.score) >= 10 || Number(x.stock.instNet) >= 500);
