@@ -2786,6 +2786,7 @@ function getWinRateFactors(s) {
   if (rsi >= 75) warn.push('RSI過熱');
   if (rr > 0 && rr <= 0.5) warn.push('風報比差');
   if (mBal > 0 && mChg / mBal >= 0.15) warn.push('融資急增');
+  if (Number(s.volS) >= 1 && dt >= 40) warn.push('量能虛胖');
   return { good, warn };
 }
 
