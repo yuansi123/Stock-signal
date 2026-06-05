@@ -507,7 +507,7 @@ button,select,input { font-family:inherit; }
       <button class="filter-btn" onclick="setFilter('watch',this)">🟡 觀察</button>
       <button class="filter-btn" onclick="setFilter('avoid',this)">🔴 避開</button>
       <button class="filter-btn" onclick="setFilter('bear',this)">⬇️ 空頭</button>
-      <button class="filter-btn" onclick="setFilter('bull',this)">🚀 大盤強勢</button>
+      <button class="filter-btn" onclick="setFilter('bull',this)">⭐⭐ 大盤強勢</button>
     </div>
     <div class="control-row" id="presetRow" style="margin-bottom:.5rem">
       <button class="preset-btn" onclick="applyPreset('gold')">🏆 黃金標的</button>
@@ -2801,7 +2801,7 @@ function isStrongConfirmStock(s) {
 
 function strongConfirmPrefix(s) {
   if (!s) return '';
-  return isStrongConfirmStock(s) ? '⭐ ' : '';
+  return isStrongConfirmStock(s) ? '⭐⭐⭐ ' : '';
 }
 
 function displayStockName(s) {
@@ -2837,7 +2837,7 @@ function getStrongConfirmProfile(s) {
   if (chaseReasons.length) {
     return {
       kind: 'caution',
-      label: '⭐追價小心：' + chaseShort.join('、'),
+      label: '⭐⭐⭐追價小心：' + chaseShort.join('、'),
       color: 'var(--yellow)',
       bg: '#fef8ea',
       title: chaseReasons.join('；'),
@@ -2847,7 +2847,7 @@ function getStrongConfirmProfile(s) {
   if ((Number(s.instNet) || 0) >= 200 && rr >= 1.3 && dt < 30) {
     return {
       kind: 'premium',
-      label: '⭐高勝率買點',
+      label: '⭐⭐⭐高勝率買點',
       color: 'var(--green)',
       bg: '#eaf5ea',
       title: '強勢確認的進階版：法人買超>=200張、風報比>=1.3、當沖<30%，且沒有追價警示',
@@ -2856,7 +2856,7 @@ function getStrongConfirmProfile(s) {
   }
   return {
     kind: 'strong',
-    label: '⭐強勢確認',
+    label: '⭐⭐⭐強勢確認',
     color: 'var(--green)',
     bg: '#eaf5ea',
     title: '基本高勝率組合：分數>=8、RSI45~65、五日集中1~6%、當沖<30%',
@@ -2882,7 +2882,7 @@ function isBullStrongPick(s) {
 }
 function getBullPickTag(s) {
   if (!isBullStrongPick(s) || isStrongConfirmStock(s)) return '';
-  return `<span class="signal-tag" style="background:#c0503a1f;color:#c0503a" title="大盤強勢買點(放寬版)：🟢買入+分數≥8+RSI45~78+集中1~10%+當沖<50%+法人買超。比強勢確認積極，適合大盤大漲時參考">🚀大盤強勢</span>`;
+  return `<span class="signal-tag" style="background:#c0503a1f;color:#c0503a" title="大盤強勢買點(放寬版)：🟢買入+分數≥8+RSI45~78+集中1~10%+當沖<50%+法人買超。比強勢確認積極，適合大盤大漲時參考">⭐⭐大盤強勢</span>`;
 }
 
 // 勝率體質檢查：把回測頁的「正期望組合 / 警示清單」邏輯搬到卡片上
@@ -3001,7 +3001,7 @@ function renderCards() {
     return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*.035,.5)}s">
       <div class="card-header">
         <div>
-          <div class="stock-name">${isStrongConfirm?'⭐ ':''}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getThemeTag(s)}${getInfluencerTag(s)}${getDayTradeTag(s)}${getBullPickTag(s)}</div>
+          <div class="stock-name">${isStrongConfirm?'⭐⭐⭐ ':''}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getThemeTag(s)}${getInfluencerTag(s)}${getDayTradeTag(s)}${getBullPickTag(s)}</div>
           <div class="stock-code">${hlMatch(s.code,q)}${s.sector ? ` · <span onclick="setSectorFilter('${s.sector.replace(/'/g,"\\'")}');event.stopPropagation()" style="cursor:pointer;color:var(--brown)">${s.sector}</span>` : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
@@ -3174,7 +3174,7 @@ function renderBriefing() {
     .sort((a,b) => b.score - a.score || b.instNet - a.instNet).slice(0,3);
   if (tops.length) {
     const chips = tops.map(s => {
-      const star = isStrongConfirmStock(s) ? '⭐' : '';
+      const star = isStrongConfirmStock(s) ? '⭐⭐⭐' : '';
       return `<span onclick="event.stopPropagation();focusStock('${s.code}')" style="display:inline-block;cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:2px 7px;margin:2px 4px 0 0;font-size:.72rem">${star}<strong>${s.name}</strong> <span style="color:var(--brown)">${s.score}分</span> <span style="color:${s.instNet>=0?'var(--red)':'var(--blue)'}">${s.instNet>=0?'+':''}${s.instNet}</span></span>`;
     }).join('');
     blocks.push(block('⭐', '今日最強訊號', chips, 'var(--green)'));
