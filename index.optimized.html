@@ -1413,7 +1413,7 @@ function renderWatchRadar() {
     const netColor = s.instNet > 0 ? 'var(--red)' : s.instNet < 0 ? 'var(--blue)' : 'var(--text3)';
     return `<div class="watch-radar-row" onclick="focusStock('${s.code}')">
       <div style="min-width:0">
-        <div class="watch-radar-name">${s.name} <span style="font-size:.62rem;color:var(--text3)">${s.score}分</span></div>
+        <div class="watch-radar-name">${displayStockName(s)} <span style="font-size:.62rem;color:var(--text3)">${s.score}分</span></div>
         <div class="watch-radar-code">${s.code} · ${s.sector || '未分類'} · ${s.op || '—'}</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
@@ -1510,12 +1510,11 @@ function renderActionList() {
   };
   const row = (x, meta, color) => {
     const isHot = x.entryStatus === 'inside' && (Number(x.stock.score) >= 10 || Number(x.stock.instNet) >= 500);
-    const star = isStrongConfirmStock(x.stock) ? '⭐ ' : '';
     const rsiText = x.stock.rsi || '—';
     const dayTradeText = fmtPct1(x.stock.dayTradeRatio);
     const business = businessHint(x.stock);
     return `<div class="action-row${isHot ? ' action-row-hot' : ''}" onclick="focusStock('${x.stock.code}')">
-      <div class="action-name">${star}${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span><span style="font-size:.58rem;color:var(--brown);background:var(--bg2);border-radius:6px;padding:1px 5px;margin-left:4px">${x.stock.sector || '未分類'}</span>${isHot ? '<span style="font-size:.5rem;background:var(--green);color:#fff;border-radius:4px;padding:1px 4px;margin-left:4px">🔥強勢</span>' : ''}</div>
+      <div class="action-name">${displayStockName(x.stock)} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span><span style="font-size:.58rem;color:var(--brown);background:var(--bg2);border-radius:6px;padding:1px 5px;margin-left:4px">${x.stock.sector || '未分類'}</span>${isHot ? '<span style="font-size:.5rem;background:var(--green);color:#fff;border-radius:4px;padding:1px 4px;margin-left:4px">🔥強勢</span>' : ''}</div>
       ${business ? `<div style="font-size:.58rem;color:var(--text3);margin-top:1px">${business}</div>` : ''}
       <div class="action-theme">${themeHints(x.stock)}</div>
       <div class="action-meta"><span style="color:${color};font-weight:700">${meta}</span> · ${x.stock.score}分 · 法人 ${x.stock.instNet > 0 ? '+' : ''}${x.stock.instNet}張 · RSI ${rsiText} · 當沖 ${dayTradeText}</div>
@@ -1618,7 +1617,7 @@ function renderRiskPlan() {
     ${candidates.length ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">
       ${candidates.map(x => `<div class="action-row" onclick="focusStock('${x.stock.code}')">
         <div>
-          <div class="action-name">${x.stock.name} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span></div>
+          <div class="action-name">${displayStockName(x.stock)} <span style="font-size:.6rem;color:var(--text3)">${x.stock.code}</span></div>
           <div class="action-meta">${getDisplayOp(x.stock)} · ${x.sizing.reason}</div>
         </div>
         <div style="text-align:right;color:${x.sizing.color};font-size:.74rem;font-weight:800">${x.sizing.label}<br><span style="font-size:.62rem;color:var(--text3)">${x.sizing.pct}</span></div>
@@ -1658,7 +1657,7 @@ function renderPricePositionRadar() {
       return `<div class="action-row" onclick="${top ? `focusStock('${top.code}')` : ''}">
         <div>
           <div class="action-name">${meta.label} <span style="font-size:.6rem;color:var(--text3)">${b.rows.length}檔</span></div>
-          <div class="action-meta">${meta.hint}${top ? ` · 代表 ${top.name} ${top.score}分` : ''}</div>
+          <div class="action-meta">${meta.hint}${top ? ` · 代表 ${displayStockName(top)} ${top.score}分` : ''}</div>
         </div>
         <div style="text-align:right;color:${meta.color};font-size:.72rem;font-weight:800">${entryFilter === b.key ? '篩選中' : '查看'}</div>
       </div>`;
@@ -1704,7 +1703,7 @@ function renderRiskFactorRadar() {
       return `<div class="action-row" onclick="${top ? `focusStock('${top.code}')` : ''}">
         <div>
           <div class="action-name">${item.label} <span style="font-size:.6rem;color:var(--text3)">${item.rows.length}檔</span></div>
-          <div class="action-meta">${top ? `代表 ${top.name} ${top.score}分 · ${getDisplayOp(top)}` : '目前無代表股'}</div>
+          <div class="action-meta">${top ? `代表 ${displayStockName(top)} ${top.score}分 · ${getDisplayOp(top)}` : '目前無代表股'}</div>
         </div>
         <div style="text-align:right;color:${item.color};font-size:.72rem;font-weight:800">${riskFilter === item.key ? '篩選中' : '查看'}</div>
       </div>`;
@@ -1750,7 +1749,7 @@ function renderChangeRadar() {
 
   const row = (s, meta, color) => `<div class="action-row" onclick="focusStock('${s.code}')">
     <div>
-      <div class="action-name">${s.name} <span style="font-size:.6rem;color:var(--text3)">${s.code}</span></div>
+      <div class="action-name">${displayStockName(s)} <span style="font-size:.6rem;color:var(--text3)">${s.code}</span></div>
       <div class="action-meta">${getDisplayOp(s)} · ${meta}${metaDate(s)}</div>
     </div>
     <div style="text-align:right;color:${color};font-size:.74rem;font-weight:800">${s.score}分<br><span style="font-size:.62rem;color:var(--text3)">法人 ${s.instNet > 0 ? '+' : ''}${s.instNet}</span></div>
@@ -1821,7 +1820,7 @@ function renderContinuationRadar() {
     const op = getDisplayOp(s);
     return `<div class="action-row" onclick="focusStock('${s.code}')">
       <div style="min-width:0;flex:1">
-        <div class="action-name">${s.name} <span style="font-size:.6rem;color:var(--text3)">${s.code}</span></div>
+          <div class="action-name">${displayStockName(s)} <span style="font-size:.6rem;color:var(--text3)">${s.code}</span></div>
         <div class="action-meta">${x.label} · ${op} · 法人 ${s.instNet > 0 ? '+' : ''}${s.instNet}張 · 連買 ${s.streak}天</div>
         <div style="height:5px;background:var(--bg2);border-radius:4px;margin-top:5px;overflow:hidden">
           <div style="width:${width}%;height:100%;background:${color};border-radius:4px"></div>
@@ -1936,7 +1935,7 @@ function renderRotationRadar() {
       </div>
       <div style="margin-top:3px;display:flex;align-items:center;gap:6px">
         ${(s.warming||s.cooling)?`<span style="font-size:.56rem;color:${sigMom.col}">${sigMom.icon} ${s.warming}升/${s.cooling}降</span>`:''}
-        ${leader?`<span style="font-size:.56rem;color:var(--text3)">領頭：${leader.name}</span>`:''}
+        ${leader?`<span style="font-size:.56rem;color:var(--text3)">領頭：${displayStockName(leader)}</span>`:''}
       </div>
     </div>`;
   };
@@ -1988,7 +1987,7 @@ function renderCompareTable() {
       const divText = x.divs.length ? x.divs[0].label : '無';
       const divColor = x.divs.some(d => d.level === 'warn') ? 'var(--red)' : 'var(--green)';
       return `<tr>
-        <td><div class="compare-stock" onclick="focusStock('${s.code}')">${s.name}</div><div class="compare-code">${s.code} · ${s.sector || ''}</div></td>
+        <td><div class="compare-stock" onclick="focusStock('${s.code}')">${displayStockName(s)}</div><div class="compare-code">${s.code} · ${s.sector || ''}</div></td>
         <td><strong>${s.score}</strong></td>
         <td style="color:${netColor};font-weight:700">${s.instNet >= 0 ? '+' : ''}${s.instNet}</td>
         <td style="color:${x.entry.color};font-weight:700">${x.entry.label}</td>
@@ -2088,7 +2087,7 @@ function renderReviewSection() {
       <div style="display:flex;align-items:center;gap:6px" onclick="focusStock('${s.code}')">
         <span style="font-size:.72rem;flex-shrink:0">${icon}</span>
         <div style="flex:1;min-width:0">
-          <div style="font-size:.74rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name} <span style="font-weight:400;font-size:.58rem;color:var(--text3)">${s.code}</span>${s.sector ? ` <span style="font-size:.54rem;color:var(--brown);background:var(--bg2);padding:1px 4px;border-radius:4px">${s.sector.split('/')[0]}</span>` : ''}</div>
+          <div style="font-size:.74rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${displayStockName(s)} <span style="font-weight:400;font-size:.58rem;color:var(--text3)">${s.code}</span>${s.sector ? ` <span style="font-size:.54rem;color:var(--brown);background:var(--bg2);padding:1px 4px;border-radius:4px">${s.sector.split('/')[0]}</span>` : ''}</div>
           <div style="font-size:.6rem;color:${diag.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${diag.text}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
@@ -2204,10 +2203,10 @@ function buildDailyBrief() {
     .map(s => `${s.name}(均${s.avg >= 0 ? '+' : ''}${s.avg}張, 買入${s.buy})`)
     .join('、') || '—';
   const fmtList = rows => rows.length
-    ? rows.map(x => `${x.stock.name}(${x.stock.code}) ${x.stock.score}分 法人${x.stock.instNet >= 0 ? '+' : ''}${x.stock.instNet}張 ${x.entry.label}`).join('\n')
+    ? rows.map(x => `${displayStockName(x.stock)}(${x.stock.code}) ${x.stock.score}分 法人${x.stock.instNet >= 0 ? '+' : ''}${x.stock.instNet}張 ${x.entry.label}`).join('\n')
     : '無';
   const riskText = buckets.avoid.length
-    ? buckets.avoid.map(x => `${x.stock.name}(${x.stock.code})：${x.divs[0]?.label || x.stock.op}`).join('、')
+    ? buckets.avoid.map(x => `${displayStockName(x.stock)}(${x.stock.code})：${x.divs[0]?.label || x.stock.op}`).join('、')
     : '無明顯避開名單';
 
   return `📊 台股籌碼作戰簡報 ${date}
@@ -2249,7 +2248,7 @@ async function loadUsSectors() {
           const arrow = chg>0?'▲':chg<0?'▼':'─';
           return `<div style="background:${bg||'var(--card)'};border:1px solid var(--border);border-radius:8px;padding:6px 8px;display:flex;align-items:center;justify-content:space-between;cursor:default">
             <div>
-              <div style="font-size:.7rem;font-weight:700;color:var(--text)">${s.name}</div>
+              <div style="font-size:.7rem;font-weight:700;color:var(--text)">${displayStockName(s)}</div>
               <div style="font-size:.52rem;color:var(--text3)">${s.sym}</div>
             </div>
             <div style="font-size:.82rem;font-weight:800;color:${col};flex-shrink:0">${arrow}${Math.abs(chg).toFixed(2)}%</div>
@@ -2782,6 +2781,15 @@ function isStrongConfirmStock(s) {
     pctNum(s.dayTradeRatio) < 30;
 }
 
+function strongConfirmPrefix(s) {
+  if (!s) return '';
+  return isStrongConfirmStock(s) ? '⭐ ' : '';
+}
+
+function displayStockName(s) {
+  return strongConfirmPrefix(s) + (s?.name || '');
+}
+
 // 勝率體質檢查：把回測頁的「正期望組合 / 警示清單」邏輯搬到卡片上
 // ⚠️ 純顯示用，不影響 score / op / 排序 / 篩選，完全不動選股邏輯
 function getWinRateFactors(s) {
@@ -3018,7 +3026,7 @@ async function generateDailySummary() {
   const sectors = Object.entries(map).map(([name,d]) => ({name,total:d.total,buy:d.buy,avgNet:Math.round(d.net/d.total),buyRatio:Math.round(d.buy/d.total*100)})).sort((a,b)=>b.avgNet-a.avgNet);
   const top = sectors.slice(0,3).map(s => `${s.name}(每檔均買${s.avgNet}張, 買入${s.buyRatio}%)`).join('；');
   const weak = sectors.filter(s=>s.avgNet<0).slice(0,2).map(s => `${s.name}(每檔均賣${Math.abs(s.avgNet)}張)`).join('；') || '無明顯流出';
-  const streak = allStocks.filter(s=>s.streak>=3).sort((a,b)=>b.streak-a.streak).slice(0,5).map(s=>`${s.name}(${s.code})連買${s.streak}天`).join('、') || '無';
+  const streak = allStocks.filter(s=>s.streak>=3).sort((a,b)=>b.streak-a.streak).slice(0,5).map(s=>`${displayStockName(s)}(${s.code})連買${s.streak}天`).join('、') || '無';
   const cntBuy = allStocks.filter(s=>s.op.includes('🟢')).length, cntWatch = allStocks.filter(s=>s.op.includes('🟡')).length;
   const date = qs('dateTag').textContent || '';
   const prompt = `你是台股法人籌碼分析師。請用繁體中文、自然口語、約100字，寫一段今日盤後總結評論。\n\n今日（${date}）掃描 ${allStocks.length} 檔電子科技股：\n- 買入訊號 ${cntBuy} 檔，觀察 ${cntWatch} 檔\n- 法人每檔平均買超最多板塊：${top}\n- 法人流出板塊：${weak}\n- 連續買超3天以上個股：${streak}\n\n請直接輸出評論文字，不要加標題。`;
@@ -4340,7 +4348,7 @@ function renderBacktest(records,scoreFilter) {
       const review = getBacktestReview(r);
       return `<div style="background:var(--bg2);border-radius:8px;padding:7px 10px;margin-bottom:5px">
         <div class="row-between">
-          <div><span style="font-size:.82rem;font-weight:700">${r.name}</span> <span style="font-size:.62rem;color:var(--text3)">${r.code}</span> <span style="font-size:.62rem;background:var(--card);padding:1px 6px;border-radius:6px">${r.score}分</span>${r.sector ? `<span style="font-size:.58rem;color:var(--brown);margin-left:4px">${r.sector}</span>` : ''}</div>
+          <div><span style="font-size:.82rem;font-weight:700">${displayStockName(r)}</span> <span style="font-size:.62rem;color:var(--text3)">${r.code}</span> <span style="font-size:.62rem;background:var(--card);padding:1px 6px;border-radius:6px">${r.score}分</span>${r.sector ? `<span style="font-size:.58rem;color:var(--brown);margin-left:4px">${r.sector}</span>` : ''}</div>
           <div style="text-align:right;color:${retCol(main)};font-weight:700">${main===null?'等待中':`${main>=0?'+':''}${main.toFixed(2)}%`}<div style="font-size:.58rem;color:var(--text3);font-weight:400">${label}</div></div>
         </div>
         <div style="margin-top:5px;font-size:.66rem;line-height:1.5;color:var(--text2);border-left:3px solid ${review.color};padding-left:7px">
@@ -4436,7 +4444,7 @@ async function fillReturns() {
 function btCalDay(date){
   const recs=(window._btRecords||[]).filter(r=>r.date===date);
   if(!recs.length) return;
-  alert(date+' 訊號：\n'+recs.map(r=>`${r.name}(${r.code}) ${r.score}分 → ${r.return3!==null?((r.return3>=0?'+':'')+r.return3.toFixed(2)+'%'):r.return1!==null?((r.return1>=0?'+':'')+r.return1.toFixed(2)+'%(1日)'):'待回測'}`).join('\n'));
+  alert(date+' 訊號：\n'+recs.map(r=>`${displayStockName(r)}(${r.code}) ${r.score}分 → ${r.return3!==null?((r.return3>=0?'+':'')+r.return3.toFixed(2)+'%'):r.return1!==null?((r.return1>=0?'+':'')+r.return1.toFixed(2)+'%(1日)'):'待回測'}`).join('\n'));
 }
 
 async function loadAI() {
@@ -4569,7 +4577,7 @@ function buildAIPrompt(q,target) {
     const buyRisk = getBuyRiskWarning(target);
     return `你是台灣資深股票分析師，請針對以下股票給出完整分析，回覆用繁體中文。\n\n用戶問題：「${q}」\n股票：${target.name}(${target.code}) 板塊：${target.sector}\n型態分類：${archetype}\n訊號有效性：${validity.label}，原因：${validity.detail}\n買入風險警示：${buyRisk.label}，操作：${buyRisk.action}，原因：${buyRisk.items.join('；')}\n隔日追蹤：${nextDay}\n收盤價：${target.price} 總分：${target.score} 操作：${getDisplayOp(target)}\n建議倉位：${sizing.label} ${sizing.pct}，原因：${sizing.reason}\n法人淨買超：${target.instNet}張 連買：${target.streak}天\nRSI：${target.rsi} K/D：${target.kVal}/${target.dVal} 五日集中：${target.conc5}\n外資：${target.foreign} 投信：${target.trust} 自營：${target.dealer}\n融資餘額：${target.marginBal} 融資增減：${target.marginChg} 融券：${target.shortBal} 券資比：${target.shortRatio}%\n進場：${target.entry} 停損：${target.stop} 停利1：${target.tp1} 停利2：${target.tp2} 風報比：${target.rr}\n當沖比：${target.dayTradeRatio} 當沖扣分：${target.dayTradePenalty}\n訊號說明：${target.reasons}\n\n請先用一句話說明「這檔是哪一型、現在該怎麼看」。再分成：籌碼分析、技術面判斷、操作建議、停損停利、主要風險。\n回答要依型態調整口吻：突破動能型重視續量與追價風險；法人卡位型重視連買與消息催化；過熱續航型重視拉回和續航條件；低檔轉強型重視是否站回關鍵價；風險警示型要直接提醒不要硬做。若買入風險警示是「高風險，不追」，請明確講不要追價，只能等拉回或隔日量價確認。不要每檔都套同一種模板。`;
   }
-  return `你是台灣資深股票分析師，請針對以下問題給出專業建議，繁體中文，簡潔有力。\n\n用戶問題：「${q}」\n今日資料日期：${qs('dateTag').textContent}\n買入訊號：${allStocks.filter(s=>s.op.includes('🟢')).length}檔\n前5強：${allStocks.filter(s=>s.op.includes('🟢')).slice(0,5).map(s=>`${s.name}(${s.code})${s.score}分`).join('、')}\n連買3天以上：${allStocks.filter(s=>s.streak>=3).slice(0,5).map(s=>`${s.name}連買${s.streak}天`).join('、')}\n\n請直接給明確立場。`;
+  return `你是台灣資深股票分析師，請針對以下問題給出專業建議，繁體中文，簡潔有力。\n\n用戶問題：「${q}」\n今日資料日期：${qs('dateTag').textContent}\n買入訊號：${allStocks.filter(s=>s.op.includes('🟢')).length}檔\n前5強：${allStocks.filter(s=>s.op.includes('🟢')).slice(0,5).map(s=>`${displayStockName(s)}(${s.code})${s.score}分`).join('、')}\n連買3天以上：${allStocks.filter(s=>s.streak>=3).slice(0,5).map(s=>`${displayStockName(s)}連買${s.streak}天`).join('、')}\n\n請直接給明確立場。`;
 }
 function formatMarkdown(text) {
   return text.replace(/^### (.+)$/gm,'<div style="font-weight:700;color:var(--brown);margin:10px 0 4px">$1</div>')
@@ -5114,7 +5122,7 @@ function renderStreakLeader() {
     return `<div style="display:flex;align-items:center;gap:5px;padding:4px 7px;background:var(--card);border:1px solid var(--border);border-radius:8px;cursor:pointer" onclick="focusStock('${s.code}')">
       <span style="font-size:.56rem;color:var(--text3);font-weight:700;min-width:12px">${i+1}</span>
       <div style="flex:1;min-width:0">
-        <div style="font-size:.66rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name}</div>
+        <div style="font-size:.66rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${displayStockName(s)}</div>
         <div style="font-size:.52rem;color:var(--text3)">${s.instNet>0?'+':''}${s.instNet}張</div>
       </div>
       <div style="font-size:.76rem;font-weight:800;color:${col};flex-shrink:0">${s.streak}天</div>
