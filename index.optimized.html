@@ -3859,6 +3859,10 @@ function buildOpenConfirmPerformance(records) {
 function buildConditionEdgeBacktest(records) {
   const rows = (records || []).filter(r => r.return1 !== null && r.return1 !== undefined);
   if (rows.length < 5) return '';
+  const btDates = [...new Set(rows.map(r => r.date).filter(d => d && d.length === 10))].sort();
+  const btRangeTxt = btDates.length
+    ? `📅 資料期間 ${btDates[0].slice(5).replace('-','/')}~${btDates[btDates.length-1].slice(5).replace('-','/')} · ${btDates.length} 個交易日 · 計入 ${rows.length} 筆已回測訊號`
+    : '';
   const avg = arr => arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : null;
   const retCol = v => v === null || v === undefined ? 'var(--text3)' : v >= 0 ? 'var(--red)' : 'var(--blue)';
   const retTxt = v => v === null || v === undefined ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
@@ -3965,6 +3969,7 @@ function buildConditionEdgeBacktest(records) {
       <div>
         <div class="section-title" style="margin:0">🧮 二次篩選統計</div>
         <div style="font-size:.62rem;color:var(--text3);margin-top:2px">不改選股邏輯，只檢查哪些附加條件能提高勝率</div>
+        ${btRangeTxt ? `<div style="font-size:.6rem;color:var(--brown);margin-top:3px;font-weight:600">${btRangeTxt}</div>` : ''}
       </div>
       <div style="font-size:.62rem;color:var(--text3);text-align:right">全體 ${rows.length} 筆<br>1日均 ${retTxt(base.avg1)} / 勝率 ${pctTxt(base.win1)}</div>
     </div>
