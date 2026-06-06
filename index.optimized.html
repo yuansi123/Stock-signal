@@ -3381,6 +3381,7 @@ async function loadMarket() {
     const riskReasons = String(cell(c,7,'')), crashRisk = String(cell(c,8,''));
     const nasdaq = Number(cell(c,9,0)) || 0, nasdaqChange = (typeof cell(c,10,0) === 'number' ? cell(c,10,0)*100 : num(cell(c,10,0)));
     const sp500 = Number(cell(c,11,0)) || 0, sp500Change = (typeof cell(c,12,0) === 'number' ? cell(c,12,0)*100 : num(cell(c,12,0)));
+    const fxNet = Number(cell(c,13,0)) || 0, fxText = String(cell(c,14,''));
     const col = v => v >= 0 ? 'var(--red)' : 'var(--blue)';
     const vixCol = vix > 30 ? 'var(--red)' : vix > 20 ? 'var(--yellow)' : 'var(--green)';
     const statusBg = status.includes('🔴') ? '#fef0ee' : status.includes('🟡') ? '#fef8ea' : '#eaf5ea';
@@ -3393,6 +3394,7 @@ async function loadMarket() {
         <div class="market-item"><div class="market-label">S&P 500</div><div class="market-val" style="color:${col(sp500Change)};font-size:.85rem">${sp500?sp500.toFixed(0):'—'}</div><div style="font-size:.65rem;color:${col(sp500Change)}">${sp500Change>=0?'+':''}${sp500Change.toFixed(2)}%</div></div>
       </div>
       <div class="market-status" style="background:${statusBg}">${status || '—'}</div>
+      ${fxText ? `<div style="margin-top:6px;padding:.45rem .7rem;border-radius:8px;background:var(--bg2);font-size:.72rem;line-height:1.45;border-left:3px solid ${fxText.includes('⚠️')?'var(--red)':fxText.includes('✅')?'var(--green)':'var(--text3)'}">📈 <strong>期貨領先指標</strong>　${fxText}</div>` : ''}
       ${riskReasons ? `<div style="font-size:.68rem;color:var(--text3);line-height:1.5;margin-top:6px">${riskReasons}</div>` : ''}
       ${crashRisk ? `<div style="font-size:.72rem;line-height:1.55;margin-top:8px;padding:8px 10px;border-radius:8px;background:${statusBg}">${crashRisk}</div>` : ''}`;
     if (riskScore >= 6) {
