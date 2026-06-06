@@ -3601,6 +3601,22 @@ async function loadBacktest() {
         openReason: String(cell(c,15,''))
       };
     });
+    const shiftDate = (dateStr, days) => {
+      const m = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) return '';
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      d.setDate(d.getDate() + days);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    };
+    const findBacktestMeta = (dateStr, code) => {
+      const direct = logMap[dateStr + '_' + code];
+      if (direct) return direct;
+      for (let back = 1; back <= 4; back++) {
+        const prior = logMap[shiftDate(dateStr, -back) + '_' + code];
+        if (prior) return Object.assign({metaDateShift: -back}, prior);
+      }
+      return {};
+    };
     if (!rows.length) { qs('btContent').innerHTML = '<div class="state">還沒有回測資料</div>'; return; }
     const records = rows.map(r => {
       const base = {
@@ -3610,7 +3626,7 @@ async function loadBacktest() {
         price2:cell(r.c,8,'')===''?null:num(cell(r.c,8,'')), return2:cell(r.c,9,'')===''?null:num(cell(r.c,9,'')),
         price3:cell(r.c,10,'')===''?null:num(cell(r.c,10,'')), return3:cell(r.c,11,'')===''?null:num(cell(r.c,11,''))
       };
-      return Object.assign(base, logMap[base.date + '_' + base.code] || {}, openMap[base.date + '_' + base.code] || {});
+      return Object.assign(base, findBacktestMeta(base.date, base.code), openMap[base.date + '_' + base.code] || {});
     }).filter(r=>r.code && r.date.length===10);
     renderBacktest(records,0);
   } catch(e) {
@@ -4449,7 +4465,7 @@ function renderBacktest(records,scoreFilter) {
       const review = getBacktestReview(r);
       return `<div style="background:var(--bg2);border-radius:8px;padding:7px 10px;margin-bottom:5px">
         <div class="row-between">
-          <div><span style="font-size:.82rem;font-weight:700">${displayStockName(r)}</span> <span style="font-size:.62rem;color:var(--text3)">${r.code}</span> <span style="font-size:.62rem;background:var(--card);padding:1px 6px;border-radius:6px">${r.score}分</span>${getStrongConfirmTag(r)}${r.sector ? `<span style="font-size:.58rem;color:var(--brown);margin-left:4px">${r.sector}</span>` : ''}</div>
+          <div><span style="font-size:.82rem;font-weight:700">${displayStockName(r)}</span> <span style="font-size:.62rem;color:var(--text3)">${r.code}</span> <span style="font-size:.62rem;background:var(--card);padding:1px 6px;border-radius:6px">${r.score}分</span>${getStrongConfirmTag(r)}${getBullPickTag(r)}${r.sector ? `<span style="font-size:.58rem;color:var(--brown);margin-left:4px">${r.sector}</span>` : ''}</div>
           <div style="text-align:right;color:${retCol(main)};font-weight:700">${main===null?'等待中':`${main>=0?'+':''}${main.toFixed(2)}%`}<div style="font-size:.58rem;color:var(--text3);font-weight:400">${label}</div></div>
         </div>
         <div style="margin-top:5px;font-size:.66rem;line-height:1.5;color:var(--text2);border-left:3px solid ${review.color};padding-left:7px">
