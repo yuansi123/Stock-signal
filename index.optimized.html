@@ -3459,12 +3459,16 @@ async function loadDailyArticles() {
   el.innerHTML = '<div class="state"><div class="spinner"></div><div>載入日報...</div></div>';
   try {
     const rows = await fetchSheet('每日文章', true);
-    const articles = rows.map(r => ({
+    const articles = rows.map((r, rowIndex) => ({
       date: parseDateVal(cell(r.c,0,'')),
       title: String(cell(r.c,1,'')),
       content: String(cell(r.c,2,'')),
-      summary: String(cell(r.c,3,''))
-    })).filter(a => a.date && (a.title || a.content)).sort((a,b) => b.date.localeCompare(a.date));
+      summary: String(cell(r.c,3,'')),
+      rowIndex
+    })).filter(a => a.date && (a.title || a.content)).sort((a,b) => {
+      const dateOrder = b.date.localeCompare(a.date);
+      return dateOrder || b.rowIndex - a.rowIndex;
+    });
     dailyArticleCache = articles;
     if (!articles.length) {
       el.innerHTML = `<div class="plain-card" style="text-align:center">
