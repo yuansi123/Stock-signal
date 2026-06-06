@@ -4442,19 +4442,7 @@ function renderBacktest(records,scoreFilter) {
   const conditionEdgeHtml = buildConditionEdgeBacktest(filtered);
   const corrChartsHtml = buildBacktestCorrelationCharts(filtered);
   const statDashboardHtml = buildBacktestStatDashboard(filtered);
-  qs('btContent').innerHTML = `<div class="summary">
-    <div class="sum-card"><div class="sum-label">總訊號數</div><div class="sum-val brown">${filtered.length}</div><div class="sum-sub">已完成 ${done1.length}</div></div>
-    <div class="sum-card"><div class="sum-label">1日勝率</div><div class="sum-val" style="color:${done1.length&&win1/done1.length>=.5?'var(--green)':'var(--red)'}">${done1.length?Math.round(win1/done1.length*100)+'%':'—'}</div><div class="sum-sub">獲利 ${win1}/${done1.length}</div></div>
-    <div class="sum-card"><div class="sum-label">1日平均</div><div class="sum-val" style="color:${retCol(avg1)}">${retTxt(avg1)}</div></div>
-    <div class="sum-card"><div class="sum-label">3日平均</div><div class="sum-val" style="color:${retCol(avg3)}">${retTxt(avg3)}</div><div class="sum-sub">勝率 ${done3.length?Math.round(win3/done3.length*100)+'%':'—'}</div></div>
-  </div>
-  ${matrixHtml}
-  ${holdingHtml}
-  ${openConfirmPerfHtml}
-  ${conditionEdgeHtml}
-  ${corrChartsHtml}
-  ${statDashboardHtml}
-  <div class="control-row">${[{l:'全部',s:0},{l:'8分↑',s:8},{l:'10分↑',s:10}].map(b=>`<button class="filter-btn ${scoreFilter===b.s?'active':''}" onclick="renderBacktest(window._btRecords,${b.s})">${b.l}</button>`).join('')}</div>
+  const dayListHtml = `<div class="control-row">${[{l:'全部',s:0},{l:'8分↑',s:8},{l:'10分↑',s:10}].map(b=>`<button class="filter-btn ${scoreFilter===b.s?'active':''}" onclick="renderBacktest(window._btRecords,${b.s})">${b.l}</button>`).join('')}</div>
   ${Object.keys(byDate).sort().reverse().map(date => {
     const day = byDate[date], done = day.filter(r=>r.return3!==null), avgDay = avg(done.map(r=>r.return3));
     return `<div class="bt-card"><div class="row-between" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'" style="cursor:pointer">
@@ -4475,6 +4463,18 @@ function renderBacktest(records,scoreFilter) {
       </div>`;
     }).join('')}</div></div>`;
   }).join('')}`;
+  qs('btContent').innerHTML = `${dayListHtml}<div class="summary">
+    <div class="sum-card"><div class="sum-label">總訊號數</div><div class="sum-val brown">${filtered.length}</div><div class="sum-sub">已完成 ${done1.length}</div></div>
+    <div class="sum-card"><div class="sum-label">1日勝率</div><div class="sum-val" style="color:${done1.length&&win1/done1.length>=.5?'var(--green)':'var(--red)'}">${done1.length?Math.round(win1/done1.length*100)+'%':'—'}</div><div class="sum-sub">獲利 ${win1}/${done1.length}</div></div>
+    <div class="sum-card"><div class="sum-label">1日平均</div><div class="sum-val" style="color:${retCol(avg1)}">${retTxt(avg1)}</div></div>
+    <div class="sum-card"><div class="sum-label">3日平均</div><div class="sum-val" style="color:${retCol(avg3)}">${retTxt(avg3)}</div><div class="sum-sub">勝率 ${done3.length?Math.round(win3/done3.length*100)+'%':'—'}</div></div>
+  </div>
+  ${matrixHtml}
+  ${holdingHtml}
+  ${openConfirmPerfHtml}
+  ${conditionEdgeHtml}
+  ${corrChartsHtml}
+  ${statDashboardHtml}`;
   window._btRecords = records;
 
   // 板塊績效
@@ -4813,7 +4813,7 @@ async function loadMarketCorrelation() {
       </div>
     </div>`;
     const btEl=qs('btContent');
-    if(btEl) btEl.innerHTML=html+btEl.innerHTML;
+    if(btEl) btEl.innerHTML += html;
   } catch(e){console.log('大盤相關性失敗',e);}
 }
 
@@ -4900,7 +4900,7 @@ async function loadMarketCorrelation() {
           之後只要 Apps Script 開始累積「大盤日誌」，這裡就會自動顯示不同大盤漲跌情境下的勝率。
         </div>
       </div>`;
-      btEl.innerHTML = html + btEl.innerHTML;
+      btEl.innerHTML += html;
       return;
     }
 
@@ -4926,7 +4926,7 @@ async function loadMarketCorrelation() {
         }).join('')}
       </div>
     </div>`;
-    btEl.innerHTML = html + btEl.innerHTML;
+    btEl.innerHTML += html;
   } catch (e) {
     console.log('大盤相關性失敗', e);
   }
