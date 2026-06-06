@@ -3327,11 +3327,11 @@ function renderBriefing() {
     return {t, n: members.length, net, buy};
   }).filter(x => x.n > 0).sort((a,b) => b.net - a.net);
   if (themeStats.length) {
-    const rows = themeStats.map(x => {
+    const rows = themeStats.slice(0,3).map(x => {
       const sel = themeFilter === x.t.key;
-      return `<tr onclick="event.stopPropagation();filterByTheme('${x.t.key}')" title="${x.t.note}" style="cursor:pointer;border-top:1px solid var(--border)${sel?';background:'+x.t.color+'1f':''}"><td style="padding:3px 2px">${x.t.short}</td><td style="padding:3px 2px;text-align:right;color:${x.net>=0?'var(--red)':'var(--blue)'};font-weight:700">${x.net>=0?'+':''}${x.net}張</td><td style="padding:3px 2px;text-align:right;color:var(--green)">${x.buy?x.buy+'買':'—'}</td></tr>`;
+      return `<tr onclick="event.stopPropagation();filterByTheme('${x.t.key}')" title="${x.t.note}" style="cursor:pointer${sel?';background:'+x.t.color+'1f':''}"><td style="padding:1px 6px 1px 0">${x.t.short}</td><td style="padding:1px 6px;text-align:right;color:${x.net>=0?'var(--red)':'var(--blue)'};font-weight:700">${x.net>=0?'+':''}${x.net}</td><td style="padding:1px 0;text-align:right;color:var(--green)">${x.buy?x.buy+'買':''}</td></tr>`;
     }).join('');
-    blocks.push(block('🔥', '題材', `<table style="width:100%;border-collapse:collapse;font-size:.72rem"><tbody>${rows}</tbody></table>`, 'var(--red)'));
+    blocks.push(block('🔥', '題材', `<table style="border-collapse:collapse;font-size:.72rem">${rows}</table>`, 'var(--red)'));
   }
 
   card.innerHTML = `<div style="display:flex;flex-direction:column;gap:7px">${blocks.join('')}</div>`;
