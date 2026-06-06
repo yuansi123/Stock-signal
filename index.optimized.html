@@ -484,7 +484,7 @@ button,select,input { font-family:inherit; }
     <div class="sector-filter">
       <select class="sector-select" id="sectorFilter" onchange="setSectorFilter(this.value)">
         <option value="">🏭 所有板塊</option>
-        <option value="AI ASIC/IP">AI ASIC/IP</option><option value="晶圓代工/CoWoS">晶圓代工/CoWoS</option>
+        <option value="AI ASIC/IP">AI ASIC/IP</option><option value="晶片管理/BMC">晶片管理/BMC</option><option value="晶圓代工/CoWoS">晶圓代工/CoWoS</option>
         <option value="封測/OSAT">封測/OSAT</option><option value="AI晶片測試/探針卡">AI晶片測試/探針卡</option>
         <option value="先進封裝設備">先進封裝設備</option><option value="材料耗材/載具">材料耗材/載具</option>
         <option value="PCB/基板周邊">PCB/基板周邊</option><option value="HBM/記憶體">HBM/記憶體</option>
@@ -2714,10 +2714,10 @@ const THEME_MAP = [
     codes:['2327','3026','2492','3090'] },
   { key:'memory', icon:'🟢', name:'記憶體 Super Cycle', short:'記憶Super', color:'#5a9460',
     note:'大摩上修 南亞科380/華邦電222；DDR4 Q3再漲20%；eSSD與利基記憶體缺貨',
-    codes:['2344','2408','8299','3260','4919'] },
+    codes:['2344','2408','8299','3260'] },
   { key:'sicap', icon:'🟣', name:'SiCap 矽電容', short:'SiCap', color:'#8060a0',
     note:'GPU/HBM 穩壓新需求；華邦電以晶圓製程切入、國巨找國際夥伴',
-    codes:['2344','2327','4919'] },
+    codes:['2344','2327'] },
   { key:'advanced_process', icon:'⚙️', name:'先進製程耗材/檢測', short:'先進製程', color:'#7a5830',
     note:'5-6月歷史題材：先進製程代表鏈包含再生晶圓、鑽石碟、清洗、封裝、檢測。對應昇陽半、中砂、世禾、萬潤、京元電等，屬台積先進製程擴產受惠支線。',
     codes:['8028','1560','3551','6187','2449'] },
@@ -2728,13 +2728,14 @@ const THEME_MAP = [
 
 const APP_SECTOR_MAP = [
   {name:'AI ASIC/IP', desc:'上游AI加速器、ASIC設計服務、IP授權、BMC與高速傳輸IC', codes:['2454','3661','3443','3035','3006','5274','4966','5269','6415','3529','4968','6533','4967','6756','3450']},
+  {name:'晶片管理/BMC', desc:'AI伺服器主板管理控制晶片、BMC、遠端管理與系統監控IC', codes:['4919','5274']},
   {name:'晶圓代工/CoWoS', desc:'先進製程、AI晶片製造、CoWoS產能與晶圓代工核心', codes:['2330','2303','5347','3707']},
   {name:'封測/OSAT', desc:'先進封裝測試協力、OSAT委外封測、CoWoS外溢與後段封裝', codes:['3711','6239','2441','6147','3030','8150','6285','6271','3483','2402']},
   {name:'AI晶片測試/探針卡', desc:'AI/HPC晶片測試、測試介面、探針卡與高階測試板需求', codes:['2449','6510','6223','6515','6526','2360','3519','5443']},
   {name:'先進封裝設備', desc:'濕製程、自動化、檢測、貼合、清洗與先進封裝設備供應鏈', codes:['3131','3583','6187','6640','5443','2467','1560','3551']},
   {name:'材料耗材/載具', desc:'半導體材料、耗材、晶圓載具、載板耗材與製程周邊材料', codes:['1560','3680','4763','4768','8028']},
   {name:'PCB/基板周邊', desc:'市場延伸題材、基板周邊材料、PCB上游與訂單營收占比觀察', codes:['2316','6213','6274','2383']},
-  {name:'HBM/記憶體', desc:'HBM、DDR5、利基DRAM、NAND控制IC、AI伺服器記憶體與SSD', codes:['2408','2344','8299','3260','4967','4919','2451','2337']},
+  {name:'HBM/記憶體', desc:'HBM、DDR5、利基DRAM、NAND控制IC、AI伺服器記憶體與SSD', codes:['2408','2344','8299','3260','4967','2451','2337']},
   {name:'ABF載板/高速PCB', desc:'ABF載板、高頻CCL、高速PCB、800G/1.6T交換器與AI伺服器板', codes:['3037','8046','3189','2383','2368','3044','6274','6213','4958','8358','2367','6269','3715','8021','4977']},
   {name:'AI伺服器/ODM', desc:'AI伺服器組裝、機櫃、整機出貨、GPU模組與雲端資料中心設備', codes:['2382','6669','3231','2317','2356','2376','2357','2377','3005','4938']},
   {name:'液冷散熱', desc:'水冷板、冷卻模組、風扇、熱管理與高功耗AI伺服器散熱', codes:['3017','3324','2421','3653','6805','8996','6230','3652','6278','4974','3483']},
@@ -3197,7 +3198,7 @@ async function generateDailySummary() {
   if (!section || !card || !allStocks.length) return;
   section.style.display = '';
   card.innerHTML = '<div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div>';
-  const valid = ['AI ASIC/IP','晶圓代工/CoWoS','封測/OSAT','AI晶片測試/探針卡','先進封裝設備','材料耗材/載具','PCB/基板周邊','HBM/記憶體','ABF載板/高速PCB','AI伺服器/ODM','液冷散熱','CPO/光通訊','電源/電力管理','功率半導體/導線架','AI PC供應鏈','機構/導軌/連接器','機器人/人形機器人','光電/面板','被動元件/機構','測試設備','工業電腦/自動化','電子通路','軟體/雲端','電動車/綠能','其他電子'];
+  const valid = ['AI ASIC/IP','晶片管理/BMC','晶圓代工/CoWoS','封測/OSAT','AI晶片測試/探針卡','先進封裝設備','材料耗材/載具','PCB/基板周邊','HBM/記憶體','ABF載板/高速PCB','AI伺服器/ODM','液冷散熱','CPO/光通訊','電源/電力管理','功率半導體/導線架','AI PC供應鏈','機構/導軌/連接器','機器人/人形機器人','光電/面板','被動元件/機構','測試設備','工業電腦/自動化','電子通路','軟體/雲端','電動車/綠能','其他電子'];
   const map = {};
   allStocks.forEach(s => {
     const sec = valid.includes(s.sector) ? s.sector : '其他電子';
