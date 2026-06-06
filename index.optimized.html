@@ -484,17 +484,17 @@ button,select,input { font-family:inherit; }
     <div class="sector-filter">
       <select class="sector-select" id="sectorFilter" onchange="setSectorFilter(this.value)">
         <option value="">🏭 所有板塊</option>
-        <option value="AI伺服器/ODM">AI伺服器/ODM</option><option value="散熱液冷">散熱液冷</option>
-        <option value="PCB/IC載板">PCB/IC載板</option><option value="功率半導體IDM">功率半導體IDM</option>
-        <option value="晶圓代工">晶圓代工</option><option value="導線架">導線架</option>
-        <option value="AI PC供應鏈">AI PC供應鏈</option><option value="電源/BBU">電源/BBU</option>
-        <option value="半導體/IC設計">半導體/IC設計</option><option value="封測">封測</option>
-        <option value="網通/連接">網通/連接</option>
-        <option value="光電/面板">光電/面板</option><option value="被動元件/機構">被動元件/機構</option>
-        <option value="記憶體">記憶體</option><option value="測試設備">測試設備</option>
+        <option value="AI ASIC/IP">AI ASIC/IP</option><option value="晶圓代工/CoWoS">晶圓代工/CoWoS</option>
+        <option value="CoWoS/先進封裝">CoWoS/先進封裝</option><option value="HBM/記憶體">HBM/記憶體</option>
+        <option value="ABF載板/高速PCB">ABF載板/高速PCB</option><option value="AI伺服器/ODM">AI伺服器/ODM</option>
+        <option value="液冷散熱">液冷散熱</option><option value="CPO/光通訊">CPO/光通訊</option>
+        <option value="電源/電力管理">電源/電力管理</option><option value="功率半導體/導線架">功率半導體/導線架</option>
+        <option value="AI PC供應鏈">AI PC供應鏈</option><option value="機構/導軌/連接器">機構/導軌/連接器</option>
+        <option value="機器人/人形機器人">機器人/人形機器人</option>
+        <option value="光電/面板">光電/面板</option><option value="被動元件/機構">被動元件/機構</option><option value="測試設備">測試設備</option>
         <option value="工業電腦/自動化">工業電腦/自動化</option><option value="電子通路">電子通路</option>
         <option value="軟體/雲端">軟體/雲端</option><option value="電動車/綠能">電動車/綠能</option>
-        <option value="功率元件">功率元件</option><option value="機器人/人形機器人">機器人/人形機器人</option><option value="其他電子">其他電子</option>
+        <option value="其他電子">其他電子</option>
       </select>
       <select class="sector-select" id="volFilter" onchange="saveFilters();renderCards()">
         <option value="">📊 所有規模</option>
@@ -2674,15 +2674,27 @@ function hlMatch(text, q) {
 // ⚠️ 純題材標記與資金統計，不影響 score / op / 選股；新題材在這裡增刪即可
 // 來源：x.stock_men（Chris）產業分析，僅收錄文章點名且代號確認的台股
 const THEME_MAP = [
+  { key:'ai_asic', icon:'🧠', name:'AI ASIC / IP', short:'AI ASIC', color:'#7a5830',
+    note:'聯發科Google TPU、創意/世芯ASIC設計服務、智原IP與客製化晶片，屬AI上游設計源頭。',
+    codes:['2454','3661','3443','3035','3006','5274','4966','5269'] },
+  { key:'cowos_packaging', icon:'📦', name:'CoWoS / 先進封裝', short:'CoWoS', color:'#a07850',
+    note:'CoWoS產能、2.5D/3D封裝、HBM整合與AI GPU/TPU測試外溢。',
+    codes:['2330','3711','2449','6239','2441','6147'] },
+  { key:'abf_pcb', icon:'🟠', name:'ABF載板 / 高速PCB', short:'ABF/PCB', color:'#c08830',
+    note:'AI GPU/ASIC必用ABF載板、高頻CCL、高速PCB、800G/1.6T交換器板。',
+    codes:['3037','8046','3189','2383','2368','3044','6274','6213'] },
+  { key:'cpo_optical', icon:'🔷', name:'CPO / 光通訊', short:'CPO光通訊', color:'#4878a0',
+    note:'高速光模組、CPO、矽光子與AI資料中心高速傳輸升級。',
+    codes:['3081','3363','6442','2345'] },
   { key:'ai_server', icon:'🖥️', name:'AI 伺服器 / ODM', short:'AI伺服器', color:'#5a9460',
-    note:'廣達、緯創、英業達、奇鋐等受惠AI伺服器整機、機櫃、雲端客戶拉貨與法說訂單能見度。',
-    codes:['2382','3231','2356','6669','2317','3017'] },
+    note:'廣達、緯創、英業達、緯穎、鴻海等受惠AI伺服器整機、機櫃、雲端客戶拉貨。',
+    codes:['2382','3231','2356','6669','2317','2376','2357','2377'] },
   { key:'thermal_liquid', icon:'❄️', name:'散熱 / 液冷', short:'散熱液冷', color:'#2f8f8f',
     note:'高瓦數AI伺服器帶動散熱模組、液冷、水冷板、熱管與機櫃散熱升級。',
-    codes:['3017','3324','3653','6230','6278','4974'] },
+    codes:['3017','3324','2421','3653','6805','8996','6230','3652','6278','4974'] },
   { key:'power_semis', icon:'⚡', name:'功率半導體 / 導線架', short:'功率半導體', color:'#c0503a',
     note:'AI資料中心與800V架構提高電源效率需求，功率半導體IDM、晶圓代工、導線架供應鏈受關注。',
-    codes:['2342','2481','8261','5299','4961','5347','3707','2351','8070','6548'] },
+    codes:['2342','2481','8261','5299','4961','5347','3707','2351','8070','6548','2486'] },
   { key:'ai_pc', icon:'💻', name:'AI PC 供應鏈', short:'AI PC', color:'#8060a0',
     note:'Agent PC與AI終端下沉，筆電代工、品牌、主機板、邊緣運算與終端散熱題材升溫。',
     codes:['2324','4938','2357','2377','2353','2356','2301'] },
@@ -2704,16 +2716,19 @@ const THEME_MAP = [
 ];
 
 const APP_SECTOR_MAP = [
-  {name:'AI伺服器/ODM', desc:'AI伺服器整機、主機板、系統組裝與雲端客戶拉貨', codes:['2382','3231','2356','6669','2317','2376','2377','2301','3005']},
-  {name:'散熱液冷', desc:'AI伺服器散熱模組、液冷、水冷板、熱管與高瓦數散熱材料', codes:['3017','3324','3653','6230','6278','4974','2421','3483']},
-  {name:'PCB/IC載板', desc:'AI伺服器PCB、ABF載板、CCL、高速板材與先進封裝基板', codes:['4958','3037','8046','2383','6274','8358','2368','2367','6269','3715','8021','4977']},
-  {name:'功率半導體IDM', desc:'電源管理、MOSFET、功率元件與高壓/車用/AI電源供應鏈', codes:['2342','2481','8261','5299','4961','8081','6643','6282','3163','6770','5283','3658']},
-  {name:'晶圓代工', desc:'先進製程、成熟製程、功率半導體與特殊製程晶圓代工', codes:['2330','2303','5347','3707','6770']},
-  {name:'導線架', desc:'功率半導體封裝導線架、散熱基板與封裝材料供應鏈', codes:['2351','8070','6548','2486']},
-  {name:'AI PC供應鏈', desc:'AI PC代工、品牌、主機板、筆電平台與終端AI下沉題材', codes:['2324','4938','2357','2377','2353','2356','2301','2382']},
-  {name:'電源/BBU', desc:'AI資料中心電源、UPS、BBU備援電池與電力基礎建設', codes:['2308','3311','3691','6803','3324','8367','1515','1519','1535']},
-  {name:'半導體/IC設計', desc:'IC設計、ASIC、IP、高速傳輸、訊號鏈與AI晶片周邊', codes:['2454','2379','3034','3035','6415','3443','4966','3529','5274','3661','5269','4968','6533','4967','6756','3450']},
-  {name:'封測', desc:'晶圓測試、封裝、先進封裝後段、測試介面與封測服務', codes:['3711','2449','6223','3030','2441','8150','6285','6271','6510','3483','2402']}
+  {name:'AI ASIC/IP', desc:'上游AI加速器、ASIC設計服務、IP授權、BMC與高速傳輸IC', codes:['2454','3661','3443','3035','3006','5274','4966','5269','6415','3529','4968','6533','4967','6756','3450']},
+  {name:'晶圓代工/CoWoS', desc:'先進製程、AI晶片製造、CoWoS產能與晶圓代工核心', codes:['2330','2303','5347','3707']},
+  {name:'CoWoS/先進封裝', desc:'2.5D/3D封裝、CoWoS、HBM整合、AI GPU/TPU封裝測試', codes:['3711','2449','6239','2441','6147','6223','3030','8150','6285','6271','6510','3483','2402']},
+  {name:'HBM/記憶體', desc:'HBM、DDR5、利基DRAM、NAND控制IC、AI伺服器記憶體與SSD', codes:['2408','2344','8299','3260','4967','4919','2451','2337']},
+  {name:'ABF載板/高速PCB', desc:'ABF載板、高頻CCL、高速PCB、800G/1.6T交換器與AI伺服器板', codes:['3037','8046','3189','2383','2368','3044','6274','6213','4958','8358','2367','6269','3715','8021','4977']},
+  {name:'AI伺服器/ODM', desc:'AI伺服器組裝、機櫃、整機出貨、GPU模組與雲端資料中心設備', codes:['2382','6669','3231','2317','2356','2376','2357','2377','3005','4938']},
+  {name:'液冷散熱', desc:'水冷板、冷卻模組、風扇、熱管理與高功耗AI伺服器散熱', codes:['3017','3324','2421','3653','6805','8996','6230','3652','6278','4974','3483']},
+  {name:'CPO/光通訊', desc:'高速光模組、CPO、矽光子、光纖與AI資料中心高速傳輸', codes:['3081','3363','6442','2345','4977','3596','6409','3490','4987','6289','2332']},
+  {name:'電源/電力管理', desc:'AI資料中心電源供應器、UPS、800V HVDC、能源管理與電力轉換', codes:['2308','2301','2385','3311','3691','6803','8367','1515','1519','1535']},
+  {name:'功率半導體/導線架', desc:'MOSFET、功率元件、功率晶圓代工、封裝導線架與散熱基板', codes:['2342','2481','8261','5299','4961','8081','6643','6282','3163','6770','5283','3658','2351','8070','6548','2486']},
+  {name:'AI PC供應鏈', desc:'Agent PC、AI終端、筆電代工、主機板、品牌板卡與邊緣AI', codes:['2324','4938','2357','2377','2353','2356','2301','2382']},
+  {name:'機構/導軌/連接器', desc:'AI伺服器機殼、導軌、連接器、機構件與高階零組件', codes:['2059','8210','3533','3013','3032','3693','5465','2399','3014','6239']},
+  {name:'機器人/人形機器人', desc:'線性滑軌、滾珠螺桿、機器視覺、氣動元件與工業自動化', codes:['2049','2359','2464','1590','1597','4562','2308','1504','8059','6214','3462','4960','6121']}
 ];
 function getAppSectorInfo(code, fallbackSector = '') {
   const c = String(code);
@@ -3167,7 +3182,7 @@ async function generateDailySummary() {
   if (!section || !card || !allStocks.length) return;
   section.style.display = '';
   card.innerHTML = '<div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div>';
-  const valid = ['AI伺服器/ODM','散熱液冷','PCB/IC載板','功率半導體IDM','晶圓代工','導線架','AI PC供應鏈','電源/BBU','半導體/IC設計','封測','網通/連接','光電/面板','被動元件/機構','記憶體','測試設備','工業電腦/自動化','電子通路','軟體/雲端','電動車/綠能','功率元件','機器人/人形機器人','其他電子'];
+  const valid = ['AI ASIC/IP','晶圓代工/CoWoS','CoWoS/先進封裝','HBM/記憶體','ABF載板/高速PCB','AI伺服器/ODM','液冷散熱','CPO/光通訊','電源/電力管理','功率半導體/導線架','AI PC供應鏈','機構/導軌/連接器','機器人/人形機器人','光電/面板','被動元件/機構','測試設備','工業電腦/自動化','電子通路','軟體/雲端','電動車/綠能','其他電子'];
   const map = {};
   allStocks.forEach(s => {
     const sec = valid.includes(s.sector) ? s.sector : '其他電子';
