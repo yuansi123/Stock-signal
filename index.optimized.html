@@ -484,9 +484,12 @@ button,select,input { font-family:inherit; }
     <div class="sector-filter">
       <select class="sector-select" id="sectorFilter" onchange="setSectorFilter(this.value)">
         <option value="">🏭 所有板塊</option>
+        <option value="AI伺服器/ODM">AI伺服器/ODM</option><option value="散熱液冷">散熱液冷</option>
+        <option value="PCB/IC載板">PCB/IC載板</option><option value="功率半導體IDM">功率半導體IDM</option>
+        <option value="晶圓代工">晶圓代工</option><option value="導線架">導線架</option>
+        <option value="AI PC供應鏈">AI PC供應鏈</option><option value="電源/BBU">電源/BBU</option>
         <option value="半導體/IC設計">半導體/IC設計</option><option value="封測">封測</option>
-        <option value="AI伺服器/ODM">AI伺服器/ODM</option><option value="電源/散熱">電源/散熱</option>
-        <option value="PCB/載板">PCB/載板</option><option value="網通/連接">網通/連接</option>
+        <option value="網通/連接">網通/連接</option>
         <option value="光電/面板">光電/面板</option><option value="被動元件/機構">被動元件/機構</option>
         <option value="記憶體">記憶體</option><option value="測試設備">測試設備</option>
         <option value="工業電腦/自動化">工業電腦/自動化</option><option value="電子通路">電子通路</option>
@@ -1516,25 +1519,8 @@ function renderActionList() {
     return base + warn + hist + inf;
   };
   const businessHint = stock => {
-    if (stock.sector !== '其他電子') return '';
-    const map = {
-      '6485':'高速傳輸晶片設計',
-      '4526':'工具機/PCB設備',
-      '6451':'IC測試介面',
-      '2493':'電子設備/自動化',
-      '2451':'記憶體模組/工控儲存',
-      '2328':'線材/連接器',
-      '6196':'電子零組件通路',
-      '2467':'電源與散熱',
-      '2385':'機殼/機構件',
-      '6278':'材料/散熱元件',
-      '8147':'伺服器機構件',
-      '6218':'系統整合/設備',
-      '4974':'散熱模組',
-      '3545':'光學/檢測設備',
-      '6277':'工業電腦/設備'
-    };
-    return map[String(stock.code)] || '';
+    if (stock.sectorDesc && stock.sectorDesc !== stock.sector + '相關題材') return stock.sectorDesc;
+    return getOtherElectronicsHint(stock.code);
   };
   const row = (x, meta, color) => {
     const isHot = x.entryStatus === 'inside' && (Number(x.stock.score) >= 10 || Number(x.stock.instNet) >= 500);
@@ -2506,8 +2492,11 @@ function renderUniversalSearch(q) {
 
 function mapSignalRow(row) {
   const c = row.c || [];
+  const code = String(cell(c,COL.code,''));
+  const rawSector = String(cell(c,COL.sector,''));
+  const sectorInfo = getAppSectorInfo(code, rawSector);
   return {
-    date: parseDateVal(cell(c,COL.date,'')), code:String(cell(c,COL.code,'')), name:String(cell(c,COL.name,'')),
+    date: parseDateVal(cell(c,COL.date,'')), code, name:String(cell(c,COL.name,'')),
     op:String(cell(c,COL.op,'')), score:Number(cell(c,COL.score,0)) || 0,
     instNet:Number(cell(c,COL.instNet,0)) || 0, streak:Number(cell(c,COL.streak,0)) || 0,
     conc5:fmtPct(cell(c,COL.conc5,'')), conc5raw:cell(c,COL.conc5,0), abnormal:String(cell(c,COL.abnormal,'')),
@@ -2515,7 +2504,7 @@ function mapSignalRow(row) {
     instS:Number(cell(c,COL.instS,0)) || 0, concS:Number(cell(c,COL.concS,0)) || 0,
     rsiS:Number(cell(c,COL.rsiS,0)) || 0, kdS:Number(cell(c,COL.kdS,0)) || 0,
     price:cell(c,COL.price,0), rsi:String(cell(c,COL.rsi,'')), kVal:String(cell(c,COL.kVal,'')), dVal:String(cell(c,COL.dVal,'')),
-    sector:String(cell(c,COL.sector,'')), vol:Number(cell(c,COL.vol,0)) || 0, reasons:String(cell(c,COL.reasons,'')),
+    sector:sectorInfo.name, sourceSector:rawSector, sectorDesc:sectorInfo.desc, vol:Number(cell(c,COL.vol,0)) || 0, reasons:String(cell(c,COL.reasons,'')),
     marginBal:Number(cell(c,COL.marginBal,0)) || 0, marginChg:Number(cell(c,COL.marginChg,0)) || 0,
     shortBal:Number(cell(c,COL.shortBal,0)) || 0, shortRatio:Number(cell(c,COL.shortRatio,0)) || 0,
     foreign:Number(cell(c,COL.foreign,0)) || 0, trust:Number(cell(c,COL.trust,0)) || 0, dealer:Number(cell(c,COL.dealer,0)) || 0,
@@ -2685,6 +2674,18 @@ function hlMatch(text, q) {
 // ⚠️ 純題材標記與資金統計，不影響 score / op / 選股；新題材在這裡增刪即可
 // 來源：x.stock_men（Chris）產業分析，僅收錄文章點名且代號確認的台股
 const THEME_MAP = [
+  { key:'ai_server', icon:'🖥️', name:'AI 伺服器 / ODM', short:'AI伺服器', color:'#5a9460',
+    note:'廣達、緯創、英業達、奇鋐等受惠AI伺服器整機、機櫃、雲端客戶拉貨與法說訂單能見度。',
+    codes:['2382','3231','2356','6669','2317','3017'] },
+  { key:'thermal_liquid', icon:'❄️', name:'散熱 / 液冷', short:'散熱液冷', color:'#2f8f8f',
+    note:'高瓦數AI伺服器帶動散熱模組、液冷、水冷板、熱管與機櫃散熱升級。',
+    codes:['3017','3324','3653','6230','6278','4974'] },
+  { key:'power_semis', icon:'⚡', name:'功率半導體 / 導線架', short:'功率半導體', color:'#c0503a',
+    note:'AI資料中心與800V架構提高電源效率需求，功率半導體IDM、晶圓代工、導線架供應鏈受關注。',
+    codes:['2342','2481','8261','5299','4961','5347','3707','2351','8070','6548'] },
+  { key:'ai_pc', icon:'💻', name:'AI PC 供應鏈', short:'AI PC', color:'#8060a0',
+    note:'Agent PC與AI終端下沉，筆電代工、品牌、主機板、邊緣運算與終端散熱題材升溫。',
+    codes:['2324','4938','2357','2377','2353','2356','2301'] },
   { key:'passive', icon:'🔵', name:'被動元件 Super Cycle', short:'被動Super', color:'#4878a0',
     note:'AI Server 拉貨漲價；出關日 國巨6/8、日電貿6/9、禾伸堂6/11、華新科6/17；小摩喊國巨1000',
     codes:['2327','3026','2492','3090'] },
@@ -2701,6 +2702,42 @@ const THEME_MAP = [
     note:'M8/M9 升級；ABF膜與T布缺貨漲價；VR200 拉貨',
     codes:['2383','6274'] }
 ];
+
+const APP_SECTOR_MAP = [
+  {name:'AI伺服器/ODM', desc:'AI伺服器整機、主機板、系統組裝與雲端客戶拉貨', codes:['2382','3231','2356','6669','2317','2376','2377','2301','3005']},
+  {name:'散熱液冷', desc:'AI伺服器散熱模組、液冷、水冷板、熱管與高瓦數散熱材料', codes:['3017','3324','3653','6230','6278','4974','2421','3483']},
+  {name:'PCB/IC載板', desc:'AI伺服器PCB、ABF載板、CCL、高速板材與先進封裝基板', codes:['4958','3037','8046','2383','6274','8358','2368','2367','6269','3715','8021','4977']},
+  {name:'功率半導體IDM', desc:'電源管理、MOSFET、功率元件與高壓/車用/AI電源供應鏈', codes:['2342','2481','8261','5299','4961','8081','6643','6282','3163','6770','5283','3658']},
+  {name:'晶圓代工', desc:'先進製程、成熟製程、功率半導體與特殊製程晶圓代工', codes:['2330','2303','5347','3707','6770']},
+  {name:'導線架', desc:'功率半導體封裝導線架、散熱基板與封裝材料供應鏈', codes:['2351','8070','6548','2486']},
+  {name:'AI PC供應鏈', desc:'AI PC代工、品牌、主機板、筆電平台與終端AI下沉題材', codes:['2324','4938','2357','2377','2353','2356','2301','2382']},
+  {name:'電源/BBU', desc:'AI資料中心電源、UPS、BBU備援電池與電力基礎建設', codes:['2308','3311','3691','6803','3324','8367','1515','1519','1535']},
+  {name:'半導體/IC設計', desc:'IC設計、ASIC、IP、高速傳輸、訊號鏈與AI晶片周邊', codes:['2454','2379','3034','3035','6415','3443','4966','3529','5274','3661','5269','4968','6533','4967','6756','3450']},
+  {name:'封測', desc:'晶圓測試、封裝、先進封裝後段、測試介面與封測服務', codes:['3711','2449','6223','3030','2441','8150','6285','6271','6510','3483','2402']}
+];
+function getAppSectorInfo(code, fallbackSector = '') {
+  const c = String(code);
+  const hit = APP_SECTOR_MAP.find(s => s.codes.includes(c));
+  if (hit) return hit;
+  const fallbackDesc = fallbackSector && fallbackSector !== '其他電子'
+    ? fallbackSector + '相關題材'
+    : getOtherElectronicsHint(c) || '電子零組件、設備、材料或次族群題材';
+  return {name: fallbackSector || '其他電子', desc: fallbackDesc, codes:[]};
+}
+function getOtherElectronicsHint(code) {
+  const map = {
+    '6485':'高速傳輸晶片設計','4526':'工具機/PCB設備','6451':'IC測試介面','2493':'電子設備/自動化',
+    '2451':'記憶體模組/工控儲存','2328':'線材/連接器','6196':'電子零組件通路','2467':'電源與散熱',
+    '2385':'機殼/機構件','6278':'材料/散熱元件','8147':'伺服器機構件','6218':'系統整合/設備',
+    '4974':'散熱模組','3545':'光學/檢測設備','6277':'工業電腦/設備'
+  };
+  return map[String(code)] || '';
+}
+function getSectorStoryTag(s) {
+  const info = getAppSectorInfo(s.code, s.sector);
+  if (!info.desc) return '';
+  return `<span class="signal-tag" style="background:#ede7da;color:var(--brown-dark)" title="${info.desc}">題材:${info.name}</span>`;
+}
 function getStockThemes(code) {
   const c = String(code);
   return THEME_MAP.filter(t => t.codes.includes(c));
@@ -3019,8 +3056,8 @@ function renderCards() {
     return `<div class="card op-${opClass}" style="animation-delay:${Math.min(i*.035,.5)}s">
       <div class="card-header">
         <div>
-          <div class="stock-name">${strongConfirmPrefix(s)}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getThemeTag(s)}${getInfluencerTag(s)}${getDayTradeTag(s)}${getBullPickTag(s)}</div>
-          <div class="stock-code">${hlMatch(s.code,q)}${s.sector ? ` · <span onclick="setSectorFilter('${s.sector.replace(/'/g,"\\'")}');event.stopPropagation()" style="cursor:pointer;color:var(--brown)">${s.sector}</span>` : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
+          <div class="stock-name">${strongConfirmPrefix(s)}${hlMatch(s.name,q)}${getSignalTag(s)}${getTrendTag(s)}${getClassicTag(s)}${fourCond?'<span class="signal-tag hot">四大條件</span>':''}${getSectorStoryTag(s)}${getThemeTag(s)}${getInfluencerTag(s)}${getDayTradeTag(s)}${getBullPickTag(s)}</div>
+          <div class="stock-code">${hlMatch(s.code,q)}${s.sector ? ` · <span onclick="setSectorFilter('${s.sector.replace(/'/g,"\\'")}');event.stopPropagation()" style="cursor:pointer;color:var(--brown)">${s.sector}</span>` : ''}${s.sectorDesc ? ` · ${s.sectorDesc}` : ''} · ${s.date.slice(5).replace('-','/')}收盤 $${s.price}</div>
         </div>
         <div class="price">$${s.price}</div>
       </div>
@@ -3130,7 +3167,7 @@ async function generateDailySummary() {
   if (!section || !card || !allStocks.length) return;
   section.style.display = '';
   card.innerHTML = '<div class="spinner" style="width:20px;height:20px;margin:.5rem auto"></div>';
-  const valid = ['半導體/IC設計','封測','AI伺服器/ODM','電源/散熱','PCB/載板','網通/連接','光電/面板','被動元件/機構','記憶體','測試設備','工業電腦/自動化','電子通路','軟體/雲端','電動車/綠能','功率元件','機器人/人形機器人','其他電子'];
+  const valid = ['AI伺服器/ODM','散熱液冷','PCB/IC載板','功率半導體IDM','晶圓代工','導線架','AI PC供應鏈','電源/BBU','半導體/IC設計','封測','網通/連接','光電/面板','被動元件/機構','記憶體','測試設備','工業電腦/自動化','電子通路','軟體/雲端','電動車/綠能','功率元件','機器人/人形機器人','其他電子'];
   const map = {};
   allStocks.forEach(s => {
     const sec = valid.includes(s.sector) ? s.sector : '其他電子';
