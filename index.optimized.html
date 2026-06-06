@@ -3497,7 +3497,7 @@ function renderOpenBias(data) {
       <div style="width:42px;height:42px;border-radius:14px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:900;color:${col}">${icon}</div>
       <div style="flex:1">
         <div style="font-size:1rem;font-weight:900;color:${col}">${data.bias || '平開震盪'}</div>
-        <div style="font-size:.68rem;color:var(--text3);margin-top:2px">信心 ${conf.toFixed(0)}% · 方向分 ${score.toFixed(0)}/100</div>
+        <div style="font-size:.68rem;color:var(--text3);margin-top:2px">方向分 ${score.toFixed(0)}/100（50=平盤，越低越偏開低、越高越偏開高）· 把握 ${conf.toFixed(0)}%（越高系統越篤定）</div>
       </div>
     </div>
     <div style="position:relative;height:8px;background:linear-gradient(90deg,var(--blue),var(--bg2),var(--red));border-radius:999px;margin:8px 0 10px">
