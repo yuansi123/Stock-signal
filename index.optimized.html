@@ -3263,9 +3263,9 @@ function renderBriefing() {
   if (!section || !card || !allStocks.length) return;
 
   const block = (icon, title, bodyHtml, color, onclick) =>
-    `<div ${onclick?`onclick="${onclick}"`:''} style="padding:.55rem .7rem;border-radius:12px;background:var(--card2);border:1px solid var(--border);border-left:4px solid ${color};${onclick?'cursor:pointer':''}">
-      <div style="font-size:.62rem;color:var(--text3);font-weight:700;margin-bottom:3px">${icon} ${title}</div>
-      <div style="font-size:.76rem;line-height:1.55;color:var(--text2)">${bodyHtml}</div>
+    `<div ${onclick?`onclick="${onclick}"`:''} style="display:flex;align-items:baseline;gap:9px;padding:.5rem .65rem;background:var(--card2);border-left:3px solid var(--border);border-radius:0 8px 8px 0;margin-bottom:6px;${onclick?'cursor:pointer':''}">
+      <span style="font-size:.64rem;color:var(--text3);font-weight:700;white-space:nowrap;flex-shrink:0;min-width:3.4em">${icon} ${title}</span>
+      <span style="font-size:.76rem;line-height:1.5;color:var(--text);flex:1;min-width:0">${bodyHtml}</span>
     </div>`;
 
   const blocks = [];
@@ -3275,7 +3275,7 @@ function renderBriefing() {
   if (m) {
     const chgCol = m.twiiChange >= 0 ? 'var(--red)' : 'var(--blue)';
     const lampCol = String(m.status).includes('🔴') ? 'var(--red)' : String(m.status).includes('🟡') ? 'var(--yellow)' : 'var(--green)';
-    blocks.push(block('🌡️', '大盤狀態',
+    blocks.push(block('🌡️', '大盤',
       `<span style="font-weight:700;color:${lampCol}">${m.status || '—'}</span>　台股 <span style="color:${chgCol};font-weight:700">${m.twiiChange>=0?'+':''}${Number(m.twiiChange).toFixed(2)}%</span>　VIX ${Number(m.vix).toFixed(1)}`,
       lampCol, "document.getElementById('marketRadar').scrollIntoView({behavior:'smooth'})"));
   }
@@ -3288,9 +3288,9 @@ function renderBriefing() {
       const star = strongConfirmPrefix(s).trim();
       return `<span onclick="event.stopPropagation();focusStock('${s.code}')" style="display:inline-block;cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:2px 7px;margin:2px 4px 0 0;font-size:.72rem">${star}<strong>${s.name}</strong> <span style="color:var(--brown)">${s.score}分</span> <span style="color:${s.instNet>=0?'var(--red)':'var(--blue)'}">${s.instNet>=0?'+':''}${s.instNet}</span></span>`;
     }).join('');
-    blocks.push(block('⭐', '今日最強訊號', chips, 'var(--green)'));
+    blocks.push(block('⭐', '最強', chips, 'var(--green)'));
   } else {
-    blocks.push(block('⭐', '今日最強訊號', '今日無買入訊號，盤面偏保守', 'var(--text3)'));
+    blocks.push(block('⭐', '最強', '今日無買入訊號，盤面偏保守', 'var(--text3)'));
   }
 
   // ③ 板塊資金流向（複用輪動算法）
@@ -3307,14 +3307,14 @@ function renderBriefing() {
     const chip = (s,pos) => `<span onclick="event.stopPropagation();setSectorFilter('${s.name.replace(/'/g,"\\'")}')" style="cursor:pointer;color:${pos?'var(--red)':'var(--blue)'};font-weight:700">${s.name.split('/')[0]} ${pos?'+':''}${s.avg}</span>`;
     const inHtml = inflow.length ? inflow.map(s=>chip(s,true)).join('、') : '無明顯流入';
     const outHtml = outflow.length ? outflow.map(s=>chip(s,false)).join('') : '無明顯流出';
-    blocks.push(block('🏭', '板塊資金流向（張/檔）', `流入 ${inHtml}　｜　流出 ${outHtml}`, 'var(--brown)'));
+    blocks.push(block('🏭', '板塊', `流入 ${inHtml}　｜　流出 ${outHtml}`, 'var(--brown)'));
   }
 
   // ④ 昨日訊號戰績（昨日🟢今日漲跌）
   const review = computeBriefingReview();
   if (review) {
     const col = review.avgChg >= 0 ? 'var(--red)' : 'var(--blue)';
-    blocks.push(block('📊', '昨日訊號戰績',
+    blocks.push(block('📊', '戰績',
       `昨日 <strong>${review.n}</strong> 檔買入訊號，今日命中（上漲）<strong style="color:var(--red)">${review.hit}</strong> 檔（${Math.round(review.hit/review.n*100)}%），平均 <strong style="color:${col}">${review.avgChg>=0?'+':''}${review.avgChg.toFixed(2)}%</strong>`,
       col, "showPage('backtest')"));
   }
@@ -3331,7 +3331,7 @@ function renderBriefing() {
       const sel = themeFilter === x.t.key;
       return `<span onclick="event.stopPropagation();filterByTheme('${x.t.key}')" title="${x.t.note}" style="display:inline-block;cursor:pointer;border:1px solid ${sel?x.t.color:'var(--border)'};background:${sel?x.t.color+'22':'var(--bg2)'};border-radius:8px;padding:2px 7px;margin:2px 5px 0 0;font-size:.72rem">${x.t.icon}<strong>${x.t.short}</strong> <span style="color:${x.net>=0?'var(--red)':'var(--blue)'};font-weight:700">${x.net>=0?'+':''}${x.net}張</span>${x.buy?` <span style="color:var(--green)">${x.buy}買</span>`:''}</span>`;
     }).join('');
-    blocks.push(block('🔥', '題材資金流向（法人買超）', chips, 'var(--red)'));
+    blocks.push(block('🔥', '題材', chips, 'var(--red)'));
   }
 
   card.innerHTML = `<div style="display:flex;flex-direction:column;gap:7px">${blocks.join('')}</div>`;
