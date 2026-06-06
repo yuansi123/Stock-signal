@@ -624,6 +624,16 @@ button,select,input { font-family:inherit; }
   </div>
 </div>
 
+<div id="dailyPage" style="display:none">
+  <div class="wrap">
+    <div class="bt-header">
+      <div class="logo"><div class="logo-icon">📰</div><div><div class="logo-title">籌碼貓日報</div><div class="logo-sub">DAILY TECH BRIEF</div></div></div>
+      <button class="refresh-btn" onclick="clearCache();loadDailyArticles()">↻ 重新載入</button>
+    </div>
+    <div id="dailyContent"><div class="state"><div class="spinner"></div><div>載入日報...</div></div></div>
+  </div>
+</div>
+
 <div id="settingsOverlay" onclick="closeSettings()">
   <div id="settingsPanel" onclick="event.stopPropagation()">
     <div class="row-between" style="margin-bottom:1rem">
@@ -644,6 +654,7 @@ button,select,input { font-family:inherit; }
   <button class="nav-btn" id="navBacktest" onclick="showPage('backtest')"><span>📊</span><span>回測</span></button>
   <button class="nav-btn" id="navAI" onclick="showPage('ai')"><span>🤖</span><span>AI</span></button>
   <button class="nav-btn" id="navLarge" onclick="showPage('large')"><span>🐋</span><span>權值股</span></button>
+  <button class="nav-btn" id="navDaily" onclick="showPage('daily')"><span>📰</span><span>日報</span></button>
 </div>
 
 <script>
@@ -753,6 +764,10 @@ function parseDateVal(v) {
   const s = String(v || '').trim();
   const dm = s.match(/Date\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
   if (dm) return dm[1] + '-' + String(parseInt(dm[2],10)+1).padStart(2,'0') + '-' + String(dm[3]).padStart(2,'0');
+  if (/^\d{4}\/\d{1,2}\/\d{1,2}/.test(s)) {
+    const p = s.substring(0,10).split('/');
+    return p[0] + '-' + String(p[1]).padStart(2,'0') + '-' + String(p[2]).padStart(2,'0');
+  }
   if (/^\d{4}-\d{1,2}-\d{1,2}/.test(s)) {
     const p = s.substring(0,10).split('-');
     return p[0] + '-' + String(p[1]).padStart(2,'0') + '-' + String(p[2]).padStart(2,'0');
@@ -2402,10 +2417,10 @@ function renderFilterStatus(count, total) {
 }
 const _scrollPos = {};
 function showPage(page) {
-  const pages = ['signal','sector','backtest','ai','large'];
+  const pages = ['signal','sector','backtest','ai','large','daily'];
   const cur = pages.find(p => qs(p+'Page')?.style.display !== 'none');
   if (cur) _scrollPos[cur] = window.scrollY;
-  ['Signal','Sector','Backtest','AI','Large'].forEach(name => {
+  ['Signal','Sector','Backtest','AI','Large','Daily'].forEach(name => {
     const key = name.toLowerCase();
     const nav = qs('nav' + name);
     if (nav) nav.classList.toggle('active', key === page);
@@ -2415,12 +2430,14 @@ function showPage(page) {
   qs('backtestPage').style.display = page === 'backtest' ? '' : 'none';
   qs('aiPage').style.display = page === 'ai' ? '' : 'none';
   qs('largePage').style.display = page === 'large' ? '' : 'none';
+  qs('dailyPage').style.display = page === 'daily' ? '' : 'none';
   requestAnimationFrame(() => window.scrollTo(0, _scrollPos[page] || 0));
   const disabled = el => `<div class="state" style="padding:3rem 1rem"><div style="font-size:1.5rem;margin-bottom:8px">⚙️</div><div>已在設定中停用</div><div style="font-size:.72rem;color:var(--text3);margin-top:6px">點右上角 ⚙️ 開啟</div></div>`;
   if (page === 'sector')   { dsEnabled('sector')   ? loadSector()   : qs('sectorContent').innerHTML  = disabled(); }
   if (page === 'backtest') { dsEnabled('backtest')  ? loadBacktest().then(loadMarketCorrelation) : qs('btContent').innerHTML = disabled(); }
   if (page === 'ai')       { dsEnabled('ai')        ? loadAI()       : qs('aiContent').innerHTML      = disabled(); }
   if (page === 'large')    { dsEnabled('large')     ? loadLarge()    : qs('largeContent').innerHTML   = disabled(); }
+  if (page === 'daily')    { dsEnabled('daily')     ? loadDailyArticles() : qs('dailyContent').innerHTML = disabled(); }
 }
 function askAnyStock(code, name) {
   showPage('ai');
@@ -3432,6 +3449,90 @@ async function loadNews() {
     }).join('') + (!newsExpanded && todayRows.length > 5 ? `<div style="font-size:.68rem;color:var(--text3);text-align:center;padding-top:2px">還有 ${todayRows.length - 5} 則，點「展開全部」查看</div>` : '');
   } catch(e) {
     el.innerHTML = '<div style="text-align:center;color:var(--text3)">載入失敗</div>';
+  }
+}
+
+let dailyArticleCache = [];
+async function loadDailyArticles() {
+  const el = qs('dailyContent');
+  if (!el) return;
+  el.innerHTML = '<div class="state"><div class="spinner"></div><div>載入日報...</div></div>';
+  try {
+    const rows = await fetchSheet('每日文章', true);
+    const articles = rows.map(r => ({
+      date: parseDateVal(cell(r.c,0,'')),
+      title: String(cell(r.c,1,'')),
+      content: String(cell(r.c,2,'')),
+      summary: String(cell(r.c,3,''))
+    })).filter(a => a.date && (a.title || a.content)).sort((a,b) => b.date.localeCompare(a.date));
+    dailyArticleCache = articles;
+    if (!articles.length) {
+      el.innerHTML = `<div class="plain-card" style="text-align:center">
+        <div style="font-size:2rem;margin-bottom:8px">🐱</div>
+        <div style="font-weight:800;margin-bottom:6px">還沒有日報</div>
+        <div style="font-size:.76rem;color:var(--text2);line-height:1.6">可以先按下面按鈕手動生成，之後會由 Apps Script 每天早上自動產生。</div>
+        <button class="primary-btn" style="margin-top:12px;border-radius:12px" onclick="generateDailyArticleNow()">生成今日日報</button>
+      </div>`;
+      return;
+    }
+    el.innerHTML = `<div class="plain-card" style="margin-bottom:12px;border-left:4px solid var(--brown-light)">
+      <div class="row-between" style="align-items:flex-start">
+        <div>
+          <div class="section-title" style="margin:0">日報列表</div>
+          <div style="font-size:.68rem;color:var(--text3);margin-top:3px">最新 ${articles[0].date} · 共 ${articles.length} 篇</div>
+        </div>
+        <button class="ghost-btn" onclick="generateDailyArticleNow()">手動生成</button>
+      </div>
+    </div>
+    <div class="cards">${articles.map((a, i) => `<div class="card" onclick="renderDailyArticle(${i})" style="cursor:pointer">
+      <div class="row-between" style="align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div class="stock-name">${a.title || '籌碼貓日報'}</div>
+          <div class="stock-code">${a.date}</div>
+        </div>
+        <div class="op-badge neutral" style="margin:0">閱讀</div>
+      </div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.7">${a.summary || String(a.content).replace(/[#>*_`-]/g,'').slice(0,120) + '...'}</div>
+    </div>`).join('')}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="plain-card" style="text-align:center;color:var(--text2)">
+      <div style="font-weight:800;color:var(--red);margin-bottom:6px">日報載入失敗</div>
+      <div style="font-size:.76rem;line-height:1.6">${e.message}</div>
+      <button class="ghost-btn" style="margin-top:10px" onclick="loadDailyArticles()">重試</button>
+    </div>`;
+  }
+}
+
+function renderDailyArticle(index) {
+  const a = dailyArticleCache[index];
+  const el = qs('dailyContent');
+  if (!a || !el) return;
+  const title = a.title || '籌碼貓日報';
+  el.innerHTML = `<div class="plain-card" style="margin-bottom:12px">
+    <button class="ghost-btn" onclick="loadDailyArticles()" style="margin-bottom:10px">← 回日報列表</button>
+    <div style="font-size:.72rem;color:var(--brown);font-weight:800;margin-bottom:4px">${a.date}</div>
+    <h1 style="font-size:1.35rem;line-height:1.35;margin:0 0 10px;color:var(--text);letter-spacing:0">${title}</h1>
+    ${a.summary ? `<div style="font-size:.86rem;line-height:1.7;color:var(--text2);background:var(--bg2);border-radius:12px;padding:.8rem;margin-bottom:12px;border-left:4px solid var(--brown-light)">${a.summary}</div>` : ''}
+    <article style="font-size:.88rem;line-height:1.95;color:var(--text2)">${formatMarkdown(a.content || '')}</article>
+  </div>`;
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+async function generateDailyArticleNow() {
+  const el = qs('dailyContent');
+  if (el) el.innerHTML = '<div class="state"><div class="spinner"></div><div>正在請籌碼貓寫日報，約 30~60 秒...</div></div>';
+  try {
+    const res = await fetch(`${WEB_APP_URL}?action=generateArticle&ts=${Date.now()}`, {cache:'no-store'});
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.msg || '生成失敗');
+    localStorage.removeItem('sc_每日文章');
+    await loadDailyArticles();
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="plain-card" style="text-align:center;color:var(--text2)">
+      <div style="font-weight:800;color:var(--red);margin-bottom:6px">生成失敗</div>
+      <div style="font-size:.76rem;line-height:1.6">${e.message}</div>
+      <button class="ghost-btn" style="margin-top:10px" onclick="loadDailyArticles()">回列表</button>
+    </div>`;
   }
 }
 
@@ -5512,6 +5613,7 @@ const DS = [
   {key:'sector',   icon:'🏭', label:'板塊資料',      desc:'板塊熱力圖與 5 日趨勢'},
   {key:'backtest', icon:'📊', label:'回測分析',      desc:'歷史訊號績效'},
   {key:'large',    icon:'🐋', label:'權值股監控',    desc:'法人資金動向與前日漲幅檢討'},
+  {key:'daily',    icon:'📰', label:'籌碼貓日報',    desc:'每日科技深度文章'},
   {key:'trend',    icon:'📈', label:'訊號變化趨勢',  desc:'趨勢追蹤 Sheet（影響訊號升降溫）'},
 ];
 function getDS() {
