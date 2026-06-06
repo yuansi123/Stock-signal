@@ -3319,21 +3319,6 @@ function renderBriefing() {
       col, "showPage('backtest')"));
   }
 
-  // ⑤ 題材資金流向（法人今天在買哪個題材）
-  const themeStats = THEME_MAP.map(t => {
-    const members = allStocks.filter(s => t.codes.includes(String(s.code)));
-    const net = members.reduce((a,s) => a + (Number(s.instNet)||0), 0);
-    const buy = members.filter(s => getDisplayOpClass(s) === 'buy').length;
-    return {t, n: members.length, net, buy};
-  }).filter(x => x.n > 0).sort((a,b) => b.net - a.net);
-  if (themeStats.length) {
-    const rows = themeStats.slice(0,3).map(x => {
-      const sel = themeFilter === x.t.key;
-      return `<tr onclick="event.stopPropagation();filterByTheme('${x.t.key}')" title="${x.t.note}" style="cursor:pointer${sel?';background:'+x.t.color+'1f':''}"><td style="padding:1px 6px 1px 0">${x.t.short}</td><td style="padding:1px 6px;text-align:right;color:${x.net>=0?'var(--red)':'var(--blue)'};font-weight:700">${x.net>=0?'+':''}${x.net}</td><td style="padding:1px 0;text-align:right;color:var(--green)">${x.buy?x.buy+'買':''}</td></tr>`;
-    }).join('');
-    blocks.push(block('🔥', '題材', `<table style="border-collapse:collapse;font-size:.72rem">${rows}</table>`, 'var(--red)'));
-  }
-
   card.innerHTML = `<div style="display:flex;flex-direction:column;gap:7px">${blocks.join('')}</div>`;
   section.style.display = '';
 }
