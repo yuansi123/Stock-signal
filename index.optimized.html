@@ -2432,7 +2432,7 @@ function showPage(page) {
 function askAnyStock(code, name) {
   showPage('ai');
   setTimeout(() => {
-    qs('aiChatInput').value = `${name || ''} ${code}`.trim();
+    qs('aiChatInput').value = String(code || '').trim();
     sendAIChat();
   }, 250);
 }
@@ -4854,30 +4854,151 @@ ${news.text}`;
     box.innerHTML = `<div class="detail-panel" style="font-size:.74rem;color:var(--red)">AI消息面判讀失敗：${e.message}</div>`;
   }
 }
+function extractStockCodesFromQuery(q) {
+  const matches = String(q || '').match(/(^|[^\d])(\d{4})(?=[^\d]|$)/g) || [];
+  return [...new Set(matches.map(x => {
+    const m = x.match(/(\d{4})/);
+    return m ? m[1] : '';
+  }).filter(Boolean))];
+}
+
+function buildLookupOnlyTarget(info) {
+  const sectorInfo = getAppSectorInfo(info.code, info.industry || '');
+  return {
+    code: info.code,
+    name: info.name,
+    sector: sectorInfo.name,
+    sectorDesc: sectorInfo.desc,
+    industry: info.industry || '未分類',
+    price: info.close || 0,
+    date: info.lastDate || '',
+    vol: info.volume || 0,
+    lookupOnly: true
+  };
+}
+
+async function resolveAIStockTarget(q) {
+  const codes = extractStockCodesFromQuery(q);
+  if (codes.length > 1) {
+    return {error:`一次偵測到多個代號：${codes.join('、')}。請一次查詢一檔股票，避免 AI 對錯標的。`};
+  }
+
+  if (codes.length === 1) {
+    const code = codes[0];
+    const signalStock = allStocks.find(s => String(s.code) === code);
+    if (signalStock) return {target:signalStock, label:`${signalStock.name}(${code})`};
+    const lookup = await lookupAnyStock(code);
+    const exact = (lookup.items || []).find(x => x.code === code);
+    if (!exact) return {error:`找不到股票代號 ${code}，請確認代號是否正確。`};
+    const target = buildLookupOnlyTarget(exact);
+    return {target, label:`${target.name}(${code})`};
+  }
+
+  const text = String(q || '').trim().toLowerCase();
+  const signalMatches = allStocks
+    .filter(s => s.name && text.includes(String(s.name).toLowerCase()))
+    .sort((a,b) => String(b.name).length - String(a.name).length);
+  if (signalMatches.length) {
+    const target = signalMatches[0];
+    return {target, label:`${target.name}(${target.code})`};
+  }
+
+  const list = await fetchStockInfoList();
+  const nameMatches = list
+    .filter(r => {
+      const name = String(r.stock_name || '').trim().toLowerCase();
+      return name && text.includes(name);
+    })
+    .sort((a,b) => String(b.stock_name).length - String(a.stock_name).length);
+  if (nameMatches.length) {
+    const code = String(nameMatches[0].stock_id || '');
+    const lookup = await lookupAnyStock(code);
+    const exact = (lookup.items || []).find(x => x.code === code);
+    if (exact) {
+      const target = buildLookupOnlyTarget(exact);
+      return {target, label:`${target.name}(${target.code})`};
+    }
+  }
+
+  return {target:null, label:'一般市場問題'};
+}
+
 async function sendAIChat() {
   const input = qs('aiChatInput'), result = qs('aiChatResult'), q = input.value.trim();
   if (!q) return;
-  result.innerHTML = '<div class="state" style="padding:1rem 0"><div class="spinner" style="width:20px;height:20px"></div><div>AI分析中...</div></div>';
-  const target = allStocks.find(s => s.code === q || s.name.includes(q));
-  const prompt = buildAIPrompt(q, target) + (target ? buildHistoricalThemeContextForStock(target) + buildInfluencerContextForStock(target) : '');
+  result.innerHTML = '<div class="state" style="padding:1rem 0"><div class="spinner" style="width:20px;height:20px"></div><div>核對股票身份...</div></div>';
   try {
+    const resolved = await resolveAIStockTarget(q);
+    if (resolved.error) {
+      result.innerHTML = `<div class="plain-card" style="border-left:4px solid var(--red)"><div style="font-size:.8rem;color:var(--red);font-weight:700">股票身份無法確認</div><div style="font-size:.76rem;color:var(--text2);line-height:1.65;margin-top:5px">${resolved.error}</div></div>`;
+      return;
+    }
+    const target = resolved.target;
+    result.innerHTML = `<div class="state" style="padding:1rem 0"><div class="spinner" style="width:20px;height:20px"></div><div>正在分析 ${resolved.label}...</div></div>`;
+    const prompt = buildAIPrompt(q, target) + (target ? buildHistoricalThemeContextForStock(target) + buildInfluencerContextForStock(target) : '');
     const res = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt})});
     const data = await res.json();
     const text = String(data.text || '無法取得回答');
-    result.innerHTML = `<div class="plain-card"><div style="font-size:.7rem;color:var(--brown);font-weight:700;margin-bottom:6px">🤖 AI 回覆 · ${q}</div><div style="font-size:.8rem;color:var(--text2);line-height:1.8">${formatMarkdown(text)}</div></div>`;
+    const identityNote = target
+      ? `<div style="font-size:.66rem;color:var(--text3);margin-bottom:8px">已核對標的：<strong style="color:var(--text)">${target.name} (${target.code})</strong>${target.lookupOnly ? ' · 不在今日訊號看板，未套用量化分數' : ' · 使用今日訊號資料'}</div>`
+      : '';
+    result.innerHTML = `<div class="plain-card"><div style="font-size:.7rem;color:var(--brown);font-weight:700;margin-bottom:6px">🤖 AI 回覆 · ${resolved.label}</div>${identityNote}<div style="font-size:.8rem;color:var(--text2);line-height:1.8">${formatMarkdown(text)}</div></div>`;
     input.value = '';
   } catch(e) {
     result.innerHTML = `<div style="color:var(--red);font-size:.78rem">錯誤：${e.message}</div>`;
   }
 }
 function buildAIPrompt(q,target) {
+  if (target && target.lookupOnly) {
+    return `你是台灣資深股票分析師，請用繁體中文回答。
+
+【股票身份已由官方股票清單核對】
+股票：${target.name}（${target.code}）
+官方產業：${target.industry}
+App題材分類：${target.sector}
+題材說明：${target.sectorDesc || '—'}
+最新可取得收盤：${target.price || '—'}
+資料日期：${target.date || '—'}
+成交量：約${target.vol || 0}張
+用戶問題：「${q}」
+
+重要限制：
+1. 只能分析 ${target.name}（${target.code}），不可替換成名稱相似或其他代號的股票。
+2. 這檔不在今日訊號看板，沒有本系統的分數、法人買賣、RSI、集中度、當沖比與進出場價。
+3. 不可捏造上述缺少的量化數據；需要時直接說「今日訊號資料未收錄」。
+4. 請說明公司主要業務、所屬題材、可能催化與風險；操作面只能給觀察框架，不要假裝已有系統買入訊號。
+
+請依序回答：公司是做什麼、目前題材、值得觀察原因、主要風險、下一步應確認哪些數據。`;
+  }
   if (target) {
     const sizing = getPositionSizing(target);
     const archetype = getStockArchetype(target);
     const validity = getSignalValidity(target);
     const nextDay = getNextDayFollowup(target);
     const buyRisk = getBuyRiskWarning(target);
-    return `你是台灣資深股票分析師，請針對以下股票給出完整分析，回覆用繁體中文。\n\n用戶問題：「${q}」\n股票：${target.name}(${target.code}) 板塊：${target.sector}\n型態分類：${archetype}\n訊號有效性：${validity.label}，原因：${validity.detail}\n買入風險警示：${buyRisk.label}，操作：${buyRisk.action}，原因：${buyRisk.items.join('；')}\n隔日追蹤：${nextDay}\n收盤價：${target.price} 總分：${target.score} 操作：${getDisplayOp(target)}\n建議倉位：${sizing.label} ${sizing.pct}，原因：${sizing.reason}\n法人淨買超：${target.instNet}張 連買：${target.streak}天\nRSI：${target.rsi} K/D：${target.kVal}/${target.dVal} 五日集中：${target.conc5}\n外資：${target.foreign} 投信：${target.trust} 自營：${target.dealer}\n融資餘額：${target.marginBal} 融資增減：${target.marginChg} 融券：${target.shortBal} 券資比：${target.shortRatio}%\n進場：${target.entry} 停損：${target.stop} 停利1：${target.tp1} 停利2：${target.tp2} 風報比：${target.rr}\n當沖比：${target.dayTradeRatio} 當沖扣分：${target.dayTradePenalty}\n訊號說明：${target.reasons}\n\n請先用一句話說明「這檔是哪一型、現在該怎麼看」。再分成：籌碼分析、技術面判斷、操作建議、停損停利、主要風險。\n回答要依型態調整口吻：突破動能型重視續量與追價風險；法人卡位型重視連買與消息催化；過熱續航型重視拉回和續航條件；低檔轉強型重視是否站回關鍵價；風險警示型要直接提醒不要硬做。若買入風險警示是「高風險，不追」，請明確講不要追價，只能等拉回或隔日量價確認。不要每檔都套同一種模板。`;
+    return `你是台灣資深股票分析師，請針對以下股票給出完整分析，回覆用繁體中文。
+
+【股票身份已核對，禁止分析其他標的】
+股票：${target.name}（${target.code}）
+用戶問題：「${q}」
+板塊：${target.sector}
+型態分類：${archetype}
+訊號有效性：${validity.label}，原因：${validity.detail}
+買入風險警示：${buyRisk.label}，操作：${buyRisk.action}，原因：${buyRisk.items.join('；')}
+隔日追蹤：${nextDay}
+收盤價：${target.price} 總分：${target.score} 操作：${getDisplayOp(target)}
+建議倉位：${sizing.label} ${sizing.pct}，原因：${sizing.reason}
+法人淨買超：${target.instNet}張 連買：${target.streak}天
+RSI：${target.rsi} K/D：${target.kVal}/${target.dVal} 五日集中：${target.conc5}
+外資：${target.foreign} 投信：${target.trust} 自營：${target.dealer}
+融資餘額：${target.marginBal} 融資增減：${target.marginChg} 融券：${target.shortBal} 券資比：${target.shortRatio}%
+進場：${target.entry} 停損：${target.stop} 停利1：${target.tp1} 停利2：${target.tp2} 風報比：${target.rr}
+當沖比：${target.dayTradeRatio} 當沖扣分：${target.dayTradePenalty}
+訊號說明：${target.reasons}
+
+只能分析 ${target.name}（${target.code}），不可改成名稱相似、同產業或其他代號股票。
+請先用一句話說明「這檔是哪一型、現在該怎麼看」。再分成：籌碼分析、技術面判斷、操作建議、停損停利、主要風險。
+回答要依型態調整口吻：突破動能型重視續量與追價風險；法人卡位型重視連買與消息催化；過熱續航型重視拉回和續航條件；低檔轉強型重視是否站回關鍵價；風險警示型要直接提醒不要硬做。若買入風險警示是「高風險，不追」，請明確講不要追價，只能等拉回或隔日量價確認。不要每檔都套同一種模板。`;
   }
   return `你是台灣資深股票分析師，請針對以下問題給出專業建議，繁體中文，簡潔有力。\n\n用戶問題：「${q}」\n今日資料日期：${qs('dateTag').textContent}\n買入訊號：${allStocks.filter(s=>s.op.includes('🟢')).length}檔\n前5強：${allStocks.filter(s=>s.op.includes('🟢')).slice(0,5).map(s=>`${displayStockName(s)}(${s.code})${s.score}分`).join('、')}\n連買3天以上：${allStocks.filter(s=>s.streak>=3).slice(0,5).map(s=>`${displayStockName(s)}連買${s.streak}天`).join('、')}\n\n請直接給明確立場。`;
 }
